@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-create-cluster-site
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: contract_id
+      value: "contract_uuid"
+    - name: cluster_id
+      value: "cluster_uuid"
+  templates:
+  - name: createClusterSite
+    activeDeadlineSeconds: 120
+    container:
+      name: 'createClusterSite'
+      image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+        git clone https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}.git
+        cd ${CONTRACT_ID}
+        cp -r template-site ${CLUSTER_ID}
+
+        git config --global user.email "taco_support@sk.com"
+        git config --global user.name "SKTelecom TACO"
+
+        git add ${CLUSTER_ID}
+        git commit -m "add new ${CLUSTER_ID} site"
+        git push origin main
+      envFrom:
+        - secretRef:
+            name: "github-tks-mgmt-token"
+      env:
+      - name: CONTRACT_ID
+        value: "{{workflow.parameters.contract_id}}"
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.cluster_id}}"
+  - name: main
+    steps:
+      - - name: createClusterSite
+          template: createClusterSite
+          arguments: {}

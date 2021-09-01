@@ -1,0 +1,82 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-create-contract-repo
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: contract_id
+      value: "contract_uuid"
+  templates:
+  - name: createContractRepo
+    activeDeadlineSeconds: 120
+    container:
+      name: 'createRepo'
+      image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+        echo $TOKEN | gh auth login --with-token
+        echo "===== Current tks-management repo list ====="
+        gh repo list tks-management
+
+        echo "===== Create and initialize tks-management/${CONTRACT_ID} site and manifests repositories ====="
+        gh repo create tks-management/${CONTRACT_ID} --private --confirm
+        gh repo create tks-management/${CONTRACT_ID}-manifests --private --confirm
+
+        cd ${CONTRACT_ID}
+        echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
+
+        gh repo clone tks-management/decapod-site-tks-template-manifests
+        cd decapod-site-tks-template-manifests
+        git remote add new_contract https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}-manifests
+        git push new_contract main:main
+        cd ..
+
+        gh repo clone tks-management/decapod-site-tks-template
+        cd decapod-site-tks-template
+        git remote add new_contract https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}
+        git push new_contract main:main
+        cd ..
+      envFrom:
+        - secretRef:
+            name: "github-tks-mgmt-token"
+      env:
+        - name: CONTRACT_ID
+          value: "{{workflow.parameters.contract_id}}"
+  - name: createRepoCredential
+    activeDeadlineSeconds: 120
+    container:
+      name: 'createCredential'
+      image: docker.io/sktdev/argocd:latest
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+        echo "===== Connect github repo tks-management/${CONTRACT_ID}-manifests with token ====="
+        # log into Argo CD server
+        ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
+        --password $ARGO_PASSWORD
+
+        ./argocd repo add https://github.com/tks-management/${CONTRACT_ID}-manifests --username ${USERNAME} --password ${TOKEN}
+      envFrom:
+        - secretRef:
+            name: "github-tks-mgmt-token"
+        - secretRef:
+            name: "decapod-argocd-config"
+      env:
+        - name: CONTRACT_ID
+          value: "{{workflow.parameters.contract_id}}"
+  - name: main
+    steps:
+      - - name: createContractRepository
+          template: createContractRepo
+          arguments: {}
+      - - name: createRepoCredential
+          template: createRepoCredential
+          arguments: {}
