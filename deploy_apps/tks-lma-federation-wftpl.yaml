@@ -119,12 +119,15 @@ spec:
       - name: outwards_endpoint_map
         valueFrom:
           path: /mnt/out/outwards_endpoint.txt
+      - name: cur_cluster_name
+        valueFrom:
+          path: /mnt/out/cur_cluster_name.txt
     volumes:
     - name: out
       emptyDir: {}
     script: 
       name: 'collect'
-      image: centos/python-38-centos7
+      image: sktdev/python-centos-wf-worker:v1.0
       command:
       - python
       env:
@@ -137,13 +140,7 @@ spec:
       - name: out
         mountPath: /mnt/out
       source: |
-        import subprocess
         import sys
-
-        # TODO: bake custom image that includes these packages
-        subprocess.check_call([sys.executable, "-m", "pip", "install",
-        "grpcio", "protobuf"])
-
         import google.protobuf
         import grpc
         import info_pb2
@@ -230,3 +227,6 @@ spec:
         with open("/mnt/out/outwards_endpoint.txt", "w") as f:
           str_outwards_endpoint = repr(outwards_endpoint_map)
           f.write(str_outwards_endpoint)
+
+        with open("/mnt/out/cur_cluster_name.txt", "w") as f:
+          f.write(cur_cluster_name)
