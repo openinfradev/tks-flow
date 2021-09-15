@@ -4,7 +4,7 @@ metadata:
   name: tks-lma-federation
   namespace: argo
 spec:
-  entrypoint: deploy
+  entrypoint: deployLMA
   arguments:
     parameters:
     - name: site_name
@@ -14,6 +14,8 @@ spec:
       value: "lma"
     - name: repository_url
       value: "https://github.com/openinfradev/decapod-manifests"
+    - name: revision
+      value: "main"
     ##########################
     # For updateTksInfo task #
     ##########################
@@ -92,7 +94,7 @@ spec:
             value: "insert"
           # TODO: modify this to reflect actual cluster name for all cases
           - name: cluster_name
-            value: "{{workflow.parameters.cluster_id}}"
+            value: "{{steps.collectThanosScEndpoints.outputs.parameters.cur_cluster_name}}"
           - name: app_group
             value: "{{workflow.parameters.app_name}}"
           - name: chart

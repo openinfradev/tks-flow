@@ -59,6 +59,6 @@ spec:
             print("Response code from UpdateAppGroupStaus: %d" % res.code)
 
             # TODO: how to dynamically construct app_type param as enum format here?
-            for app_type_, ep in {{inputs.parameters.endpoints}}:
+            for app_type_, ep in {{inputs.parameters.endpoints}}.items():
               res = app_stub.UpdateApp(info_pb2.UpdateAppRequest(app_group_id="{{workflow.parameters.app_group_id}}", app_type=common_pb2.{{app_type_}}, endpoint=ep, metadata="{}"))
               print("Response code from UpdateApp: %d" % res.code)
