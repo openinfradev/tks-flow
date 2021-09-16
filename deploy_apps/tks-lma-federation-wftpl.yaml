@@ -9,10 +9,13 @@ spec:
     parameters:
     - name: site_name
       value: "hanu-reference"
-    # This should be renamed to app_group_name
+    # TODO: This should be renamed to app_group_name
     - name: app_name
       value: "lma"
-    - name: repository_url
+    # Replace these urls properly for your env #
+    - name: site_repo_url
+      value: "https://github.com/openinfradev/decapod-site"
+    - name: manifest_repo_url
       value: "https://github.com/openinfradev/decapod-manifests"
     - name: revision
       value: "main"
