@@ -21,7 +21,8 @@ spec:
       - -ecx
       - |
         echo $TOKEN | gh auth login --with-token
-        echo "===== Current tks-management repo list ====="
+        echo "===== Current repo list ====="
+        gh repo list openinfradev | grep tks-user-site
         gh repo list tks-management
 
         echo "===== Create and initialize tks-management/${CONTRACT_ID} site and manifests repositories ====="
@@ -31,15 +32,15 @@ spec:
         cd ${CONTRACT_ID}
         echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
 
-        gh repo clone tks-management/decapod-site-tks-template-manifests
-        cd decapod-site-tks-template-manifests
-        git remote add new_contract https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}-manifests
+        git clone https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
+        cd tks-user-site-template
+        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}-manifests
         git push new_contract main:main
         cd ..
 
-        gh repo clone tks-management/decapod-site-tks-template
-        cd decapod-site-tks-template
-        git remote add new_contract https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}
+        git clone https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template-manifests
+        cd tks-user-site-template-manifests
+        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}
         git push new_contract main:main
         cd ..
       envFrom:
