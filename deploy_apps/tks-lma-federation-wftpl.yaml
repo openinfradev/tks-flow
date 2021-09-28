@@ -162,7 +162,7 @@ spec:
 
         ip = "{{inputs.parameters.tks_info_host}}"
         # TODO: Make port workflow param?
-        port = 9111
+        port = 9110
         addr = "%s:%d" % (ip, port)
         print("tks-info addr: %s" % addr)
 
