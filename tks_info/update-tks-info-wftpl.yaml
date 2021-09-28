@@ -48,7 +48,7 @@ spec:
         import common_pb2_grpc
 
         ip = "{{workflow.parameters.tks_info_host}}"
-        port = 9111 # if not specified
+        port = 9110 # if not specified
         addr = "%s:%d" % (ip, port)
         print("tks-info addr: %s" % addr)
 
