@@ -17,21 +17,19 @@ spec:
       value: main
     - name: tks_admin
       value: "tks-admin"
-    - name: app_name
+    - name: app_group
       value: "tks-cluster"
 
   templates:
   - name: deploy
-    dag:
-      tasks:
-      - name: tks-create-cluster-site
+    steps:
+    - - name: tks-create-cluster-site
         template: new-cluster-site
-        dependencies: []
 
-      - name: k8s-by-capi
+    - - name: k8s-by-capi
         templateRef:
           name: tks-create-application
-          template: AppGroupOnAdmin
+          template: installAppsOnAdmin
         arguments:
           parameters: 
           - name: list
@@ -39,28 +37,25 @@ spec:
               [
                 { "path": "cluster-api-aws", "namespace": "argo" }
               ]
-        dependencies: [tks-create-cluster-site]
 
-      - name: wait-for-clster-is-registered
-        template: wait-template
-        dependencies: [k8s-by-capi]
+    - - name: wait-for-clster-to-be-registered
+        template: wait-for-cluster-registration
 
-      - name: ready-for-cni-and-csi
+      # TODO: What does this name mean? Wait for CNI?
+    - - name: ready-for-cni-and-csi
         templateRef:
           name: tks-create-application
-          template: AppGroup
+          template: installApps
         arguments:
           parameters: 
           - name: list
             value: |
               [
                 { "path": "ingress-nginx", "namespace": "taco-system" },
-                { "path": "kubed", "namespace": "taco-system" },
                 { "path": "kubernetes-addons", "namespace": "taco-system" }
               ]
-        dependencies: [k8s-by-capi, wait-for-clster-is-registered ]
 
-  - name: wait-template
+  - name: wait-for-cluster-registration
     activeDeadlineSeconds: 1800
     container:
       image: ghcr.io/openinfradev/argocd-cli:v2.0.1
@@ -71,7 +66,7 @@ spec:
         yes | ./argocd login --insecure $ARGO_SERVER --username $ARGO_USERNAME --password $ARGO_PASSWORD
 
         while [ $(./argocd cluster list | grep \ $target\ | wc -l ) == 0 ]; do
-            echo "> Wait for cluster is registered"
+            echo "> Wait for cluster to be registered"
             sleep 30
         done
       envFrom:

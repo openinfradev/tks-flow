@@ -8,12 +8,12 @@ spec:
     parameters:
     - name: cluster_id
       value: "hanu-deploy-apps"
-    - name: app_name
+    - name: app_group
       value: "lma"
-    - name: repository_url
+    - name: manifest_repo_url
       value: "https://github.com/openinfradev/decapod-manifests"
     - name: revision
-      value: main
+      value: "main"
   templates:
   - name: createApp
     inputs:
@@ -32,21 +32,23 @@ spec:
         #NAMESPACE=$SITE_NAME
         CD_APP=${SITE_NAME:0:8}-$PATH
         echo "argo-cd application name: $CD_APP"
+
         # log into Argo CD server
         ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
         --password $ARGO_PASSWORD
 
-        # check if app already exists.
         REPO=https://$(echo $gittoken|xargs)@github.com/$git_account/${contract_id}-manifests.git
+
+        # check if app already exists.
         ./argocd app get $CD_APP 
         if [[ $? -ne 0 ]]; then
           echo "$CD_APP application is not in server"
           # create new application if not exists.
-          echo ./argocd app create $CD_APP --repo $REPO --revision $REVISION --path $SITE_NAME/$TACO_APP/$PATH --dest-namespace $NAMESPACE --dest-name $TARGET_CLUSTER --project $TACO_APP --label app=$TACO_APP --directory-recurse
+          echo ./argocd app create $CD_APP --repo $REPO --revision $REVISION --path $SITE_NAME/$APP_GROUP/$PATH --dest-namespace $NAMESPACE --dest-name $TARGET_CLUSTER --project $APP_GROUP --label app=$APP_GROUP --directory-recurse
           ./argocd app create $CD_APP --repo $REPO --revision $REVISION \
-            --path $SITE_NAME/$TACO_APP/$PATH \
+            --path $SITE_NAME/$APP_GROUP/$PATH \
             --dest-namespace $NAMESPACE --dest-name $TARGET_CLUSTER \
-            --project $TACO_APP --label app=$TACO_APP --directory-recurse
+            --project $APP_GROUP --label app=$APP_GROUP --directory-recurse
 
           if [[ $? -ne 0 ]]; then
             exit $?
@@ -68,8 +70,8 @@ spec:
           value: "{{workflow.parameters.cluster_id}}"
         - name: TARGET_CLUSTER
           value: "{{inputs.parameters.target_cluster}}"
-        - name: TACO_APP
-          value: "{{workflow.parameters.app_name}}"
+        - name: APP_GROUP
+          value: "{{workflow.parameters.app_group}}"
         - name: NAMESPACE
           value: "{{inputs.parameters.namespace}}"
         - name: REVISION
@@ -82,12 +84,12 @@ spec:
           value: "{{workflow.parameters.git_account}}"
 
 
-  - name: AppGroup
+  - name: installApps
     inputs:
       parameters:
       - name: list
     steps:
-    - - name: "InstallAppGroup"
+    - - name: "InstallApps"
         template: createApp
         arguments:
           parameters:
@@ -96,12 +98,12 @@ spec:
           - {name: target_cluster, value: "{{workflow.parameters.cluster_id}}"}
         withParam: "{{inputs.parameters.list}}"
 
-  - name: AppGroupOnAdmin
+  - name: installAppsOnAdmin
     inputs:
       parameters:
       - name: list
     steps:
-    - - name: "InstallAppGroup"
+    - - name: "InstallAppsOnAdmin"
         template: createApp
         arguments:
           parameters:

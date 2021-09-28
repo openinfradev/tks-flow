@@ -26,7 +26,7 @@ spec:
             template: delete-argocd-app
             arguments:
               parameters:
-                - name: app_name
+                - name: app_group
                   value: service-mesh
                 - name: site_name
                   value: "{{workflow.parameters.site_name}}"
@@ -71,7 +71,7 @@ spec:
     - name: delete-argocd-app
       inputs:
         parameters:
-          - name: app_name
+          - name: app_group
           - name: site_name
       container:
         name: delete-argocd-app
@@ -98,7 +98,7 @@ spec:
               name: decapod-argocd-config
         env:
           - name: APP_NAME
-            value: "{{inputs.parameters.app_name}}"
+            value: "{{inputs.parameters.app_group}}"
           - name: SITE_NAME
             value: '{{inputs.parameters.site_name}}'
       activeDeadlineSeconds: 900
