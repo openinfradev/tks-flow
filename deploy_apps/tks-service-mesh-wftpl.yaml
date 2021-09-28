@@ -151,6 +151,7 @@ spec:
             if [[ $? =~ 1 ]]; then
               kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
               kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${TARGET_NAMESPACE}
+              kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
               log "INFO" "${TARGET_NAMESPACE} successfully created."
             fi
 
