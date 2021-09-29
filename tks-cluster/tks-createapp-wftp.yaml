@@ -8,10 +8,14 @@ spec:
     parameters:
     - name: cluster_id
       value: "hanu-deploy-apps"
+    - name: contract_id
+      value: ""
+    - name: git_account
+      value: ""
+    - name: tks_admin
+      value: ""
     - name: app_group
       value: "lma"
-    - name: manifest_repo_url
-      value: "https://github.com/openinfradev/decapod-manifests"
     - name: revision
       value: "main"
   templates:
