@@ -82,8 +82,6 @@ spec:
           value: "{{workflow.parameters.revision}}"
         - name: contract_id
           value: "{{workflow.parameters.contract_id}}"
-        - name: cluster_id
-          value: "{{workflow.parameters.cluster_id}}"
         - name: git_account
           value: "{{workflow.parameters.git_account}}"
 
