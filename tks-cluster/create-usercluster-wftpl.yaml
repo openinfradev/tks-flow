@@ -28,7 +28,7 @@ spec:
 
     - - name: k8s-by-capi
         templateRef:
-          name: tks-create-application
+          name: tks-create-application-new
           template: installAppsOnAdmin
         arguments:
           parameters: 
@@ -44,7 +44,7 @@ spec:
       # TODO: What does this name mean? Wait for CNI?
     - - name: ready-for-cni-and-csi
         templateRef:
-          name: tks-create-application
+          name: tks-create-application-new
           template: installApps
         arguments:
           parameters: 
