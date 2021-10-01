@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: update-tks-cluster-status
+  namespace: argo
+spec:
+  entrypoint: updateClusterStatus
+  arguments:
+    parameters:
+    - name: tks_info_host
+      value: "tks-info.tks.svc"
+    - name: cluster_id
+      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+    - name: cluster_status
+      value: UNSPECIFIED
+
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+  templates:
+  - name: updateClusterStatus
+    inputs:
+      parameters:
+      - name: cluster_status
+        value: UNSPECIFIED
+    script:
+      image: sktdev/python-centos-wf-worker:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      volumeMounts:
+      - name: tks-proto-vol
+        mountPath: "/opt/protobuf"
+        readOnly: true
+      source: |
+        import sys
+        import google.protobuf
+        import grpc
+        import info_pb2
+        import info_pb2_grpc
+        import common_pb2
+        import common_pb2_grpc
+
+        ip = "{{workflow.parameters.tks_info_host}}"
+        port = 9110 # if not specified
+        addr = "%s:%d" % (ip, port)
+        print("tks-info addr: %s" % addr)
+
+        with grpc.insecure_channel(addr) as channel:
+            stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
+
+            res = stub.UpdateClusterStatus(info_pb2.UpdateClusterStatusRequest(cluster_id="{{workflow.parameters.cluster_id}}", status=common_pb2.{{inputs.parameters.cluster_status}}))
+            print("Response code from UpdateClusterStaus: %d" % res.code)
+
+  - name: runUpdateClusterStatus
+    steps:
+    - - name: runUpdateClusterStatus
+        template: updateClusterStatus
+        arguments:
+          parameters:
+            - name: cluster_status
+              value: "{{workflow.parameters.cluster_status}}"
