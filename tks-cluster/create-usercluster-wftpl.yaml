@@ -84,7 +84,7 @@ spec:
       - /bin/bash
       - -exc
       - |
-        git clone https://$(echo $gittoken|xargs)@github.com/$git_account/$contract_id.git
+        git clone https://$(echo -n $gittoken)@github.com/$git_account/$contract_id.git
         cd $contract_id
         if [ -d $cluster_id ]; then
           echo "Cluster($cluster_id) already exists."
