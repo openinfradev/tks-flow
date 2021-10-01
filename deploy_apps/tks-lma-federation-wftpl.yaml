@@ -9,8 +9,7 @@ spec:
     parameters:
     - name: site_name
       value: "hanu-reference"
-    # TODO: This should be renamed to app_group_name
-    - name: app_name
+    - name: app_group
       value: "lma"
     # Replace these urls properly for your env #
     - name: site_repo_url
@@ -88,7 +87,7 @@ spec:
           - name: cluster_name
             value: "{{item.name}}"
           - name: app_group
-            value: "{{workflow.parameters.app_name}}"
+            value: "{{workflow.parameters.app_group}}"
           - name: chart
             value: "thanos"
           - name: kv_map_str 
@@ -108,7 +107,7 @@ spec:
           - name: cluster_name
             value: "{{steps.collectThanosScEndpoints.outputs.parameters.cur_cluster_name}}"
           - name: app_group
-            value: "{{workflow.parameters.app_name}}"
+            value: "{{workflow.parameters.app_group}}"
           - name: chart
             value: "thanos"
           - name: kv_map_str
