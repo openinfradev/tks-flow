@@ -91,6 +91,7 @@ spec:
           exit 1
         fi
         cp -r template-site $cluster_id
+        sed -i "s/clusterName:\ cluster.local/clusterName:\ $cluster_id/g" $cluster_id/tks-cluster/site-values.yaml
         git config --global user.email "taco@tacocloud.com"
         git config --global user.name "argo-workflow"
         git add $cluster_id
