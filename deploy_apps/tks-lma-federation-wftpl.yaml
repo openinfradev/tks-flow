@@ -228,7 +228,7 @@ spec:
             contract_id = res.cluster.contract_id
             csp_id = res.cluster.csp_id
             # TODO: export this as step output to use it on next step
-            cur_cluster_name = res.cluster.name
+            cur_cluster_name = res.cluster.id
 
             res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=csp_id))
             print("Response from GetClusters: ")
@@ -237,7 +237,7 @@ spec:
             # Iterate over cluster list except current cluster #
             for cluster in res.clusters:
                 if cluster.id != "{{inputs.parameters.cluster_id}}":
-                  temp_map["name"] = cluster.name
+                  temp_map["name"] = cluster.id
                   str_json = json.dumps(temp_map)
                   output_cluster_list.append(str_json)
 
