@@ -7,18 +7,10 @@ spec:
   entrypoint: removeLMA
   arguments:
     parameters:
-    # Should be same as cluster_id in TKS case
-    - name: site_name
-      value: "hanu-reference"
     - name: app_group
       value: "lma"
-    # Replace these urls properly for your env #
     - name: site_repo_url
       value: "https://github.com/openinfradev/decapod-site"
-    - name: manifest_repo_url
-      value: "https://github.com/openinfradev/decapod-manifests"
-    - name: revision
-      value: "main"
     ##########################
     # For updateTksInfo task #
     ##########################
