@@ -37,12 +37,14 @@ spec:
     steps:
     - - name: deleteAppGroup
         templateRef:
-          name: deleteProject
+          name: delete-project
           template: DeleteProject
         arguments:
           parameters:
           - name: project
             value: "{{ workflow.parameters.app_group }}"
+          - name: filter
+            value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
 
     - - name: deleteNamespace
         template: deleteNamespace
@@ -91,8 +93,8 @@ spec:
             value: "thanos"
           ## {"querier.stores": "CURRENT_ENDPOINT"}
           - name: kv_map_str 
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_endpoint_map}}"
-        withParam: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_cluster_list}}"
+            value: "{{steps.collectClusterList.outputs.parameters.outwards_endpoint_map}}"
+        withParam: "{{steps.collectClusterList.outputs.parameters.outwards_cluster_list}}"
 
   #######################
   # Template Definition #
