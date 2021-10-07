@@ -1,0 +1,439 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: aws-infrastructure
+  namespace: argo
+spec:
+  entrypoint: AddAwsInfra
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "d0e77f68-d3ef-47d8-9f5a-535d7015530f"
+
+  volumes:
+  - name: config
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+      namespace: argo
+  - name: artifacts
+    configMap:
+      name: aws-artifacts
+      namespace: argo
+      defaultMode: 0555
+  templates:
+  - name: AddAwsInfra
+    steps:
+    - - name: prepare-secret
+        template: prepare-secret
+
+    - - name: install-terraform
+        template: install-terraform
+
+    - - name: create-security-group
+        template: create-security-group
+
+    - - name: create-elb
+        template: create-elb
+
+    - - name: attch-worknodes-to-elb
+        template: attch-worknodes-to-elb
+
+    - - name: add-dns-record
+        template: add-dns-record
+
+  - name: prepare-secret
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        cat <<EOF >/$cluster_id.yaml
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          labels:
+            name: $cluster_id
+          name: $cluster_id
+        ---
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: workspacesecrets
+          namespace: $cluster_id
+        data:
+          AWS_ACCESS_KEY_ID: QUtJQVhBU0JJUkNETUNOWFNJVk8=
+          AWS_SECRET_ACCESS_KEY: RDVvZUNWN3BIeXlzTTVxdk5JKzA3TWszd0NpWXM1RjdJdmdac0V1ZA==
+        type: Opaque
+        ---
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: terraformrc
+          namespace: $cluster_id
+        data:
+          credentials: >-
+            Y3JlZGVudGlhbHMgYXBwLnRlcnJhZm9ybS5pbyB7CiAgdG9rZW4gPSAieU9RNVc5clR3bHR3eXcuYXRsYXN2MS55MjB1Sjg1dXp6ZUEyR3ljSmptYjVwMndXRFM1cDZVZk5zUTBYU3RKUGZObEZ1dVUzSnp5bTRBZnlCd3BCaVNKNkRjIiAKfQo=
+        type: Opaque
+        EOF
+
+        kubectl apply -f /$cluster_id.yaml
+
+      envFrom:
+      - secretRef:
+          name: "decapod-argocd-config"
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+  - name: install-terraform
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        if [ $(helm -n $cluster_id list | grep tf-operator | wc -c) == 0 ]; then
+          helm repo add hashicorp https://helm.releases.hashicorp.com
+          helm install tf-operator --namespace $cluster_id hashicorp/terraform 
+        fi
+
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+
+  - name: create-security-group
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}" | wc -c ) == 0 ]; do
+          echo "> Wait for checking the VPC ID"
+          sleep 30
+        done
+        vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}")
+
+        cat <<EOF >/$cluster_id.yaml
+        apiVersion: app.terraform.io/v1alpha1
+        kind: Workspace
+        metadata:
+          name: taco-security-group
+          namespace: $cluster_id
+        spec:
+          organization: tks-usercluster
+          secretsMountPath: "/tmp/secrets"
+          module:
+            source: "terraform-aws-modules/security-group/aws//modules/http-80"
+            version: "4.3.0"
+          outputs:
+            - key: id
+              moduleOutputName: security_group_id
+          variables:
+            - key: name
+              value: $cluster_id
+              sensitive: false
+              environmentVariable: false
+            - key: vpc_id
+              value: $vpc_id
+              sensitive: false
+              environmentVariable: false
+            - key: ingress_rules
+              value: "[\"http-80-tcp\" , \"https-443-tcp\" ]"
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: ingress_cidr_blocks
+              value: "[\"0.0.0.0/0\"]" 
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: egress_rules
+              value: "[\"all-all\"]"
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: egress_cidr_blocks
+              value: "[\"0.0.0.0/0\"]"
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: AWS_DEFAULT_REGION
+              value: ap-northeast-2 
+              sensitive: false
+              environmentVariable: true
+            - key: AWS_ACCESS_KEY_ID
+              sensitive: true
+              environmentVariable: true
+            - key: AWS_SECRET_ACCESS_KEY
+              sensitive: true
+              environmentVariable: true
+            - key: CONFIRM_DESTROY
+              value: "1"
+              sensitive: false
+              environmentVariable: true
+        EOF
+
+        cat /$cluster_id.yaml
+        kubectl apply -f /$cluster_id.yaml
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+
+  - name: create-elb
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        while [ $(kubectl get workspace -n $cluster_id taco-security-group -o jsonpath="{.status.outputs[0].value}" | wc -c ) == 0 ]; do
+          echo "> Wait for security group is ready."
+          sleep 30
+        done
+        sg_id=$(/artifacts/getSGid.py $cluster_id )
+        subnets=$(/artifacts/getPublicSubnet.py $cluster_id )
+
+        cat <<EOF >/$cluster_id.yaml
+        apiVersion: app.terraform.io/v1alpha1
+        kind: Workspace
+        metadata:
+          name: taco-elastic-loadbalancer
+          namespace: $cluster_id
+        spec:
+          organization: tks-usercluster
+          secretsMountPath: "/tmp/secrets"
+          module:
+            source: "terraform-aws-modules/elb/aws//modules/elb"
+            version: "3.0.0"
+          outputs:
+            - key: id
+              moduleOutputName: elb_id
+            - key: dns
+              moduleOutputName: elb_dns_name
+          variables:
+            - key: internal
+              hcl: true
+              value: "false"
+              sensitive: false
+              environmentVariable: false
+            - key: name
+              value: taco-elb-${cluster_id:0:8}
+              sensitive: false
+              environmentVariable: false
+            - key: security_groups
+              value: >-
+                $sg_id
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: subnets
+              value: >-
+                $subnets
+              hcl: true    
+              sensitive: false
+              environmentVariable: false 
+            - key: listener
+              value: "[{instance_port=32080\ninstance_protocol=\"tcp\"\nlb_port =80\nlb_protocol=\"tcp\"},{instance_port=32443\ninstance_protocol=\"tcp\"\nlb_port=443\nlb_protocol=\"tcp\"}]"
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: health_check
+              value: "{healthy_threshold=3\nunhealthy_threshold=6\ntimeout=5\ninterval=30\ntarget=\"HTTP:32081/healthz\"}"  
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: AWS_DEFAULT_REGION
+              value: ap-northeast-2
+              sensitive: false
+              environmentVariable: true
+            - key: AWS_ACCESS_KEY_ID
+              sensitive: true
+              environmentVariable: true
+            - key: AWS_SECRET_ACCESS_KEY
+              sensitive: true
+              environmentVariable: true
+            - key: CONFIRM_DESTROY
+              value: "1"
+              sensitive: false
+              environmentVariable: true
+        EOF
+
+        kubectl apply -f /$cluster_id.yaml
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+      - name: artifacts
+        mountPath: "/artifacts"
+
+  - name: attch-worknodes-to-elb
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        while [ $(kubectl get workspaces -n $cluster_id taco-elastic-loadbalancer -o jsonpath={.status.runStatus} ) != 'applied' ]; do
+          echo "> Wait for Loadbalancer is ready."
+          sleep 30
+        done
+        workers=$(/artifacts/getWorkerInstances.py $cluster_id )
+
+        cat <<EOF >/$cluster_id.yaml
+        apiVersion: app.terraform.io/v1alpha1
+        kind: Workspace
+        metadata:
+          name: taco-elb-attachements
+          namespace: $cluster_id
+        spec:
+          organization: tks-usercluster
+          secretsMountPath: "/tmp/secrets"
+          module:
+            source: "terraform-aws-modules/elb/aws//modules/elb_attachment"
+            version: "3.0.0"
+          variables:
+            - key: elb
+              value: taco-elb-${cluster_id:0:8}
+              sensitive: false
+              environmentVariable: false
+            - key: number_of_instances
+              value: "4"
+              hcl: true
+              sensitive: false
+              environmentVariable: false
+            - key: instances
+              value: >-
+                $workers
+              hcl: true
+              sensitive: false
+              environmentVariable: false 
+            - key: AWS_DEFAULT_REGION
+              value: ap-northeast-2
+              sensitive: false
+              environmentVariable: true
+            - key: AWS_ACCESS_KEY_ID
+              sensitive: true
+              environmentVariable: true
+            - key: AWS_SECRET_ACCESS_KEY
+              sensitive: true
+              environmentVariable: true
+            - key: CONFIRM_DESTROY
+              value: "1"
+              sensitive: false
+              environmentVariable: true
+        EOF
+
+        kubectl apply -f /$cluster_id.yaml
+
+      envFrom:
+      - secretRef:
+          name: "decapod-argocd-config"
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+      - name: artifacts
+        mountPath: "/artifacts"
+
+  - name: add-dns-record
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        while [ $(kubectl get workspace -n $cluster_id  taco-elastic-loadbalancer -o jsonpath="{.status.outputs[0].value}" | wc -c ) == 0 ]; do
+          echo "> Wait for the loadbanacer is ready."
+          sleep 30
+        done
+        elburl=$(/artifacts/getElbUrl.py $cluster_id )
+
+        for application in kibana grafana kiali
+        do
+          cat <<EOF >/$application.yaml
+          apiVersion: app.terraform.io/v1alpha1
+          kind: Workspace
+          metadata:
+            name: $application-dnsrecord
+            namespace: $cluster_id
+          spec:
+            organization: tks-usercluster
+            secretsMountPath: "/tmp/secrets"
+            module:
+              source: "terraform-aws-modules/route53/aws//modules/records"
+              version: "2.3.0"
+            outputs:
+              - key: name
+                moduleOutputName: route53_record_name
+            variables:
+              - key: zone_id
+                value: Z104697219C1N0592X9B3
+                sensitive: false
+                environmentVariable: false
+              - key: records
+                value: "[{name = \"$application-${cluster_id:0:8}\" \ntype=\"CNAME\"\nttl=\"3600\"\nrecords=[\"$elburl\"]}]"
+                hcl: true
+                sensitive: false
+                environmentVariable: false
+              - key: AWS_DEFAULT_REGION
+                value: ap-northeast-2
+                sensitive: false
+                environmentVariable: true
+              - key: AWS_ACCESS_KEY_ID
+                sensitive: true
+                environmentVariable: true
+              - key: AWS_SECRET_ACCESS_KEY
+                sensitive: true
+                environmentVariable: true
+              - key: CONFIRM_DESTROY
+                value: "1"
+                sensitive: false
+                environmentVariable: true
+        EOF
+          kubectl apply -f /$application.yaml
+        done
+
+      envFrom:
+      - secretRef:
+          name: "decapod-argocd-config"
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+      - name: artifacts
+        mountPath: "/artifacts"
