@@ -192,12 +192,13 @@ spec:
             cur_cluster_name = res.cluster.id
 
             res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=csp_id))
-            print("Response from GetClusters: ")
-            print(res.clusters)
+
+            print("Iterating over clusters in the same contract...")
 
             # Iterate over cluster list except current cluster #
             for cluster in res.clusters:
                 if cluster.id != "{{inputs.parameters.cluster_id}}":
+                  print("Found cluster: {}" % format(cluster.id))
                   temp_map["name"] = cluster.id
                   str_json = json.dumps(temp_map)
                   output_cluster_list.append(str_json)
