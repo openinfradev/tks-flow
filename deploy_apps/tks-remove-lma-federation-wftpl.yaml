@@ -29,12 +29,10 @@ spec:
     steps:
     - - name: deleteAppGroup
         templateRef:
-          name: delete-project
-          template: DeleteProject
+          name: delete-apps
+          template: DeleteAppsByLabel
         arguments:
           parameters:
-          - name: project
-            value: "{{ workflow.parameters.app_group }}"
           - name: filter
             value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
 
