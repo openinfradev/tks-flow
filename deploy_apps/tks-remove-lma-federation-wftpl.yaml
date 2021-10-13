@@ -1,23 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-lma-federation
+  name: tks-remove-lma-federation
   namespace: argo
 spec:
-  entrypoint: deployLMA
+  entrypoint: removeLMA
   arguments:
     parameters:
-    - name: site_name
-      value: "hanu-reference"
     - name: app_group
       value: "lma"
-    # Replace these urls properly for your env #
     - name: site_repo_url
       value: "https://github.com/openinfradev/decapod-site"
-    - name: manifest_repo_url
-      value: "https://github.com/openinfradev/decapod-manifests"
-    - name: revision
-      value: "main"
     ##########################
     # For updateTksInfo task #
     ##########################
@@ -32,37 +25,34 @@ spec:
     configMap:
       name: tks-proto
   templates:
-  - name: deployLMA
+  - name: removeLMA
     steps:
-    - - name: createNamespace
-        template: createNamespace
+    - - name: deleteAppGroup
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByLabel
+        arguments:
+          parameters:
+          - name: filter
+            value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
+
+    - - name: deleteNamespace
+        template: deleteNamespace
         arguments:
           parameters:
             - name: target_namespace
-              value: lma
+              value: "lma"
             - name: kubeconfig_secret_name
-              value: "{{workflow.parameters.site_name}}-kubeconfig"
-
-    - - name: installApps
-        templateRef:
-          name: lma-federation
-          template: deploy
+              value: "{{workflow.parameters.cluster_id}}-kubeconfig"
 
     - - name: updateTksInfo
         templateRef:
           name: update-tks-info
-          template: updateTksApp
-        arguments:
-          parameters:
-          # TODO: Can this be pre-determined? Or composed dynamically on deployment?
-          - name: endpoints
-            value: "{'PROMETHEUS': 'thanos-sidecar.cluster_xy'}"
-          - name: app_group_status
-            value: "APP_GROUP_RUNNING"
+          template: deleteTksAppGroup
      
       # LMA appGroup specific task #
-    - - name: collectThanosScEndpoints
-        template: collectThanosScEndpoints
+    - - name: collectClusterList
+        template: collectClusterList
         arguments:
           # These params should be moved to global argument? #
           parameters:
@@ -76,6 +66,7 @@ spec:
           - name: cur_endpoint
             value: "thanos-sidecar.cluster_xy"
 
+    # Delete endpoint from other cluster's manifests
     - - name: updateDecapodManifestOutwards
         templateRef:
           name: update-decapod-manifest
@@ -83,7 +74,7 @@ spec:
         arguments:
           parameters:
           - name: action
-            value: "insert"
+            value: "delete"
           - name: cluster_name
             value: "{{item.name}}"
           - name: app_group
@@ -92,41 +83,20 @@ spec:
             value: "thanos"
           ## {"querier.stores": "CURRENT_ENDPOINT"}
           - name: kv_map_str 
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_endpoint_map}}"
-        withParam: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_cluster_list}}"
-
-    - - name: updateDecapodManifestInwards
-        templateRef:
-          name: update-decapod-manifest
-          template: updateManifest
-        arguments:
-          parameters:
-          - name: action
-            value: "insert"
-          # TODO: modify this to reflect actual cluster name for all cases
-          - name: cluster_name
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.cur_cluster_name}}"
-          - name: app_group
-            value: "{{workflow.parameters.app_group}}"
-          - name: chart
-            value: "thanos"
-          - name: kv_map_str
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.inwards_endpoint_map}}"
-            ## {"querier.stores": ['endpointA', 'endpointB']}
+            value: "{{steps.collectClusterList.outputs.parameters.outwards_endpoint_map}}"
+        withParam: "{{steps.collectClusterList.outputs.parameters.outwards_cluster_list}}"
 
   #######################
   # Template Definition #
   #######################
-  - name: createNamespace
+  - name: deleteNamespace
     arguments: {}
     inputs:
       parameters:
         - name: target_namespace
         - name: kubeconfig_secret_name
-    outputs: {}
-    metadata: {}
     container:
-      name: create-namespace
+      name: delete-namespace
       image: 'k8s.gcr.io/hyperkube:v1.18.6'
       command:
         - /bin/bash
@@ -141,11 +111,9 @@ spec:
 
           cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
           kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
-          if [[ $? =~ 1 ]]; then
-            kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
-            kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${TARGET_NAMESPACE}
-            kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
-            log "INFO" "${TARGET_NAMESPACE} successfully created."
+          if [[ $? =~ 0 ]]; then
+            kubectl --kubeconfig=/etc/kubeconfig delete ns ${TARGET_NAMESPACE}
+            log "INFO" "${TARGET_NAMESPACE} was successfully deleted."
           fi
       env:
         - name: TARGET_NAMESPACE
@@ -155,12 +123,11 @@ spec:
             secretKeyRef:
               name: "{{ inputs.parameters.kubeconfig_secret_name }}"
               key: value
-      resource: {}
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
 
-  - name: collectThanosScEndpoints
+  - name: collectClusterList
     inputs:
       parameters:
       - name: tks_info_host
@@ -172,15 +139,9 @@ spec:
       - name: outwards_cluster_list
         valueFrom:
           path: /mnt/out/cluster_list.txt
-      - name: inwards_endpoint_map
-        valueFrom:
-          path: /mnt/out/inwards_endpoint.txt
       - name: outwards_endpoint_map
         valueFrom:
           path: /mnt/out/outwards_endpoint.txt
-      - name: cur_cluster_name
-        valueFrom:
-          path: /mnt/out/cur_cluster_name.txt
     volumes:
     - name: out
       emptyDir: {}
@@ -210,8 +171,6 @@ spec:
 
         output_cluster_list = []
         temp_map = {}
-        inwards_endpoint_list = []
-        inwards_endpoint_map = {}
         outwards_endpoint_map = {}
 
         ip = "{{inputs.parameters.tks_info_host}}"
@@ -230,7 +189,6 @@ spec:
             print(res.cluster)
             contract_id = res.cluster.contract_id
             csp_id = res.cluster.csp_id
-            # TODO: export this as step output to use it on next step
             cur_cluster_name = res.cluster.id
 
             res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=csp_id))
@@ -245,25 +203,8 @@ spec:
                   str_json = json.dumps(temp_map)
                   output_cluster_list.append(str_json)
 
-                  res = app_stub.GetAppGroupsByClusterID(common_pb2.IDRequest(id=cluster.id))
-                  print("Response from GetAppGroupsByClusterID:")
-                  print(res.app_groups)
-
-                  for app_group in res.app_groups:
-                    if app_group.type == common_pb2.LMA:
-                      res = app_stub.GetApps(info_pb2.GetAppsRequest(app_group_id="{{inputs.parameters.app_group_id}}", type=common_pb2.PROMETHEUS))
-
-                      # This is based on the premise that there's only one prometheus per appGroup.
-                      endpoint = res.apps[0].endpoint
-
-                      # Add this cluster's endpoint to endpoint map
-                      inwards_endpoint_list.append(endpoint)
-
         # Update current endpoint to other cluster's site-yaml #
         outwards_endpoint_map['querier.stores'] = "{{inputs.parameters.cur_endpoint}}"
-
-        # Compose profer format to be used as input on next step 
-        inwards_endpoint_map['querier.stores'] = inwards_endpoint_list
 
         ###########################
         # Construct output params #
@@ -280,13 +221,6 @@ spec:
               f.write(',')
           f.write(']')
 
-        with open("/mnt/out/inwards_endpoint.txt", "w") as f:
-          str_inwards_endpoint = repr(inwards_endpoint_map)
-          f.write(str_inwards_endpoint)
-
         with open("/mnt/out/outwards_endpoint.txt", "w") as f:
           str_outwards_endpoint = repr(outwards_endpoint_map)
           f.write(str_outwards_endpoint)
-
-        with open("/mnt/out/cur_cluster_name.txt", "w") as f:
-          f.write(cur_cluster_name)
