@@ -82,7 +82,7 @@ spec:
 
         while [ $(./argocd cluster list | grep \ $target\ | wc -l ) == 0 ]; do
             echo "> Wait for cluster to be registered"
-            sleep 30
+            sleep 1
         done
       envFrom:
       - secretRef:
