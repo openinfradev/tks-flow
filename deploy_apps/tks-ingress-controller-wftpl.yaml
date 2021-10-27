@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-install-ingress-controller
+  namespace: argo
+spec:
+  entrypoint: deploy
+  arguments:
+    parameters:
+    - name: contract_id
+      value: "0010010a-d6cb-459b-9148-1b02ac545753"
+    - name: cluster_id
+      value: "011b88fa-4d53-439f-9336-67845f994051"
+    - name: git_account
+      value: "tks-management"
+    - name: revision
+      value: main
+    - name: tks_admin
+      value: "tks-admin"
+    - name: app_group
+      value: "tks-cluster"
+
+  volumes:
+  - name: config
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+      namespace: argo
+  - name: artifacts
+    configMap:
+      name: aws-artifacts
+      namespace: argo
+      defaultMode: 0555
+
+  templates:
+  - name: deploy
+    steps:
+
+    - - name: install-ingress-controller
+        templateRef:
+          name: tks-create-application-new
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "path": "ingress-nginx", "namespace": "taco-system" }
+              ]

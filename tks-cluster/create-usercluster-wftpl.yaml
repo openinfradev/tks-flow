@@ -52,11 +52,6 @@ spec:
     - - name: wait-for-clster-to-be-registered
         template: wait-for-cluster-registration
 
-    - - name: prepare-additional-aws-infra
-        templateRef:
-          name: aws-infrastructure
-          template: AddAwsInfra
-
     - - name: install-cni-and-csi
         templateRef:
           name: tks-create-application-new
@@ -66,7 +61,6 @@ spec:
           - name: list
             value: |
               [
-                { "path": "ingress-nginx", "namespace": "taco-system" },
                 { "path": "kubernetes-addons", "namespace": "taco-system" }
               ]
 
