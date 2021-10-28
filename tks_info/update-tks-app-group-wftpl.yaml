@@ -1,10 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: update-tks-info
+  name: update-tks-app-group-info
   namespace: argo
 spec:
-  entrypoint: updateTksApp
+  entrypoint: updateTksAppGroup
   arguments:
     parameters:
     - name: tks_info_host
@@ -16,7 +16,7 @@ spec:
     configMap:
       name: tks-proto
   templates:
-  - name: updateTksApp
+  - name: updateTksAppGroup
     inputs:
       parameters:
       - name: endpoints # Dict type
@@ -55,36 +55,3 @@ spec:
             for app_type_, ep in {{inputs.parameters.endpoints}}.items():
               res = app_stub.UpdateApp(info_pb2.UpdateAppRequest(app_group_id="{{workflow.parameters.app_group_id}}", app_type=app_type_, endpoint=ep, metadata="{}"))
               print("Response code from UpdateApp: %d" % res.code)
-
-  - name: deleteTksAppGroup
-    inputs:
-      parameters:
-    script:
-      image: sktdev/python-centos-wf-worker:v1.0
-      command: ["python"]
-      env:
-      - name: PYTHONPATH
-        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
-      volumeMounts:
-      - name: tks-proto-vol
-        mountPath: "/opt/protobuf"
-        readOnly: true
-      source: |
-        import sys
-        import google.protobuf
-        import grpc
-        import info_pb2
-        import info_pb2_grpc
-        import common_pb2
-        import common_pb2_grpc
-
-        ip = "{{workflow.parameters.tks_info_host}}"
-        port = 9110 # if not specified
-        addr = "%s:%d" % (ip, port)
-        print("tks-info addr: %s" % addr)
-
-        with grpc.insecure_channel(addr) as channel:
-            app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
-        ## TO-DO ##
-            res = app_stub.DeleteAppGroup(info_pb2.DeleteAppGroupRequest(app_group_id="{{workflow.parameters.app_group_id}}"))
-            print("Response code from DeleteAppGroup: %d" % res.code)
