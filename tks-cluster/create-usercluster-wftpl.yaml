@@ -19,6 +19,8 @@ spec:
       value: "tks-admin"
     - name: app_group
       value: "tks-cluster"
+    - name: tks_info_host
+      value: "tks-info.tks.svc"
 
   volumes:
   - name: config
@@ -30,6 +32,9 @@ spec:
       name: aws-artifacts
       namespace: argo
       defaultMode: 0555
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
 
   templates:
   - name: deploy
@@ -63,6 +68,15 @@ spec:
               [
                 { "path": "kubernetes-addons", "namespace": "taco-system" }
               ]
+
+    - - name: update-cluster-status-to-running
+        templateRef:
+          name: update-tks-cluster-status
+          template: updateClusterStatus
+        arguments:
+          parameters:
+          - name: cluster_status
+            value: RUNNING
 
   - name: wait-for-cluster-registration
     activeDeadlineSeconds: 1800

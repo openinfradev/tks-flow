@@ -12,7 +12,7 @@ spec:
     - name: site_repo_url
       value: "https://github.com/openinfradev/decapod-site"
     ##########################
-    # For updateTksInfo task #
+    # For tks-info task #
     ##########################
     - name: tks_info_host
       value: "127.0.0.1"
@@ -47,7 +47,7 @@ spec:
 
     - - name: updateTksInfo
         templateRef:
-          name: update-tks-info
+          name: delete-tks-app-group-info
           template: deleteTksAppGroup
      
       # LMA appGroup specific task #
