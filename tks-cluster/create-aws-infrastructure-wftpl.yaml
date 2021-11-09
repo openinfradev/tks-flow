@@ -1,0 +1,237 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cp-aws-infrastructure
+  namespace: argo
+spec:
+  entrypoint: AddAwsInfra
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "1eee74fd-1f06-4a2a-9bd0-d7909985a86c"
+      
+  volumes:
+  - name: config
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+      namespace: argo
+  - name: artifacts
+    configMap:
+      name: aws-artifacts
+      namespace: argo
+      defaultMode: 0555
+  templates:
+  - name: AddAwsInfra
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}" | wc -c ) == 0 ]; do
+          echo "> Wait for checking the VPC ID"
+          sleep 30
+        done
+        vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}")
+        lbname=${cluster_id:0:8}-lb
+
+        cat <<EOF >/$cluster_id.yaml
+        ## securitygroup.yaml
+        apiVersion: ec2.aws.crossplane.io/v1beta1
+        kind: SecurityGroup
+        metadata:
+          name: $lbname-sg
+        spec:
+          deletionPolicy: Delete
+          forProvider:
+            region: ap-northeast-2
+            vpcId: $vpc_id
+            groupName: $lbname-sg
+            description: Security group for LB of Ingress Controller in $cluster_id
+            egress:
+            - ipProtocol: "-1"
+              ipRanges:
+              - cidrIp: 0.0.0.0/0
+            ingress:
+            - fromPort: 80
+              toPort: 80
+              ipProtocol: tcp
+              ipRanges:
+              - cidrIp: 0.0.0.0/0
+            - fromPort: 443
+              toPort: 443
+              ipProtocol: tcp
+              ipRanges:
+              - cidrIp: 0.0.0.0/0
+            tags:
+            - key: creator
+              value: crossplane-taco
+          providerConfigRef:
+            name: awsconfig
+        EOF
+
+        cat /$cluster_id.yaml
+        kubectl apply -f /$cluster_id.yaml
+
+        kubectl wait --for=condition=ready --timeout=300s -n d1 securitygroup/$lbname-sg
+        sg_id=$(/artifacts/getSGid.py $cluster_id )
+        subnets=$(/artifacts/getPublicSubnet.py $cluster_id )
+
+        cat <<EOF >/$cluster_id.yaml
+        ## elb.yaml
+        apiVersion: elasticloadbalancing.aws.crossplane.io/v1alpha1
+        kind: ELB
+        metadata:
+          name: $lbname
+        spec:
+          deletionPolicy: Delete
+          forProvider:
+            region: ap-northeast-2
+            securityGroupIdRefs:
+            - name: $lbname-sg
+            subnetIds: 
+        EOF
+        for subnet in $(/artifacts/cpgetPublicSubnet.py $cluster_id )
+        do
+          echo "    - $subnet" >>/$cluster_id.yaml
+        done
+
+        cat <<EOF >>/$cluster_id.yaml
+            listeners:
+            - instancePort: 32080
+              instanceProtocol: http
+              loadBalancerPort: 80
+              protocol: http
+            - instancePort: 32443
+              instanceProtocol: https
+              loadBalancerPort: 443
+              protocol: http
+            healthCheck:
+              target: TCP:32081/healthz
+              timeout: 5
+              interval: 30
+              unhealthyThreshold: 6
+              healthyThreshold: 3
+            tags:
+            - key: creator
+              value: crossplane-taco
+          providerConfigRef:
+            name: awsconfig
+        EOF
+
+        cat  /$cluster_id.yaml
+
+        # kubectl apply -f /$cluster_id.yaml
+        # kubectl wait --for=condition=ready --timeout=300s -n d1 elb/$lbname
+        for instance in $(/artifacts/cpgetWorkerInstances.py $cluster_id )
+        do
+          cat <<EOF >>/$cluster_id.yaml
+        ## elbattachment.yaml
+        ---
+        apiVersion: elasticloadbalancing.aws.crossplane.io/v1alpha1
+        kind: ELBAttachment
+        metadata:
+          name: instance-$instance
+        spec:
+          deletionPolicy: Delete
+          forProvider:
+            region: ap-northeast-2
+            elbNameRef:
+              name: $lbname
+            instanceId: $instance
+          providerConfigRef:
+            name: awsconfig
+        EOF
+
+        done
+
+        cat /$cluster_id.yaml
+        kubectl apply -f /$cluster_id.yaml
+      envFrom:
+      - secretRef:
+          name: "decapod-argocd-config"
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+      - name: artifacts
+        mountPath: "/artifacts"
+
+  - name: add-dns-record
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+        while [ $(kubectl get workspace -n $cluster_id  taco-elastic-loadbalancer -o jsonpath="{.status.outputs[0].value}" | wc -c ) == 0 ]; do
+          echo "> Wait for the loadbanacer is ready."
+          sleep 30
+        done
+        elburl=$(/artifacts/getElbUrl.py $cluster_id )
+
+        for application in kibana grafana kiali
+        do
+          cat <<EOF >/$application.yaml
+          apiVersion: app.terraform.io/v1alpha1
+          kind: Workspace
+          metadata:
+            name: $application-dnsrecord
+            namespace: $cluster_id
+          spec:
+            organization: tks-usercluster
+            secretsMountPath: "/tmp/secrets"
+            module:
+              source: "terraform-aws-modules/route53/aws//modules/records"
+              version: "2.3.0"
+            outputs:
+              - key: name
+                moduleOutputName: route53_record_name
+            variables:
+              - key: zone_id
+                value: Z104697219C1N0592X9B3
+                sensitive: false
+                environmentVariable: false
+              - key: records
+                value: "[{name = \"$application-${cluster_id:0:8}\" \ntype=\"CNAME\"\nttl=\"3600\"\nrecords=[\"$elburl\"]}]"
+                hcl: true
+                sensitive: false
+                environmentVariable: false
+              - key: AWS_DEFAULT_REGION
+                value: ap-northeast-2
+                sensitive: false
+                environmentVariable: true
+              - key: AWS_ACCESS_KEY_ID
+                sensitive: true
+                environmentVariable: true
+              - key: AWS_SECRET_ACCESS_KEY
+                sensitive: true
+                environmentVariable: true
+              - key: CONFIRM_DESTROY
+                value: "1"
+                sensitive: false
+                environmentVariable: true
+        EOF
+          kubectl apply -f /$application.yaml
+        done
+
+      envFrom:
+      - secretRef:
+          name: "decapod-argocd-config"
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+      - name: artifacts
+        mountPath: "/artifacts"

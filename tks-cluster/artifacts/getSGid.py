@@ -18,4 +18,3 @@ def get_sgs(stream):
 stream = os.popen('kubectl get workspaces -n {} taco-security-group -o yaml'.format(sys.argv[1]))
 sgs=get_sgs(stream)
 terraform_style_print(sgs,'"')
-
