@@ -4,7 +4,7 @@ metadata:
   name: cp-aws-infrastructure
   namespace: argo
 spec:
-  entrypoint: AddAwsInfra
+  entrypoint: CreateAwsELB
   arguments:
     parameters:
     - name: cluster_id
@@ -21,7 +21,7 @@ spec:
       namespace: argo
       defaultMode: 0555
   templates:
-  - name: AddAwsInfra
+  - name: CreateAwsELB
     activeDeadlineSeconds: 1800
     container:
       image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
@@ -33,7 +33,7 @@ spec:
         cp /kube/value ~/.kube/config
         while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}" | wc -c ) == 0 ]; do
           echo "> Wait for checking the VPC ID"
-          sleep 30
+          sleep 2
         done
         vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}")
         lbname=${cluster_id:0:8}-lb
@@ -44,6 +44,8 @@ spec:
         kind: SecurityGroup
         metadata:
           name: $lbname-sg
+          labels:
+            lb: $lbname
         spec:
           deletionPolicy: Delete
           forProvider:
@@ -77,8 +79,6 @@ spec:
         kubectl apply -f /$cluster_id.yaml
 
         kubectl wait --for=condition=ready --timeout=300s -n d1 securitygroup/$lbname-sg
-        sg_id=$(/artifacts/getSGid.py $cluster_id )
-        subnets=$(/artifacts/getPublicSubnet.py $cluster_id )
 
         cat <<EOF >/$cluster_id.yaml
         ## elb.yaml
@@ -86,6 +86,8 @@ spec:
         kind: ELB
         metadata:
           name: $lbname
+          labels:
+            lb: $lbname
         spec:
           deletionPolicy: Delete
           forProvider:
@@ -124,8 +126,6 @@ spec:
 
         cat  /$cluster_id.yaml
 
-        # kubectl apply -f /$cluster_id.yaml
-        # kubectl wait --for=condition=ready --timeout=300s -n d1 elb/$lbname
         for instance in $(/artifacts/cpgetWorkerInstances.py $cluster_id )
         do
           cat <<EOF >>/$cluster_id.yaml
@@ -135,6 +135,8 @@ spec:
         kind: ELBAttachment
         metadata:
           name: instance-$instance
+          labels:
+            lb: $lbname
         spec:
           deletionPolicy: Delete
           forProvider:
@@ -150,6 +152,8 @@ spec:
 
         cat /$cluster_id.yaml
         kubectl apply -f /$cluster_id.yaml
+        kubectl wait --for=condition=ready --timeout=300s -n d1 elb/$lbname
+
       envFrom:
       - secretRef:
           name: "decapod-argocd-config"
@@ -162,7 +166,7 @@ spec:
       - name: artifacts
         mountPath: "/artifacts"
 
-  - name: add-dns-record
+  - name: DeleteAwsELB
     activeDeadlineSeconds: 1800
     container:
       image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
@@ -172,53 +176,55 @@ spec:
       - |
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
-        while [ $(kubectl get workspace -n $cluster_id  taco-elastic-loadbalancer -o jsonpath="{.status.outputs[0].value}" | wc -c ) == 0 ]; do
-          echo "> Wait for the loadbanacer is ready."
-          sleep 30
-        done
-        elburl=$(/artifacts/getElbUrl.py $cluster_id )
+        lbname=${cluster_id:0:8}-lb
+        kubectl delete ResourceRecordSet --selector=lb=$lbname
+        kubectl delete ELBAttachment --selector=lb=$lbname
+        kubectl delete ELB --selector=lb=$lbname
+        kubectl delete SecurityGroup --selector=lb=$lbname
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+      volumeMounts:
+      - name: config
+        mountPath: "/kube"
+      - name: artifacts
+        mountPath: "/artifacts"
+
+  - name: RegisterTACOapp2route53
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+
+        lbname=${cluster_id:0:8}-lb
+        elbdns=$(kubectl get elb $lbname -o jsonpath="{.status.atProvider.dnsName}")
 
         for application in kibana grafana kiali
         do
           cat <<EOF >/$application.yaml
-          apiVersion: app.terraform.io/v1alpha1
-          kind: Workspace
+          apiVersion: route53.aws.crossplane.io/v1alpha1
+          kind: ResourceRecordSet
           metadata:
-            name: $application-dnsrecord
-            namespace: $cluster_id
+            annotations:
+              crossplane.io/external-name: $application-${cluster_id:0:8}.taco-cat.xyz
+            name: $application-${cluster_id:0:8}
+            labels:
+              lb: $lbname
           spec:
-            organization: tks-usercluster
-            secretsMountPath: "/tmp/secrets"
-            module:
-              source: "terraform-aws-modules/route53/aws//modules/records"
-              version: "2.3.0"
-            outputs:
-              - key: name
-                moduleOutputName: route53_record_name
-            variables:
-              - key: zone_id
-                value: Z104697219C1N0592X9B3
-                sensitive: false
-                environmentVariable: false
-              - key: records
-                value: "[{name = \"$application-${cluster_id:0:8}\" \ntype=\"CNAME\"\nttl=\"3600\"\nrecords=[\"$elburl\"]}]"
-                hcl: true
-                sensitive: false
-                environmentVariable: false
-              - key: AWS_DEFAULT_REGION
-                value: ap-northeast-2
-                sensitive: false
-                environmentVariable: true
-              - key: AWS_ACCESS_KEY_ID
-                sensitive: true
-                environmentVariable: true
-              - key: AWS_SECRET_ACCESS_KEY
-                sensitive: true
-                environmentVariable: true
-              - key: CONFIRM_DESTROY
-                value: "1"
-                sensitive: false
-                environmentVariable: true
+            deletionPolicy: Delete
+            forProvider:
+              resourceRecords:
+              - value: $elbdns
+              ttl: 300
+              type: CNAME
+              zoneId:  Z104697219C1N0592X9B3 
+            providerConfigRef:
+              name: awsconfig
         EOF
           kubectl apply -f /$application.yaml
         done
@@ -233,5 +239,3 @@ spec:
       volumeMounts:
       - name: config
         mountPath: "/kube"
-      - name: artifacts
-        mountPath: "/artifacts"
