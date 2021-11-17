@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: aws-infrastructure
+  name: tf-aws-infrastructure
   namespace: argo
 spec:
   entrypoint: AddAwsInfra
