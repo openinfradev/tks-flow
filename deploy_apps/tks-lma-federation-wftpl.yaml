@@ -239,6 +239,9 @@ spec:
 
             # Iterate over cluster list except current cluster #
             for cluster in res.clusters:
+                if cluster.status != common_pb2.RUNNING:
+                  continue
+
                 if cluster.id != "{{inputs.parameters.cluster_id}}":
                   print("Found cluster: {}" % format(cluster.id))
                   temp_map["name"] = cluster.id
