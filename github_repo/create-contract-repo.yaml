@@ -34,13 +34,13 @@ spec:
 
         git clone https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
         cd tks-user-site-template
-        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}-manifests
+        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}
         git push new_contract main:main
         cd ..
 
         git clone https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template-manifests
         cd tks-user-site-template-manifests
-        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}
+        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}-manifests
         git push new_contract main:main
         cd ..
       envFrom:
