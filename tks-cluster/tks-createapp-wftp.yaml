@@ -41,7 +41,7 @@ spec:
         ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
         --password $ARGO_PASSWORD
 
-        REPO=https://$(echo -n $gittoken)@github.com/$git_account/${contract_id}-manifests.git
+        REPO=https://$(echo -n $gittoken)@github.com/$git_account/${SITE_NAME}-manifests.git
 
         # check if app already exists.
         ./argocd app get $CD_APP 

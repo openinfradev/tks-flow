@@ -11,6 +11,8 @@ spec:
       value: "0010010a-d6cb-459b-9148-1b02ac545753"
     - name: cluster_id
       value: "011b88fa-4d53-439f-9336-67845f994051"
+    - name: template_name
+      value: "template-std"
     - name: git_account
       value: "tks-management"
     - name: revision
@@ -40,7 +42,9 @@ spec:
   - name: deploy
     steps:
     - - name: tks-create-cluster-site
-        template: new-cluster-site
+        templateRef:
+          name: tks-create-cluster-site
+          template: main
 
     - - name: k8s-by-capi
         templateRef:
@@ -98,44 +102,3 @@ spec:
       env:
       - name: target
         value: "{{workflow.parameters.cluster_id}}"
-
-  - name: new-cluster-site
-    container:
-      image: ghcr.io/openinfradev/python_kubectl:v1.0.1
-      command:
-      - /bin/bash
-      - -exc
-      - |
-        git clone https://$(echo -n $gittoken)@github.com/$git_account/$contract_id.git
-        cd $contract_id
-        if [ -d $cluster_id ]; then
-          echo "Cluster($cluster_id) already exists."
-          exit 1
-        fi
-        cp -r template-site $cluster_id
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $cluster_id/g" $cluster_id/tks-cluster/site-values.yaml
-        git config --global user.email "taco@tacocloud.com"
-        git config --global user.name "argo-workflow"
-        git add $cluster_id
-        git commit -m "new site: $cluster_id"
-        git push
-
-        # buffer for starting the github action
-        sleep 30
-
-        # waiting for complete of the github action
-        echo $gittoken| gh auth login --with-token
-        gh run watch $(gh run list --workflow GenerateYaml --limit 1| grep $cluster_id | awk -F push '{print $2}' | awk '{print $1}')
-
-      envFrom:
-        - secretRef:
-            name: "gittoken"
-      env:
-        - name: contract_id
-          value: "{{workflow.parameters.contract_id}}"
-        - name: cluster_id
-          value: "{{workflow.parameters.cluster_id}}"
-        - name: git_account
-          value: "{{workflow.parameters.git_account}}"
-        - name: revision
-          value: "{{workflow.parameters.revision}}"
