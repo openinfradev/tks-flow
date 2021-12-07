@@ -11,6 +11,8 @@ spec:
       value: "contract_uuid"
     - name: cluster_id
       value: "cluster_uuid"
+    - name: template_name
+      value: "template-std"
   templates:
   - name: createClusterSite
     activeDeadlineSeconds: 120
@@ -22,16 +24,52 @@ spec:
       - /bin/bash
       - -ecx
       - |
+        echo $TOKEN | gh auth login --with-token
+
+        gh repo create tks-management/${CLUSTER_ID} --private --confirm
+        gh repo create tks-management/${CLUSTER_ID}-manifests --private --confirm
+
         git clone https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}.git
-        cd ${CONTRACT_ID}
-        cp -r template-site ${CLUSTER_ID}
+
+        cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
+        cp -r ${CONTRACT_ID}/_github/ ${CLUSTER_ID}/.github
+
+        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+
+        echo "Contract ID: "${CONTRACT_ID} > ${CLUSTER_ID}/META
+        echo "Template Name: "${TEMPLATE_NAME} >> ${CLUSTER_ID}/META
 
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
 
-        git add ${CLUSTER_ID}
+        cd ${CLUSTER_ID}
+        git add .github
+        git add *
         git commit -m "add new ${CLUSTER_ID} site"
-        git push origin main
+        git branch -M main
+        git remote set-url origin https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}
+        git remote -v
+        git push -u origin main
+        cd ..
+
+        cd ${CLUSTER_ID}-manifests
+        touch README
+        git add README
+        git commit -m "add new ${CLUSTER_ID} site"
+        git branch -M main
+        git remote set-url origin https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}-manifests
+        git remote -v
+        git push -u origin main
+        cd ..
+
+        # buffer for starting the github action
+        sleep 30
+
+        # waiting for complete of the github action
+        cd ${CLUSTER_ID}
+        gh run list --workflow GenerateYaml --limit 1
+        gh run watch $(gh run list --workflow GenerateYaml --limit 1| grep $CLUSTER_ID | awk -F push '{print $2}' | awk '{print $1}')
+
       envFrom:
         - secretRef:
             name: "github-tks-mgmt-token"
@@ -40,8 +78,39 @@ spec:
         value: "{{workflow.parameters.contract_id}}"
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
+      - name: TEMPLATE_NAME
+        value: "{{workflow.parameters.template_name}}"
+
+  - name: createRepoCredential
+    activeDeadlineSeconds: 120
+    container:
+      name: 'createCredential'
+      image: docker.io/sktdev/argocd:latest
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+        echo "===== Connect github repo tks-management/${CLUSTER_ID}-manifests with token ====="
+        # log into Argo CD server
+        ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
+        --password $ARGO_PASSWORD
+
+        ./argocd repo add https://github.com/tks-management/${CLUSTER_ID}-manifests --username ${USERNAME} --password ${TOKEN}
+      envFrom:
+        - secretRef:
+            name: "github-tks-mgmt-token"
+        - secretRef:
+            name: "decapod-argocd-config"
+      env:
+        - name: CLUSTER_ID
+          value: "{{workflow.parameters.cluster_id}}"
+
   - name: main
     steps:
       - - name: createClusterSite
           template: createClusterSite
+          arguments: {}
+      - - name: createRepoCredential
+          template: createRepoCredential
           arguments: {}
