@@ -112,7 +112,7 @@ spec:
               loadBalancerPort: 443
               protocol: http
             healthCheck:
-              target: TCP:32081/healthz
+              target: HTTP:32081/healthz
               timeout: 5
               interval: 30
               unhealthyThreshold: 6
