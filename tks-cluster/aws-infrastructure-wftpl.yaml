@@ -104,13 +104,13 @@ spec:
         cat <<EOF >>/$cluster_id.yaml
             listeners:
             - instancePort: 32080
-              instanceProtocol: http
+              instanceProtocol: tcp
               loadBalancerPort: 80
-              protocol: http
+              protocol: tcp
             - instancePort: 32443
-              instanceProtocol: https
+              instanceProtocol: tcp
               loadBalancerPort: 443
-              protocol: http
+              protocol: tcp
             healthCheck:
               target: HTTP:32081/healthz
               timeout: 5
