@@ -82,6 +82,8 @@ spec:
           template: updateManifest
         arguments:
           parameters:
+          - name: site_repo_url
+            value: "{{ workflow.parameters.site_repo_url }}"
           - name: action
             value: "insert"
           - name: cluster_name
@@ -101,6 +103,8 @@ spec:
           template: updateManifest
         arguments:
           parameters:
+          - name: site_repo_url
+            value: "{{ workflow.parameters.site_repo_url }}"
           - name: action
             value: "insert"
           # TODO: modify this to reflect actual cluster name for all cases
@@ -110,9 +114,9 @@ spec:
             value: "{{workflow.parameters.app_group}}"
           - name: chart
             value: "thanos"
+          ## {"querier.stores": ['endpointA', 'endpointB']}
           - name: kv_map_str
             value: "{{steps.collectThanosScEndpoints.outputs.parameters.inwards_endpoint_map}}"
-            ## {"querier.stores": ['endpointA', 'endpointB']}
 
   #######################
   # Template Definition #
