@@ -29,7 +29,7 @@ spec:
         gh repo create tks-management/${CLUSTER_ID} --private --confirm
         gh repo create tks-management/${CLUSTER_ID}-manifests --private --confirm
 
-        git clone https://${USERNAME}:${TOKEN}@github.com/tks-management/${CONTRACT_ID}.git
+        git clone https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}.git
 
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
         cp -r ${CONTRACT_ID}/_github/ ${CLUSTER_ID}/.github
