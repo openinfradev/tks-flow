@@ -24,6 +24,8 @@ spec:
       value: ""
     - name: revision
       value: "main"
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
     - name: tks_info_host
       value: "tks-info.tks.svc"
 
@@ -61,7 +63,6 @@ spec:
                 { 
                   "app_group": "tks-cluster",
                   "path": "cluster-api-aws",
-                  "app_prefix": "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
                 }
@@ -82,7 +83,6 @@ spec:
                 { 
                   "app_group": "tks-cluster",
                   "path": "kubernetes-addons",
-                  "app_prefix": "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}",
                   "namespace": "taco-system",
                   "target_cluster": ""
                 }
