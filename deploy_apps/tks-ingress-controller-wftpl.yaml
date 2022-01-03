@@ -7,18 +7,15 @@ spec:
   entrypoint: deploy
   arguments:
     parameters:
-    - name: contract_id
-      value: "0010010a-d6cb-459b-9148-1b02ac545753"
-    - name: cluster_id
+    # Use cluster_id here
+    - name: site_name
       value: "011b88fa-4d53-439f-9336-67845f994051"
-    - name: git_account
-      value: "tks-management"
+    - name: manifest_repo_url
+      value: ""
     - name: revision
       value: main
-    - name: tks_admin
-      value: "tks-admin"
-    - name: app_group
-      value: "tks-cluster"
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
 
   volumes:
   - name: config
@@ -37,12 +34,12 @@ spec:
 
     - - name: install-ingress-controller
         templateRef:
-          name: tks-create-application-new
+          name: create-application
           template: installApps
         arguments:
           parameters:
           - name: list
             value: |
               [
-                { "path": "ingress-nginx", "namespace": "taco-system" }
+                { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "taco-system" }
               ]

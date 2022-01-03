@@ -9,8 +9,8 @@ spec:
     parameters:
     - name: site_name
       value: "hanu-reference"
-    - name: app_group
-      value: "lma"
+    - name: logging_component
+      value: "efk"
     # Replace these urls properly for your env #
     - name: site_repo_url
       value: "https://github.com/openinfradev/decapod-site"
@@ -18,6 +18,8 @@ spec:
       value: "https://github.com/openinfradev/decapod-manifests"
     - name: revision
       value: "main"
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
     ##########################
     # For tks-info task #
     ##########################
