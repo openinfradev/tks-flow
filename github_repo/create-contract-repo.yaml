@@ -37,6 +37,12 @@ spec:
         cp -r decapod-site/hanu-reference tks-user-site-template/template-std
 
         cd tks-user-site-template
+        # Remove unnecessary app_group directory before commit.
+        # If these kinds of apps increases, then they might be defined as black list
+        # and then removed by FOR loop iteration.
+        # For now, this hardcoding seems enough.
+        rm -rf template-std/openstack template-std/decapod-controller
+
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
         git add .
