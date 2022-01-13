@@ -61,7 +61,7 @@ spec:
             value: |
               [
                 { 
-                  "app_group": "tks-cluster",
+                  "app_group": "tks-cluster-aws",
                   "path": "cluster-api-aws",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
@@ -81,7 +81,7 @@ spec:
             value: |
               [
                 { 
-                  "app_group": "tks-cluster",
+                  "app_group": "tks-cluster-aws",
                   "path": "kubernetes-addons",
                   "namespace": "taco-system",
                   "target_cluster": ""
