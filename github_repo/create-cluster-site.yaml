@@ -34,7 +34,7 @@ spec:
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
         cp -r ${CONTRACT_ID}/_github/ ${CLUSTER_ID}/.github
 
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
 
         echo "Contract ID: "${CONTRACT_ID} > ${CLUSTER_ID}/META
         echo "Template Name: "${TEMPLATE_NAME} >> ${CLUSTER_ID}/META

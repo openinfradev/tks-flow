@@ -30,11 +30,13 @@ spec:
 
         cd ${CONTRACT_ID}
         echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
+
+        # Clone user-site-template which only has tks-cluster-aws app_group, currently
         git clone https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
 
         # Use hanu-reference template as default 'template-std'
         git clone https://github.com/openinfradev/decapod-site
-        cp -r decapod-site/hanu-reference tks-user-site-template/template-std
+        cp -r decapod-site/hanu-reference/* tks-user-site-template/template-std/
 
         cd tks-user-site-template
         # Remove unnecessary app_group directory before commit.
