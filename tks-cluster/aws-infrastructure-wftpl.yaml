@@ -31,11 +31,11 @@ spec:
       - |
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
-        while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}" | wc -c ) == 0 ]; do
+        while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.network.vpc.id}" | wc -c ) == 0 ]; do
           echo "> Wait for checking the VPC ID"
           sleep 2
         done
-        vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}")
+        vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.network.vpc.id}")
         lbname=${cluster_id:0:8}-lb
 
         cat <<EOF >/$cluster_id.yaml
