@@ -91,7 +91,7 @@ spec:
           - name: cluster_name
             value: "{{item.name}}"
           - name: app_group
-            value: "{{workflow.parameters.app_group}}"
+            value: "lma"
           - name: chart
             value: "thanos"
           ## {"querier.stores": "CURRENT_ENDPOINT"}
@@ -113,7 +113,7 @@ spec:
           - name: cluster_name
             value: "{{steps.collectThanosScEndpoints.outputs.parameters.cur_cluster_name}}"
           - name: app_group
-            value: "{{workflow.parameters.app_group}}"
+            value: "lma"
           - name: chart
             value: "thanos"
           ## {"querier.stores": ['endpointA', 'endpointB']}

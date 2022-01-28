@@ -41,5 +41,5 @@ spec:
           - name: list
             value: |
               [
-                { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "taco-system" }
+                { "app_group": "tks-cluster-aws", "path": "ingress-nginx", "namespace": "taco-system", "target_cluster": "" }
               ]
