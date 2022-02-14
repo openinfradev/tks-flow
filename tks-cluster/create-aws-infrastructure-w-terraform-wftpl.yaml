@@ -120,11 +120,11 @@ spec:
       - |
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
-        while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}" | wc -c ) == 0 ]; do
+        while [ $(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.network.vpc.id}" | wc -c ) == 0 ]; do
           echo "> Wait for checking the VPC ID"
           sleep 30
         done
-        vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.networkSpec.vpc.id}")
+        vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.network.vpc.id}")
 
         cat <<EOF >/$cluster_id.yaml
         apiVersion: app.terraform.io/v1alpha1
