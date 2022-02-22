@@ -100,7 +100,7 @@ spec:
   - name: wait-for-cluster-registration
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/argocd-cli:v2.0.1
+      image: docker.io/sktcloud/argocd-cli:v2.2.5 
       command:
       - /bin/bash
       - -exc
