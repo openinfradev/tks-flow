@@ -4,7 +4,7 @@ FROM alpine/git:v2.30.2
 RUN apk add --no-cache curl coreutils bash
 #RUN apk add --no-cache libc6-compat
 
-ENV GITHUB_CLI_VERSION 2.0.0
+ENV GITHUB_CLI_VERSION 2.5.1
 
 RUN set -ex; \
     curl -L "https://github.com/cli/cli/releases/download/v${GITHUB_CLI_VERSION}/gh_${GITHUB_CLI_VERSION}_checksums.txt" -o checksums.txt; \
