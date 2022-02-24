@@ -17,6 +17,4 @@ def get_workers(stream):
 allworker=[]
 stream = os.popen('kubectl get awsmachinepool -n argo {0}-taco-mp-0 -o yaml'.format(sys.argv[1]))
 allworker.extend(get_workers(stream))
-#stream = os.popen('kubectl get awsmachinepool -n argo {0}-normal-mp-0 -o yaml'.format(sys.argv[1]))
-#allworker.extend(get_workers(stream))
 list_print(allworker,' ')
