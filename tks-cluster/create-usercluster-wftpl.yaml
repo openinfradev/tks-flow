@@ -85,6 +85,12 @@ spec:
                   "path": "kubernetes-addons",
                   "namespace": "taco-system",
                   "target_cluster": ""
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "aws-ebs-csi-driver",
+                  "namespace": "kube-system",
+                  "target_cluster": ""
                 }
               ]
 
