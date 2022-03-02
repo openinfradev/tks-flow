@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-create-cluster-site
+  name: tks-create-cluster-repo
   namespace: argo
 spec:
   entrypoint: main
@@ -14,10 +14,10 @@ spec:
     - name: template_name
       value: "template-std"
   templates:
-  - name: createClusterSite
+  - name: createClusterRepo
     activeDeadlineSeconds: 120
     container:
-      name: 'createClusterSite'
+      name: 'createClusterRepo'
       image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
       imagePullPolicy: IfNotPresent
       command:
@@ -108,8 +108,8 @@ spec:
 
   - name: main
     steps:
-      - - name: createClusterSite
-          template: createClusterSite
+      - - name: createClusterRepo
+          template: createClusterRepo
           arguments: {}
       - - name: createRepoCredential
           template: createRepoCredential

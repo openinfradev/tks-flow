@@ -46,9 +46,9 @@ spec:
   templates:
   - name: deploy
     steps:
-    - - name: tks-create-cluster-site
+    - - name: tks-create-cluster-repo
         templateRef:
-          name: tks-create-cluster-site
+          name: tks-create-cluster-repo
           template: main
 
     - - name: k8s-by-capi
