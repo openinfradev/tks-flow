@@ -12,7 +12,7 @@ spec:
     - name: site_repo_url
       value: "https://github.com/openinfradev/decapod-site"
     ##########################
-    # For tks-info task #
+    # For updateTksInfo task #
     ##########################
     - name: tks_info_host
       value: "127.0.0.1"
@@ -20,6 +20,13 @@ spec:
       value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
     - name: app_group_id
       value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+    ##########################
+    # For removeLMA task #
+    ##########################
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+    - name: filter
+      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
   volumes:
   - name: tks-proto-vol
     configMap:
@@ -27,14 +34,10 @@ spec:
   templates:
   - name: removeLMA
     steps:
-    - - name: deleteAppGroup
+    - - name: removeAppGroup
         templateRef:
-          name: delete-apps
-          template: DeleteAppsByLabel
-        arguments:
-          parameters:
-          - name: filter
-            value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
+          name: remove-lma-federation
+          template: process
 
     - - name: deleteNamespace
         template: deleteNamespace
