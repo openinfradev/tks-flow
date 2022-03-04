@@ -7,20 +7,6 @@ spec:
   entrypoint: remove-tks-service-mesh
   arguments:
     parameters:
-    # - name: site_name
-    #   value: hanu-reference
-    # - name: app_group
-    #   value: service-mesh
-    # - name: iop_controlplane_name
-    #   value: istio-controlplane
-    # - name: iop_gateway_name
-    #   value: istio-ingress-gateway
-    # - name: revision
-    #   value: 1-11-7
-    # - name: namespace
-    #   value: istio-system
-    # - name: app_prefix
-    #   value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
     - name: app_group
       value: "service-mesh"
     - name: site_repo_url
@@ -49,13 +35,6 @@ spec:
   #=========================================================
   - name: remove-tks-service-mesh
     steps:
-    # - - name: delete-ingress-temporary
-    #     template: delete-ingress-temporary
-    #     arguments:
-    #       parameters:
-    #       - name: site_name
-    #         value: '{{workflow.parameters.site_name}}'
-
     - - name: remove-service-mech
         templateRef:
           name: remove-servicemesh-all
@@ -65,6 +44,7 @@ spec:
         templateRef:
           name: delete-tks-app-group-info
           template: deleteTksAppGroup
+
 
   #=========================================================
   # Template Definition

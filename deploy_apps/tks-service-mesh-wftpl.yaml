@@ -43,15 +43,6 @@ spec:
           name: service-mesh
           template: deploy-start
 
-    # - - name: deploy-ingress-temporary
-    #    template: deploy-ingress-temporary
-    #    arguments:
-    #      parameters:
-    #        - name: site_name
-    #          value: "{{workflow.parameters.site_name}}"
-    #        - name: kubeconfig_secret_name
-    #          value: "{{workflow.parameters.site_name}}-kubeconfig"
-
     - - name: updateTksInfo
         templateRef:
           name: update-tks-app-group-info
