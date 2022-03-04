@@ -8,9 +8,9 @@ spec:
   arguments:
     parameters:
     - name: app_group
-      value: "tks-cluster"
+      value: "tks-cluster-aws"
     - name: tks_info_host
-      value: "127.0.0.1"
+      value: "tks-info.tks.svc"
     - name: cluster_id
       value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
     - name: app_prefix
@@ -24,6 +24,22 @@ spec:
   templates:
   - name: main
     steps:
+    - - name: deleteAddonsApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - app_name: "{{workflow.parameters.app_prefix}}-kubernetes-addons"
+
+    - - name: deleteCsiDriverApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - app_name: "{{workflow.parameters.app_prefix}}-aws-ebs-csi-driver"
+
     - - name: disableAutoSyncOfClusterApp
         template: disableAutoSync
 
@@ -83,9 +99,8 @@ spec:
           ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
           --password $ARGO_PASSWORD
 
-          echo "Disabling auto-sync of [$APP_NAME]' app.."
-
           # Disable auto-sync
+          echo "Disabling auto-sync of [$APP_NAME]' app.."
           ./argocd app set $APP_NAME --sync-policy none
       envFrom:
         - secretRef:
