@@ -33,6 +33,9 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-ingress-nginx"
 
+    - - name: cleanupPVCs
+        template: cleanupPVCs
+
     - - name: deleteCsiDriverApp
         templateRef:
           name: delete-apps
@@ -123,6 +126,33 @@ spec:
       envFrom:
         - secretRef:
             name: "decapod-argocd-config"
+
+  - name: cleanupPVCs
+    container:
+      name: cleanup-pvcs
+      image: 'k8s.gcr.io/hyperkube:v1.18.6'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /etc/kubeconfig
+
+          kube_params+="--kubeconfig=/etc/kubeconfig"
+
+          echo "List of PVCs that will be deleted: "
+          kubectl $kube_params get ns | grep -v "NAME\|kube-system" | awk '{ print $1 }' | xargs -I '{}' kubectl get pvc -n '{}'
+          echo "======================================"
+
+          kubectl $kube_params get ns | grep -v "NAME\|kube-system" | awk '{ print $1 }' | xargs -I '{}' kubectl delete pvc --all -n '{}'
+
+          if [[ $? =~ 0 ]]; then
+            echo "All PVCs have been deleted successfully."
+          else
+            echo "Error occurred while cleaning up PVCs."
+            exit 1
+          fi
 
   - name: deleteCalicoController
     inputs:

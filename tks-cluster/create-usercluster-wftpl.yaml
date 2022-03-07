@@ -95,7 +95,7 @@ spec:
                   "path": "ingress-nginx",
                   "namespace": "taco-system",
                   "target_cluster": ""
-                },
+                }
               ]
 
     - - name: update-cluster-status-to-running
