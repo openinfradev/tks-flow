@@ -69,7 +69,7 @@ spec:
     - - name: wait-for-clster-to-be-registered
         template: wait-for-cluster-registration
 
-    - - name: install-cni-and-csi
+    - - name: install-addons
         templateRef:
           name: create-application
           template: installApps
@@ -89,7 +89,13 @@ spec:
                   "path": "aws-ebs-csi-driver",
                   "namespace": "kube-system",
                   "target_cluster": ""
-                }
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "ingress-nginx",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
+                },
               ]
 
     - - name: update-cluster-status-to-running
@@ -100,6 +106,10 @@ spec:
           parameters:
           - name: cluster_status
             value: RUNNING
+
+  #######################
+  # Template Definition #
+  #######################
 
   - name: wait-for-cluster-registration
     activeDeadlineSeconds: 1800

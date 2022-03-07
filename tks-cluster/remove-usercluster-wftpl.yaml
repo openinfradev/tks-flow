@@ -24,6 +24,15 @@ spec:
   templates:
   - name: main
     steps:
+    - - name: deleteIngressControllerApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-ingress-nginx"
+
     - - name: deleteCsiDriverApp
         templateRef:
           name: delete-apps
@@ -48,7 +57,6 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-kubernetes-addons"
-
 
     - - name: disableAutoSyncOfClusterApp
         template: disableAutoSync
