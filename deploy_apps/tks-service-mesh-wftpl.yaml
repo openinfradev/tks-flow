@@ -51,7 +51,7 @@ spec:
           parameters:
           # TODO: Can this be pre-determined? Or composed dynamically on deployment?
           - name: endpoints
-            value: "{'SERVICE-MESH': 'dashboard.cluster_xy'}"
+            value: "{}"
           - name: app_group_status
             value: "APP_GROUP_RUNNING"
 
