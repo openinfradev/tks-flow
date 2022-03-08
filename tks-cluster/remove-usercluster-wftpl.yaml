@@ -76,14 +76,6 @@ spec:
           name: delete-apps
           template: DeleteAppsByLabel
 
-    # Is it possible to delete NS with kubesecret in that NS?
-    - - name: deleteClusterNamespace
-        template: deleteNamespace
-        arguments:
-          parameters:
-            - name: target_namespace
-              value: "{{workflow.parameters.cluster_id}}"
-
     # Update status to 'DELETED' in tks-info DB
     - - name: updateClusterStatusToTksInfo
         templateRef:
@@ -188,7 +180,7 @@ spec:
       parameters:
         - name: target_namespace
     container:
-      name: delete-namespace
+      name: delete-cluster-cr
       image: 'k8s.gcr.io/hyperkube:v1.18.6'
       command:
         - /bin/bash
@@ -212,26 +204,3 @@ spec:
           value: "{{inputs.parameters.target_namespace}}"
         - name: CLUSTER_NAME
           value: "{{workflow.parameters.cluster_id}}"
-
-  - name: deleteNamespace
-    inputs:
-      parameters:
-        - name: target_namespace
-    container:
-      name: delete-namespace
-      image: 'k8s.gcr.io/hyperkube:v1.18.6'
-      command:
-        - /bin/bash
-        - '-c'
-        - |
-          kubectl get ns ${TARGET_NAMESPACE}
-          if [[ $? =~ 0 ]]; then
-            kubectl delete ns ${TARGET_NAMESPACE}
-            echo "${TARGET_NAMESPACE} was successfully deleted."
-          fi
-      env:
-        - name: TARGET_NAMESPACE
-          value: '{{inputs.parameters.target_namespace}}'
-    activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
