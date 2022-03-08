@@ -25,7 +25,7 @@ spec:
     - name: revision
       value: "main"
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
+      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
     - name: tks_info_host
       value: "tks-info.tks.svc"
 
@@ -33,11 +33,9 @@ spec:
   - name: config
     secret:
       secretName: tks-admin-kubeconfig-secret
-      namespace: argo
   - name: artifacts
     configMap:
       name: aws-artifacts
-      namespace: argo
       defaultMode: 0555
   - name: tks-proto-vol
     configMap:
@@ -46,9 +44,9 @@ spec:
   templates:
   - name: deploy
     steps:
-    - - name: tks-create-cluster-site
+    - - name: tks-create-cluster-repo
         templateRef:
-          name: tks-create-cluster-site
+          name: tks-create-cluster-repo
           template: main
 
     - - name: k8s-by-capi
@@ -71,7 +69,7 @@ spec:
     - - name: wait-for-clster-to-be-registered
         template: wait-for-cluster-registration
 
-    - - name: install-cni-and-csi
+    - - name: install-addons
         templateRef:
           name: create-application
           template: installApps
@@ -91,6 +89,12 @@ spec:
                   "path": "aws-ebs-csi-driver",
                   "namespace": "kube-system",
                   "target_cluster": ""
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "ingress-nginx",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
                 }
               ]
 
@@ -102,6 +106,10 @@ spec:
           parameters:
           - name: cluster_status
             value: RUNNING
+
+  #######################
+  # Template Definition #
+  #######################
 
   - name: wait-for-cluster-registration
     activeDeadlineSeconds: 1800

@@ -1,0 +1,206 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-remove-usercluster
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: app_group
+      value: "tks-cluster-aws"
+    - name: tks_info_host
+      value: "tks-info.tks.svc"
+    - name: cluster_id
+      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+    - name: filter
+      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+  templates:
+  - name: main
+    steps:
+    - - name: deleteIngressControllerApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-ingress-nginx"
+
+    - - name: cleanupPVCs
+        template: cleanupPVCs
+
+    - - name: deleteCsiDriverApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-aws-ebs-csi-driver"
+
+    - - name: deleteCalicoController
+        template: deleteCalicoController
+        arguments:
+          parameters:
+            - name: target_namespace
+              value: "kube-system"
+
+    - - name: deleteAddonsApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-kubernetes-addons"
+
+    - - name: disableAutoSyncOfClusterApp
+        template: disableAutoSync
+
+    - - name: deleteClusterCR
+        template: deleteClusterCR
+        arguments:
+          parameters:
+            - name: target_namespace
+              value: "{{workflow.parameters.cluster_id}}"
+
+    - - name: deleteArgoCDAppGroup
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByLabel
+
+    # Update status to 'DELETED' in tks-info DB
+    - - name: updateClusterStatusToTksInfo
+        templateRef:
+          name: update-tks-cluster-status
+          template: updateClusterStatus
+        arguments:
+          parameters:
+          - name: cluster_status
+            value: "DELETED"
+
+    - - name: deleteClusterRepo
+        templateRef:
+          name: tks-delete-cluster-repo
+          template: deleteClusterRepo
+
+
+  #######################
+  # Template Definition #
+  #######################
+  - name: disableAutoSync
+    container:
+      name: disable-auto-sync
+      image: docker.io/sktcloud/argocd-cli:v2.2.5
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          APP_NAME="cluster-api-aws"
+          if [[ -n "{{workflow.parameters.app_prefix}}" ]]; then
+            APP_NAME="{{workflow.parameters.app_prefix}}-cluster-api-aws"
+          fi
+
+          # Login to Argo CD server
+          ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
+          --password $ARGO_PASSWORD
+
+          # Disable auto-sync
+          echo "Disabling auto-sync of [$APP_NAME]' app.."
+          ./argocd app set $APP_NAME --sync-policy none
+      envFrom:
+        - secretRef:
+            name: "decapod-argocd-config"
+
+  - name: cleanupPVCs
+    container:
+      name: cleanup-pvcs
+      image: 'k8s.gcr.io/hyperkube:v1.18.6'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /etc/kubeconfig
+
+          kube_params+="--kubeconfig=/etc/kubeconfig"
+
+          echo "List of PVCs that will be deleted: "
+          kubectl $kube_params get ns | grep -v "NAME\|kube-system" | awk '{ print $1 }' | xargs -I '{}' kubectl get pvc -n '{}'
+          echo "======================================"
+
+          kubectl $kube_params get ns | grep -v "NAME\|kube-system" | awk '{ print $1 }' | xargs -I '{}' kubectl delete pvc --all -n '{}'
+
+          if [[ $? =~ 0 ]]; then
+            echo "All PVCs have been deleted successfully."
+          else
+            echo "Error occurred while cleaning up PVCs."
+            exit 1
+          fi
+
+  - name: deleteCalicoController
+    inputs:
+      parameters:
+        - name: target_namespace
+    container:
+      name: delete-calico
+      image: 'k8s.gcr.io/hyperkube:v1.18.6'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /etc/kubeconfig
+
+          kube_params+="--kubeconfig=/etc/kubeconfig"
+
+          kubectl $kube_params get deployment -n ${TARGET_NAMESPACE} | grep calico-kube-controller
+          if [[ $? =~ 0 ]]; then
+            kubectl $kube_params delete deployment calico-kube-controllers -n ${TARGET_NAMESPACE}
+
+          else
+            echo "Error: deployment 'calico-kube-controllers' was NOT found."
+            exit 1
+          fi
+      env:
+        - name: TARGET_NAMESPACE
+          value: "{{inputs.parameters.target_namespace}}"
+
+  - name: deleteClusterCR
+    inputs:
+      parameters:
+        - name: target_namespace
+    container:
+      name: delete-cluster-cr
+      image: 'k8s.gcr.io/hyperkube:v1.18.6'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          kubectl get cl ${CLUSTER_NAME} -n ${TARGET_NAMESPACE}
+          if [[ $? =~ 0 ]]; then
+            kubectl delete cl ${CLUSTER_NAME} -n ${TARGET_NAMESPACE}
+
+            while (kubectl get cl ${CLUSTER_NAME} -n ${TARGET_NAMESPACE}); do
+              echo "Waiting for cluster CR to be deleted.."
+              sleep 2
+            done
+            echo "Cluster ${CLUSTER_NAME} was successfully deleted."
+          else
+            echo "Error: cluster ${CLUSTER_NAME} was NOT found."
+            exit 1
+          fi
+      env:
+        - name: TARGET_NAMESPACE
+          value: "{{inputs.parameters.target_namespace}}"
+        - name: CLUSTER_NAME
+          value: "{{workflow.parameters.cluster_id}}"
