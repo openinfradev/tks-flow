@@ -4,294 +4,134 @@ metadata:
   name: tks-service-mesh
   namespace: argo
 spec:
-  entrypoint: deploy
+  entrypoint: deploy-tks-service-mesh
   arguments:
     parameters:
-      - name: site_name
-        value: hanu-reference
-      - name: app_group
-        value: service-mesh
-      - name: manifest_repo_url
-        value: 'https://github.com/openinfradev/decapod-manifests'
-      - name: revision
-        value: main
+    - name: site_name
+      value: "hanu-reference"
+    # Replace these urls properly for your env #
+    - name: site_repo_url
+      value: "https://github.com/openinfradev/decapod-site"
+    - name: manifest_repo_url
+      value: "https://github.com/openinfradev/decapod-manifests"
+    - name: revision
+      value: "main"
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
+    #===============================
+    # For tks-info task
+    #===============================
+    - name: tks_info_host
+      value: "127.0.0.1"
+    - name: cluster_id
+      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+    - name: app_group_id
+      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+  
   templates:
-    - name: deploy
-      dag:
-        tasks:
-          - name: create-eck-secret
-            template: copy-eck-secret
-            arguments:
-              parameters:
-                - name: secret_name
-                  value: eck-elasticsearch-es-http-certs-public
-                - name: source_namespace
-                  value: lma
-                - name: target_namespace
-                  value: istio-system
-                - name: kubeconfig_secret_name
-                  value: "{{workflow.parameters.site_name}}-kubeconfig"
-          - name: istio-operator
-            arguments:
-              parameters:
-                - name: list
-                  value: |
-                    [
-                      { "path": "istio-operator", "namespace": "istio-operator" }
-                    ]
-            templateRef:
-              name: create-application
-              template: installApps
-            dependencies:
-              - create-eck-secret
-          - name: istio-controlplane
-            arguments:
-              parameters:
-                - name: list
-                  value: |
-                    [
-                      { "path": "servicemesh-controlplane", "namespace": "istio-system" }
-                    ]
-            templateRef:
-              name: create-application
-              template: installApps
-            dependencies:
-              - istio-operator
-          - name: istio-gateway
-            arguments:
-              parameters:
-                - name: list
-                  value: |
-                    [
-                      { "path": "servicemesh-gateway", "namespace": "istio-system" }
-                    ]
-            templateRef:
-              name: create-application
-              template: installApps
-            dependencies:
-              - istio-controlplane
-          - name: jaeger-kiali-operator
-            arguments:
-              parameters:
-                - name: list
-                  value: |
-                    [
-                      { "path": "jaeger-operator", "namespace": "istio-system" },
-                      { "path": "kiali-operator", "namespace": "istio-system" }
-                    ]
-            templateRef:
-              name: create-application
-              template: installApps
-            dependencies:
-              - istio-controlplane
-          - name: servicemesh-jaeger-kiali-resource
-            arguments:
-              parameters:
-                - name: list
-                  value: |
-                    [
-                      { "path": "servicemesh-jaeger-resource", "namespace": "istio-system" },
-                      { "path": "servicemesh-kiali-resource", "namespace": "istio-system" }
-                    ]
-            templateRef:
-              name: create-application
-              template: installApps
-            dependencies:
-              - jaeger-kiali-operator
-          - name: grafana-prometheus-resource
-            arguments:
-              parameters:
-                - name: list
-                  value: |
-                    [
-                      { "path": "servicemesh-grafana-dashboard", "namespace": "istio-system" },
-                      { "path": "servicemesh-prometheusmonitor", "namespace": "istio-system" },
-                      { "path": "servicemesh-prometheusrule", "namespace": "istio-system" }
-                    ]
-            templateRef:
-              name: create-application
-              template: installApps
-            dependencies:
-              - jaeger-kiali-operator
-          - name: sync-app
-            template: sync-app
-            arguments:
-              parameters:
-                - name: site_name
-                  value: "{{workflow.parameters.site_name}}"
-            dependencies:
-              - grafana-prometheus-resource
-          - name: deploy-ingress-temporary
-            template: deploy-ingress-temporary
-            arguments:
-              parameters:
-                - name: site_name
-                  value: "{{workflow.parameters.site_name}}"
-                - name: kubeconfig_secret_name
-                  value: "{{workflow.parameters.site_name}}-kubeconfig"
-            dependencies:
-              - sync-app
-    - name: copy-eck-secret
-      arguments: {}
-      inputs:
-        parameters:
-          - name: secret_name
-          - name: source_namespace
-          - name: target_namespace
-          - name: kubeconfig_secret_name
-      outputs: {}
-      metadata: {}
-      container:
-        name: copy-eck-secret
-        image: 'k8s.gcr.io/hyperkube:v1.18.6'
-        command:
-          - /bin/bash
-          - '-c'
-          - |
-            function log() {
-              level=$1
-              msg=$2
-              date=$(date '+%F %H:%M:%S')
-              echo "[$date] $level     $msg"
-            }
+  #=========================================================
+  # Template Pipeline
+  #=========================================================
+  - name: deploy-tks-service-mesh
+    steps:
+    - - name: install-service-mesh-app
+        templateRef:
+          name: service-mesh
+          template: deploy-start
 
-            cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
+    - - name: updateTksInfo
+        templateRef:
+          name: update-tks-app-group-info
+          template: updateTksAppGroup
+        arguments:
+          parameters:
+          # TODO: Can this be pre-determined? Or composed dynamically on deployment?
+          - name: endpoints
+            value: "{'SERVICE-MESH': 'dashboard.cluster_xy'}"
+          - name: app_group_status
+            value: "APP_GROUP_RUNNING"
 
-            kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
-            if [[ $? =~ 1 ]]; then
-              kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
-              kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${SOURCE_NAMESPACE}
-              kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
-              log "INFO" "${TARGET_NAMESPACE} successfully created."
-            fi
+  #=========================================================
+  # Template Definition
+  #=========================================================
+  - name: deploy-ingress-temporary
+    inputs:
+      parameters:
+      - name: site_name
+      - name: kubeconfig_secret_name
+    container:
+      name: deploy-ingress-temporary
+      image: 'gcr.io/google-containers/hyperkube:v1.18.6'
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        function log() {
+          level=$1
+          msg=$2
+          date=$(date '+%F %H:%M:%S')
+          echo "[$date] $level     $msg"
+        }
 
-            kubectl --kubeconfig=/etc/kubeconfig get secret ${SECRET_NAME}
-            if [[ $? =~ 1 ]]; then
-              kubectl --kubeconfig=/etc/kubeconfig get secret ${SECRET_NAME} -n ${SOURCE_NAMESPACE} -o yaml \
-              | grep -v '^\s*namespace:\s' \
-              | kubectl --kubeconfig=/etc/kubeconfig apply -n ${TARGET_NAMESPACE} -f -
-              log "INFO" "${SECRET_NAME} successfully created."
-            fi
-        env:
-          - name: SECRET_NAME
-            value: '{{inputs.parameters.secret_name}}'
-          - name: SOURCE_NAMESPACE
-            value: '{{inputs.parameters.source_namespace}}'
-          - name: TARGET_NAMESPACE
-            value: '{{inputs.parameters.target_namespace}}'
-          - name: KUBE_CONFIG
-            valueFrom:
-              secretKeyRef:
-                name: "{{ inputs.parameters.kubeconfig_secret_name }}"
-                key: value
-        resources: {}
-      activeDeadlineSeconds: 900
-      retryStrategy:
-        limit: 2
-    - name: sync-app
-      arguments: {}
-      inputs:
-        parameters:
-          - name: site_name
-      outputs: {}
-      metadata: {}
-      container:
-        name: sync-app
-        image: docker.io/sktcloud/argocd-cli:v2.2.5
-        command:
-          - /bin/bash
-          - '-c'
-          - |
-            ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
-            --password $ARGO_PASSWORD
+        function deploy_ingress() {
+          ingress_name=$1
+          namespace=$2
+          host_name=$3
+          service_name=$4
+          service_port=$5
 
-            export ARGOCD_APP_NAME=$(echo "${SITE_NAME:0:8}")-service-mesh
+          kubectl --kubeconfig=/etc/kubeconfig get ing $ingress_name -n $namespace
+          if [[ $? =~ 1 ]]; then
+            cat <<EOF | kubectl --kubeconfig=/etc/kubeconfig apply -f -
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          annotations:
+            kubernetes.io/ingress.class: nginx
+          name: $ingress_name
+          namespace: $namespace
+        spec:
+          rules:
+          - host: $host_name
+            http:
+              paths:
+              - pathType: ImplementationSpecific
+                backend:
+                  service:
+                    name: $service_name
+                    port:
+                      number: $service_port
+          tls:
+          - hosts:
+            - $host_name
+            secretName: taco-cat-tls
+        EOF
 
-            ./argocd app sync -l app=$ARGOCD_APP_NAME
-        env:
-        - name: SITE_NAME
-          value: '{{inputs.parameters.site_name}}'
-        envFrom:
-          - secretRef:
-              name: decapod-argocd-config
-        resources: {}
-      activeDeadlineSeconds: 900
-      retryStrategy:
-        limit: 2
-    - name: deploy-ingress-temporary
-      inputs:
-        parameters:
-          - name: site_name
-          - name: kubeconfig_secret_name
-      container:
-        name: deploy-ingress-temporary
-        image: 'k8s.gcr.io/hyperkube:v1.18.6'
-        command:
-          - /bin/bash
-          - '-c'
-          - |
-            function log() {
-              level=$1
-              msg=$2
-              date=$(date '+%F %H:%M:%S')
-              echo "[$date] $level     $msg"
-            }
+            log "INFO" "${ingress_name} in ${namespace} successfully created."
+          fi
+        }
 
-            function deploy_ingress() {
-              ingress_name=$1
-              namespace=$2
-              host_name=$3
-              service_name=$4
-              service_port=$5
+        GRAFANA_HOST=grafana-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
+        KIBANA_HOST=kibana-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
+        KIALI_HOST=kiali-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
 
-              kubectl --kubeconfig=/etc/kubeconfig get ing $ingress_name -n $namespace
-              if [[ $? =~ 1 ]]; then
-                cat <<EOF | kubectl --kubeconfig=/etc/kubeconfig apply -f -
-            apiVersion: networking.k8s.io/v1
-            kind: Ingress
-            metadata:
-              annotations:
-                kubernetes.io/ingress.class: nginx
-              name: $ingress_name
-              namespace: $namespace
-            spec:
-              rules:
-              - host: $host_name
-                http:
-                  paths:
-                  - pathType: ImplementationSpecific
-                    backend:
-                      service:
-                        name: $service_name
-                        port:
-                          number: $service_port
-              tls:
-              - hosts:
-                - $host_name
-                secretName: taco-cat-tls
-            EOF
+        cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
 
-                log "INFO" "${ingress_name} in ${namespace} successfully created."
-              fi
-            }
-
-            GRAFANA_HOST=grafana-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
-            KIBANA_HOST=kibana-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
-            KIALI_HOST=kiali-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
-
-            cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
-
-            deploy_ingress "grafana" "lma" $GRAFANA_HOST "grafana" "80"
-            deploy_ingress "kibana" "lma" $KIBANA_HOST "eck-kibana-kb-http" "5601"
-            deploy_ingress "kiali" "istio-system" $KIALI_HOST "kiali" "20001"
-        env:
-          - name: SITE_NAME
-            value: '{{inputs.parameters.site_name}}'
-          - name: KUBE_CONFIG
-            valueFrom:
-              secretKeyRef:
-                name: "{{ inputs.parameters.kubeconfig_secret_name }}"
-                key: value
-      activeDeadlineSeconds: 900
-      retryStrategy:
-        limit: 2
+        deploy_ingress "grafana" "lma" $GRAFANA_HOST "grafana" "80"
+        deploy_ingress "kibana" "lma" $KIBANA_HOST "eck-kibana-kb-http" "5601"
+        deploy_ingress "kiali" "istio-system" $KIALI_HOST "kiali" "20001"
+      env:
+      - name: SITE_NAME
+        value: '{{inputs.parameters.site_name}}'
+      - name: KUBE_CONFIG
+        valueFrom:
+          secretKeyRef:
+            name: "{{ inputs.parameters.kubeconfig_secret_name }}"
+            key: value
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
