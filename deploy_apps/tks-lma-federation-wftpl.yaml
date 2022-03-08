@@ -42,8 +42,6 @@ spec:
           parameters:
             - name: target_namespace
               value: lma
-            - name: kubeconfig_secret_name
-              value: "{{workflow.parameters.site_name}}-kubeconfig"
 
     - - name: installApps
         templateRef:
@@ -124,13 +122,9 @@ spec:
   # Template Definition #
   #######################
   - name: createNamespace
-    arguments: {}
     inputs:
       parameters:
         - name: target_namespace
-        - name: kubeconfig_secret_name
-    outputs: {}
-    metadata: {}
     container:
       name: create-namespace
       image: 'k8s.gcr.io/hyperkube:v1.18.6'
@@ -145,7 +139,10 @@ spec:
             echo "[$date] $level     $msg"
           }
 
-          cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /etc/kubeconfig
+
           kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
           if [[ $? =~ 1 ]]; then
             kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
@@ -156,12 +153,6 @@ spec:
       env:
         - name: TARGET_NAMESPACE
           value: '{{inputs.parameters.target_namespace}}'
-        - name: KUBE_CONFIG
-          valueFrom:
-            secretKeyRef:
-              name: "{{ inputs.parameters.kubeconfig_secret_name }}"
-              key: value
-      resource: {}
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
