@@ -95,6 +95,12 @@ spec:
                   "path": "ingress-nginx",
                   "namespace": "taco-system",
                   "target_cluster": ""
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "metrics-server",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
                 }
               ]
 
