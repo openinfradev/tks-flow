@@ -104,6 +104,11 @@ spec:
                 }
               ]
 
+    - - name: create-internal-communication
+        templateRef:
+          name: create-internal-communication
+          template: deploy
+
     - - name: update-cluster-status-to-running
         templateRef:
           name: update-tks-cluster-status
@@ -116,7 +121,6 @@ spec:
   #######################
   # Template Definition #
   #######################
-
   - name: wait-for-cluster-registration
     activeDeadlineSeconds: 1800
     container:
