@@ -1,0 +1,813 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-service-mesh-dashboard
+  namespace: argo
+spec:
+  entrypoint: deploy-tks-service-dashboard
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "04a70f29-4174-490b-9b2b-7008967f7d7d"
+    - name: app_prefix
+      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+    - name: aws_load_balancer
+      value: "04a70f29-lb-661037456.ap-northeast-2.elb.amazonaws.com"
+    - name: zone_id
+      value: "Z104697219C1N0592X9B3"
+    - name: service_domain
+      value: "taco-cat.xyz"
+    - name: keycloak_namespace
+      value: "eom-keycloak"
+    - name: keycloak_instance_name
+      value: "tks-keycloak"
+    - name: keycloak_url
+      value: "keycloak-eom.taco-cat.xyz"
+    - name: cluster_domain
+      value: "cluster.local"
+    - name: service_cert_secret_name
+      value: "taco-cat-tls"
+  
+  templates:
+  #=========================================================
+  # Template Pipeline
+  #=========================================================
+  - name: deploy-tks-service-dashboard
+    steps:
+    - - name: create-realm-user-cluster
+        template: create-realm
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
+
+    - - name: configure-route53-dashboard
+        template: configure-route53
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: aws_load_balancer
+            value: "{{workflow.parameters.aws_load_balancer}}"
+          - name: zone_id
+            value: "{{workflow.parameters.zone_id}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+
+    - - name: create-admins-users-group
+        template: create-group
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+
+    - - name: create-admin-user
+        template: create-user
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: admin_username
+            value: "portal-admin"
+          - name: admin_password
+            value: "tacoword"
+
+    - - name: create-client-kiali
+        template: create-client
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_id
+            value: "kiali"
+          - name: add_mapper
+            value: "true"
+
+    - - name: create-client-jaeger
+        template: create-client
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_id
+            value: "jaeger"
+          - name: add_mapper
+            value: "true"
+
+    - - name: create-client-grafana
+        template: create-client
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_id
+            value: "grafana"
+          - name: add_mapper
+            value: "false"
+
+    - - name: create-client-portal
+        template: create-client
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_id
+            value: "portal"
+          - name: add_mapper
+            value: "false"
+
+    - - name: create-gatekeeper-kiali
+        template: create-gatekeeper
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: cluster_domain
+            value: "{{workflow.parameters.cluster_domain}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+          - name: client_id
+            value: "kiali"
+          - name: app_namespace
+            value: "istio-system"
+          - name: app_service
+            value: "kiali"
+          - name: app_port
+            value: 20001
+
+    - - name: create-gatekeeper-jaeger
+        template: create-gatekeeper
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: cluster_domain
+            value: "{{workflow.parameters.cluster_domain}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+          - name: client_id
+            value: "jaeger"
+          - name: app_namespace
+            value: "istio-system"
+          - name: app_service
+            value: "jaeger-operator-jaeger-query"
+          - name: app_port
+            value: 16686
+
+    - - name: create-ingress-kiali
+        template: create-ingress
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: service_cert_secret_name
+            value: "{{workflow.parameters.service_cert_secret_name}}"
+          - name: client_id
+            value: "kiali"
+          - name: app_namespace
+            value: "istio-system"
+          - name: app_service
+            value: "gatekeeper"
+          - name: app_port
+            value: 3000
+
+    - - name: create-ingress-jaeger
+        template: create-ingress
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: service_cert_secret_name
+            value: "{{workflow.parameters.service_cert_secret_name}}"
+          - name: client_id
+            value: "jaeger"
+          - name: app_namespace
+            value: "istio-system"
+          - name: app_service
+            value: "gatekeeper"
+          - name: app_port
+            value: 3000
+
+    - - name: create-ingress-grafana
+        template: create-ingress
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: service_cert_secret_name
+            value: "{{workflow.parameters.service_cert_secret_name}}"
+          - name: client_id
+            value: "grafana"
+          - name: app_namespace
+            value: "lma"
+          - name: app_service
+            value: "grafana"
+          - name: app_port
+            value: 80
+
+    - - name: create-ingress-kibana
+        template: create-ingress
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: service_cert_secret_name
+            value: "{{workflow.parameters.service_cert_secret_name}}"
+          - name: client_id
+            value: "kibana"
+          - name: app_namespace
+            value: "lma"
+          - name: app_service
+            value: "eck-kibana-kb-http"
+          - name: app_port
+            value: 5601
+
+    - - name: create-ingress-portal
+        template: create-ingress
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: service_cert_secret_name
+            value: "{{workflow.parameters.service_cert_secret_name}}"
+          - name: client_id
+            value: "portal"
+          - name: app_namespace
+            value: "tks-portal"
+          - name: app_service
+            value: "tks-portal"
+          - name: app_port
+            value: 9110
+
+  #=========================================================
+  # Template Definition
+  #=========================================================
+  - name: configure-route53
+    inputs:
+      parameters:
+      - name: realms
+      - name: aws_load_balancer
+      - name: zone_id
+      - name: service_domain
+    container:
+      name: configure-route53
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          AWS_LOAD_BALANCER={{inputs.parameters.aws_load_balancer}}
+          ZONE_ID={{inputs.parameters.zone_id}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+
+          kube_params=""
+          kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /tmp/kubeconfig
+          kube_params+="--kubeconfig=/tmp/kubeconfig"
+
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: route53.aws.crossplane.io/v1alpha1
+          kind: ResourceRecordSet
+          metadata:
+            annotations:
+              crossplane.io/external-name: dashboard-${REALMS}.${SERVICE_DOMAIN}
+            name: dashboard-${REALMS}
+          spec:
+            forProvider:
+              resourceRecords:
+              - value: ${AWS_LOAD_BALANCER}
+              ttl: 300
+              type: CNAME
+              zoneId: ${ZONE_ID}
+            providerConfigRef:
+              name: awsconfig
+          EOF
+
+          log "INFO" "ResourceRecordSet dashboard-${REALMS} successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
+  - name: create-realm
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: keycloak_instance_name
+    container:
+      name: create-realm
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
+
+          kube_params=""
+          kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /tmp/kubeconfig
+          kube_params+="--kubeconfig=/tmp/kubeconfig"
+
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: keycloak.org/v1alpha1
+          kind: KeycloakRealm
+          metadata:
+            name: ${REALMS}
+            namespace: ${KEYCLOAK_NAMESPACE}
+            labels:
+              realm: ${REALMS}
+          spec:
+            realm:
+              realm: ${REALMS}
+              enabled: True
+              displayName: ${REALMS}
+              roles:
+                realm:
+                - name: admin
+                - name: user
+            instanceSelector:
+              matchLabels:
+                app: ${KEYCLOAK_INSTANCE_NAME}
+          EOF
+
+          log "INFO" "realms ${REALMS} in ${KEYCLOAK_NAMESPACE} namespace successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
+  - name: create-group
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: keycloak_instance_name
+      - name: keycloak_url
+    container:
+      name: create-group
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
+          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
+
+          ADMIN_USERNAME=$(kubectl get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          ##### TO-DO: make a function
+          ##### create group
+          get_token
+          curl -s POST https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/groups \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              -d '{"name":"admins"}'
+          log "INFO" "group admins successfully created."
+
+          get_token
+          curl -s POST https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/groups \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              -d '{"name":"users"}'
+          log "INFO" "group users successfully created."
+
+
+          ##### get group_id realm_role_id
+          get_token
+          ADMINS_GROUP_ID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/groups?search=admins \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r '.[0].id')
+
+          get_token
+          USERS_GROUP_ID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/groups?search=users \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r '.[0].id')
+          
+          get_token
+          ADMIN_REALMROLE_ID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/roles/admin \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r '.id')
+
+          get_token
+          USER_REALMROLE_ID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/roles/user \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r '.id')
+
+          log "INFO" "get group_id and realm_role_id."
+
+
+          ##### group realm-role mapping
+          get_token
+          curl -s POST https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/groups/${ADMINS_GROUP_ID}/role-mappings/realm \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              -d "[{\"name\":\"admin\", \"id\": \"${ADMIN_REALMROLE_ID}\", \"clientRole\": false, \"composite\": false}]"
+
+          get_token
+          curl -s POST https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/groups/${USERS_GROUP_ID}/role-mappings/realm \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              -d "[{\"name\":\"user\", \"id\": \"${USER_REALMROLE_ID}\", \"clientRole\": false, \"composite\": false}]"
+
+          log "INFO" "create group and mapping with realm-role finished."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+  
+  - name: create-user
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: admin_username
+      - name: admin_password
+    container:
+      name: create-realm
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          ADMIN_USERNAME={{inputs.parameters.admin_username}}
+          ADMIN_PASSWORD={{inputs.parameters.admin_password}}
+          ADMIN_GROUP=admins
+
+          kube_params=""
+          kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /tmp/kubeconfig
+          kube_params+="--kubeconfig=/tmp/kubeconfig"
+
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: keycloak.org/v1alpha1
+          kind: KeycloakUser
+          metadata:
+            name: portal-admin
+            namespace: ${KEYCLOAK_NAMESPACE}
+          spec:
+            realmSelector:
+              matchLabels:
+                realm: ${REALMS}
+            user:
+              username: ${ADMIN_USERNAME}
+              firstName: ${ADMIN_USERNAME}
+              email: ${ADMIN_USERNAME}@tks.com
+              enabled: True
+              emailVerified: False
+              credentials:
+              - type: password
+                value: ${ADMIN_PASSWORD}
+              groups:
+              - ${ADMIN_GROUP}
+          EOF
+
+          log "INFO" "admin user: ${ADMIN_USERNAME} successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
+  - name: create-client
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: service_domain
+      - name: client_id
+      - name: add_mapper
+    container:
+      name: create-realm
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+          CLIENT_ID={{inputs.parameters.client_id}}
+          ADD_MAPPER={{inputs.parameters.add_mapper}}
+
+          kube_params=""
+          kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /tmp/kubeconfig
+          kube_params+="--kubeconfig=/tmp/kubeconfig"
+
+          MAPPER=""
+          if [[ "true" == "${ADD_MAPPER}" ]]; then
+            MAPPER+="    protocolMappers:
+                - name: Audience
+                  protocol: openid-connect
+                  protocolMapper: oidc-audience-mapper
+                  config:
+                    included.client.audience: ${CLIENT_ID}
+                    id.token.claim: \"false\"
+                    access.token.claim: \"true\"
+            "
+          fi
+
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: keycloak.org/v1alpha1
+          kind: KeycloakClient
+          metadata:
+            name: ${CLIENT_ID}
+            namespace: ${KEYCLOAK_NAMESPACE}
+            labels:
+              client: ${CLIENT_ID}
+          spec:
+            realmSelector:
+              matchLabels:
+                realm: ${REALMS}
+            client:
+              clientId: ${CLIENT_ID}
+              enabled: True
+              protocol: openid-connect
+              standardFlowEnabled: True
+              directAccessGrantsEnabled: True
+              rootUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_ID}/
+              redirectUris:
+              - https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_ID}/*
+              adminUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_ID}/
+              webOrigins:
+              - https://dashboard-${REALMS}.${SERVICE_DOMAIN}
+              defaultClientScopes:
+              - email
+              - profile
+              - roles
+              - web-origins
+              optionalClientScopes:
+              - address
+              - microprofile-jwt
+              - offline_access
+              - phone
+          ${MAPPER}
+          EOF
+
+          log "INFO" "keycloak client: ${CLIENT_ID} successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
+  - name: create-gatekeeper
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: cluster_domain
+      - name: keycloak_url
+      - name: client_id
+      - name: app_namespace
+      - name: app_service
+      - name: app_port
+    container:
+      name: create-realm
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          CLUSTER_DOMAIN={{inputs.parameters.cluster_domain}}
+          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
+          CLIENT_ID={{inputs.parameters.client_id}}
+          APP_NAMESPACE={{inputs.parameters.app_namespace}}
+          APP_SERVICE={{inputs.parameters.app_service}}
+          APP_PORT={{inputs.parameters.app_port}}
+
+          helm repo add gogatekeeper https://gogatekeeper.github.io/helm-gogatekeeper
+          helm repo update
+
+          admin_kube_params=""
+          admin_kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "admin_kube_secret:\n$admin_kube_secret" | head -n 5
+          cat <<< "$admin_kube_secret" > /tmp/admin-kubeconfig
+          admin_kube_params+="--kubeconfig=/tmp/admin-kubeconfig"
+
+          kube_params=""
+          if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
+            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            echo -e "kube_secret:\n$kube_secret" | head -n 5
+            cat <<< "$kube_secret" > /tmp/kubeconfig
+            kube_params+="--kubeconfig=/tmp/kubeconfig"
+          fi
+
+          CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          UPSTREAM_URL="http://${APP_SERVICE}.${APP_NAMESPACE}.svc.${CLUSTER_DOMAIN}:${APP_PORT}"
+
+          helm $kube_params upgrade -i gatekeeper-${CLIENT_ID}-${REALMS} gogatekeeper/gatekeeper -n ${APP_NAMESPACE} --version 0.1.16 \
+          --set config.discovery-url="https://${KEYCLOAK_URL}/auth/realms/${REALMS}" \
+          --set config.client-id="${CLIENT_ID}" \
+          --set config.client-secret="${CLIENT_SECRET}" \
+          --set config.upstream-url="${UPSTREAM_URL}" \
+          --set config.base-uri="/${CLIENT_ID}"
+
+          log "INFO" "gatekeeper: gatekeeper-${CLIENT_ID}-${REALMS} successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
+  - name: create-ingress
+    inputs:
+      parameters:
+      - name: realms
+      - name: service_domain
+      - name: service_cert_secret_name
+      - name: client_id
+      - name: app_namespace
+      - name: app_service
+      - name: app_port
+    container:
+      name: create-realm
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+          SERVICE_CERT_SECRET_NAME={{inputs.parameters.service_cert_secret_name}}
+          CLIENT_ID={{inputs.parameters.client_id}}
+          APP_NAMESPACE={{inputs.parameters.app_namespace}}
+          APP_SERVICE={{inputs.parameters.app_service}}
+          APP_PORT={{inputs.parameters.app_port}}
+          INGRESS_NAME=${CLIENT_ID}-dashboard
+          HOST=${CLIENT_ID}-${REALMS}.${SERVICE_DOMAIN}
+
+          ##### kiali, jaeger
+          if [[ "gatekeeper" == "${APP_SERVICE}" ]]; then
+            INGRESS_NAME=${CLIENT_ID}-gatekeeper
+            HOST=dashboard-${REALMS}.${SERVICE_DOMAIN}
+            APP_SERVICE=gatekeeper-${CLIENT_ID}-${REALMS}
+          fi
+
+          ##### grafana
+          if [[ "grafana" == "${CLIENT_ID}" ]]; then
+            INGRESS_NAME=${CLIENT_ID}-dashboard
+            HOST=dashboard-${REALMS}.${SERVICE_DOMAIN}
+            APP_SERVICE=${APP_SERVICE}
+          fi
+
+          ##### kibana
+          if [[ "kibana" == "${CLIENT_ID}" ]]; then
+            INGRESS_NAME=${CLIENT_ID}
+            HOST=${CLIENT_ID}-${REALMS}.${SERVICE_DOMAIN}
+            APP_SERVICE=${APP_SERVICE}
+          fi
+
+          ##### portal
+          if [[ "portal" == "${CLIENT_ID}" ]]; then
+            INGRESS_NAME=${CLIENT_ID}-dashboard
+            HOST=dashboard-${REALMS}.${SERVICE_DOMAIN}
+            APP_SERVICE=${APP_SERVICE}
+            CLIENT_ID=""
+          fi
+
+          kube_params=""
+          if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
+            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            echo -e "kube_secret:\n$kube_secret" | head -n 5
+            cat <<< "$kube_secret" > /tmp/kubeconfig
+            kube_params+="--kubeconfig=/tmp/kubeconfig"
+          fi
+
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            annotations:
+              kubernetes.io/ingress.class: nginx
+            name: ${INGRESS_NAME}
+            namespace: ${APP_NAMESPACE}
+          spec:
+            rules:
+            - host: ${HOST}
+              http:
+                paths:
+                - path: /${CLIENT_ID}
+                  pathType: ImplementationSpecific
+                  backend:
+                    service:
+                      name: ${APP_SERVICE}
+                      port:
+                        number: ${APP_PORT}
+            tls:
+            - hosts:
+              - ${HOST}
+              secretName: ${SERVICE_CERT_SECRET_NAME}
+          EOF
+
+          log "INFO" "ingress: ${INGRESS_NAME} successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
