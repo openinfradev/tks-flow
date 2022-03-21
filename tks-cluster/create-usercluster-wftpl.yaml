@@ -30,7 +30,7 @@ spec:
       value: "tks-info.tks.svc"
 
   volumes:
-  - name: config
+  - name: kubeconfig-adm
     secret:
       secretName: tks-admin-kubeconfig-secret
   - name: artifacts
@@ -63,11 +63,20 @@ spec:
                   "path": "cluster-api-aws",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "cluster-autoscaler-rbac",
+                  "namespace": "argo",
+                  "target_cluster": "tks-admin"
                 }
               ]
 
     - - name: wait-for-clster-to-be-registered
         template: wait-for-cluster-registration
+
+    - - name: prepare-cluster-autoscaler
+        template: prepare-cluster-autoscaler
 
     - - name: install-addons
         templateRef:
@@ -100,6 +109,12 @@ spec:
                   "app_group": "tks-cluster-aws",
                   "path": "metrics-server",
                   "namespace": "taco-system",
+                  "target_cluster": ""
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "cluster-autoscaler",
+                  "namespace": "kube-system",
                   "target_cluster": ""
                 }
               ]
@@ -137,3 +152,31 @@ spec:
       env:
       - name: target
         value: "{{workflow.parameters.cluster_id}}"
+
+  - name: prepare-cluster-autoscaler
+    container:
+      name: prepare-cluster-autoscaler
+      image: 'k8s.gcr.io/hyperkube:v1.18.6'
+      command:
+        - /bin/bash
+        - '-cx'
+        - |
+          cp /kube/value kubeconfig-adm
+
+          CLUSTER=tks-admin-v2
+          ADMIN_USER=tks-admin-v2-admin
+          TOKEN=$(kubectl get secrets -n {{workflow.parameters.cluster_id}} "$(kubectl get sa cluster-autoscaler -n {{workflow.parameters.cluster_id}} -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
+          kubectl --kubeconfig kubeconfig-adm config set-credentials cluster-autoscaler --token=$TOKEN
+          kubectl --kubeconfig kubeconfig-adm config set-context cluster-autoscaler --cluster=$CLUSTER --user=cluster-autoscaler
+          kubectl --kubeconfig kubeconfig-adm config use-context cluster-autoscaler
+          kubectl --kubeconfig kubeconfig-adm config delete-context "$ADMIN_USER@$CLUSTER"
+          kubectl --kubeconfig kubeconfig-adm config delete-user "$ADMIN_USER"
+
+          KUBECONFIG_WORKLOAD=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kubeconfig_workload:\n$KUBECONFIG_WORKLOAD" | head -n 5
+          cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
+
+          kubectl --kubeconfig kubeconfig_workload -n kube-system create secret generic mgmt-kubeconfig --from-file=kubeconfig-adm
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
