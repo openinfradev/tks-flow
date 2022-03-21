@@ -27,6 +27,12 @@ spec:
       value: "cluster.local"
     - name: service_cert_secret_name
       value: "taco-cat-tls"
+    - name: site_name
+      value: "{{ workflow.parameters.cluster_id }}"
+    - name: manifest_repo_url
+      value: "https://github.com/tks-management/04a70f29-4174-490b-9b2b-7008967f7d7d-manifests"
+    - name: revision
+      value: "main"
   
   templates:
   #=========================================================
@@ -130,7 +136,7 @@ spec:
             value: "false"
 
     - - name: create-client-portal
-        template: create-client
+        template: create-client-portal
         arguments:
           parameters:
           - name: realms
@@ -275,11 +281,54 @@ spec:
           - name: client_id
             value: "portal"
           - name: app_namespace
-            value: "tks-portal"
+            value: "istio-system"
           - name: app_service
-            value: "tks-portal"
+            value: "servicemesh-portal"
           - name: app_port
             value: 9110
+
+    # Create TKS-PORTAL
+    - - name: get-keycloak-client-secret
+        template: get-keycloak-client-secret
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+
+    - - name: update-site-values
+        template: update-site-values
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+          - name: keycloak_id
+            value: "portal-admin"
+          - name: keycloak_password
+            value: "tacoword"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_secret
+            value: "{{steps.get-keycloak-client-secret.outputs.parameters.client_secret}}"
+
+    - - name: create-application-portal
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters: 
+          - name: list
+            value: |
+              [ { "app_group": "service-mesh", "path": "servicemesh-portal","namespace": "istio-system","target_cluster": "" } ]
+
+
 
   #=========================================================
   # Template Definition
@@ -642,6 +691,92 @@ spec:
     retryStrategy:
       limit: 2
 
+  - name: create-client-portal
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: service_domain
+      - name: client_id
+      - name: add_mapper
+    container:
+      name: create-client-portal
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+          CLIENT_ID={{inputs.parameters.client_id}}
+          ADD_MAPPER={{inputs.parameters.add_mapper}}
+          kube_params=""
+          kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /tmp/kubeconfig
+          kube_params+="--kubeconfig=/tmp/kubeconfig"
+          MAPPER=""
+          if [[ "true" == "${ADD_MAPPER}" ]]; then
+            MAPPER+="    protocolMappers:
+                - name: Audience
+                  protocol: openid-connect
+                  protocolMapper: oidc-audience-mapper
+                  config:
+                    included.client.audience: ${CLIENT_ID}
+                    id.token.claim: \"false\"
+                    access.token.claim: \"true\"
+            "
+          fi
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: keycloak.org/v1alpha1
+          kind: KeycloakClient
+          metadata:
+            name: ${CLIENT_ID}
+            namespace: ${KEYCLOAK_NAMESPACE}
+            labels:
+              client: ${CLIENT_ID}
+          spec:
+            realmSelector:
+              matchLabels:
+                realm: ${REALMS}
+            client:
+              clientId: ${CLIENT_ID}
+              enabled: True
+              protocol: openid-connect
+              standardFlowEnabled: True
+              directAccessGrantsEnabled: True
+              rootUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/
+              redirectUris:
+              - http://dashboard-${REALMS}.${SERVICE_DOMAIN}/*
+              - https://dashboard-${REALMS}.${SERVICE_DOMAIN}/*
+              - http://localhost:8080/*
+              - https://localhost:8080/*
+              adminUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/
+              webOrigins:
+              - https://dashboard-${REALMS}.${SERVICE_DOMAIN}
+              defaultClientScopes:
+              - email
+              - profile
+              - roles
+              - web-origins
+              optionalClientScopes:
+              - address
+              - microprofile-jwt
+              - offline_access
+              - phone
+          ${MAPPER}
+          EOF
+          log "INFO" "keycloak client: ${CLIENT_ID} successfully created."
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
 
   - name: create-gatekeeper
     inputs:
@@ -811,3 +946,151 @@ spec:
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
+
+  - name: get-keycloak-client-secret
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: keycloak_instance_name
+      - name: keycloak_url
+    outputs:
+      parameters:
+      - name: client_secret
+        valueFrom:
+          path: /mnt/out/client_secret.txt
+    volumes:
+    - name: out
+      emptyDir: {}
+    container:
+      name: create-group
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out      
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
+          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
+          ADMIN_USERNAME=$(kubectl get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+          get_token
+          ID_OF_CLIENT=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r 'select(.clientId == "portal" )'.id )
+
+          echo "ID_OF_CLIENT : $ID_OF_CLIENT"
+
+          get_token
+          SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/$ID_OF_CLIENT/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
+
+          echo $SECRET > /mnt/out/client_secret.txt
+
+          log "INFO" "get secrets. $SECRET"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+  - name: update-site-values
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_url
+      - name: keycloak_id
+      - name: keycloak_password
+      - name: service_domain
+      - name: client_secret
+    container:
+      name: 'updateSiteValues'
+      image: docker.io/sktcloud/ghcli-alpine:2.0.0
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/bash
+        - -ecx
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          DASHBOARD_URL=dashboard-${REALMS}.${SERVICE_DOMAIN}
+          echo "DASHBOARD_URL : ${DASHBOARD_URL}"
+
+          echo $TOKEN | gh auth login --with-token
+          git clone https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}.git
+          cd $CLUSTER_ID
+
+          ## Replace site-values with fetched params ##
+          sed -i "s/username:\ CHANGEME/username: $KEYCLOAK_ID/g" $CLUSTER_ID/service-mesh/site-values.yaml
+          sed -i "s/password:\ CHANGEME/password: $KEYCLOAK_PASSWORD/g" $CLUSTER_ID/service-mesh/site-values.yaml
+          sed -i "s/auth-server-url:\ CHANGEME/auth-server-url: https:\/\/$KEYCLOAK_URL\/auth/g" $CLUSTER_ID/service-mesh/site-values.yaml
+          sed -i "s/url:\ CHANGEME/url: https:\/\/$DASHBOARD_URL/g" $CLUSTER_ID/service-mesh/site-values.yaml
+          sed -i "s/secret:\ CHANGEME/secret: $CLIENT_SECRET/g" $CLUSTER_ID/service-mesh/site-values.yaml
+          sed -i "s/realm:\ CHANGEME/realm: $REALMS/g" $CLUSTER_ID/service-mesh/site-values.yaml
+
+          git config --global user.email "taco_support@sk.com"
+          git config --global user.name "SKTelecom TACO"
+
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "there are changes";
+            git add $CLUSTER_ID/service-mesh/site-values.yaml
+            git commit -m "update new ${CLUSTER_ID} site"
+            git branch -M main
+            git remote set-url origin https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}
+            git remote -v
+            git push -u origin main
+
+            # buffer for starting the github action
+            sleep 30
+            # waiting for complete of the github action
+            gh run list --workflow GenerateYaml --limit 1
+            gh run watch $(gh run list --workflow GenerateYaml --limit 1| grep $CLUSTER_ID | awk -F push '{print $2}' | awk '{print $1}')
+          else
+            echo "no changes";
+          fi
+
+          log "INFO" "update site-values."
+      envFrom:
+        - secretRef:
+            name: "github-tks-mgmt-token"
+      env:
+        - name: CLUSTER_ID
+          value: "{{workflow.parameters.cluster_id}}"
+        - name: REALMS
+          value: "{{inputs.parameters.realms}}"
+        - name: KEYCLOAK_URL
+          value: "{{inputs.parameters.keycloak_url}}"
+        - name: KEYCLOAK_ID
+          value: "{{inputs.parameters.keycloak_id}}"
+        - name: KEYCLOAK_PASSWORD
+          value: "{{inputs.parameters.keycloak_password}}"
+        - name: SERVICE_DOMAIN
+          value: "{{inputs.parameters.service_domain}}"
+        - name: CLIENT_SECRET
+          value: "{{inputs.parameters.client_secret}}"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
