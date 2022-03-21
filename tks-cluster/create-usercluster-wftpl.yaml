@@ -44,10 +44,19 @@ spec:
   templates:
   - name: deploy
     steps:
+    - - name: tks-get-cluster-info
+        templateRef:
+          name: tks-get-cluster
+          template: getTksCluster
+
     - - name: tks-create-cluster-repo
         templateRef:
           name: tks-create-cluster-repo
           template: main
+        arguments:
+          parameters:
+          - name: cluster_info
+            value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
 
     - - name: k8s-by-capi
         templateRef:

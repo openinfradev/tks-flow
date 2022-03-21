@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-get-cluster
+  namespace: argo
+spec:
+  entrypoint: getTksCluster
+  arguments:
+    parameters:
+    - name: tks_info_host
+      value: "tks-info.tks.svc"
+    - name: cluster_id
+      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+  templates:
+  - name: getTksCluster
+    outputs:
+      parameters:
+      - name: cluster_info
+        valueFrom:
+          path: /mnt/out/cluster_info.txt
+    volumes:
+    - name: out
+      emptyDir: {}
+    script:
+      image: sktdev/python-centos-wf-worker:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      volumeMounts:
+      - name: tks-proto-vol
+        mountPath: "/opt/protobuf"
+        readOnly: true
+      - name: out
+        mountPath: /mnt/out
+      source: |
+        import sys
+        import google.protobuf
+        import grpc
+        import info_pb2
+        import info_pb2_grpc
+        import common_pb2
+        import common_pb2_grpc
+
+        ip = "{{workflow.parameters.tks_info_host}}"
+        port = 9110 # if not specified
+        addr = "%s:%d" % (ip, port)
+        print("tks-info addr: %s" % addr)
+
+        with grpc.insecure_channel(addr) as channel:
+            stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
+
+            res = stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{workflow.parameters.cluster_id}}"))
+            print("Response code from GetCluster: %d" % res.code)
+            print("Cluster object from GetCluster:")
+            print(res.cluster)
+
+            with open("/mnt/out/cluster_info.txt", "w") as f:
+                cluster_conf = repr(res.cluster.conf)
+                print(cluster_conf)
+                f.write(cluster_conf)
