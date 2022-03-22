@@ -11,7 +11,7 @@ spec:
       value: "c81dd656-b75f-4990-adfb-76b0fc9ef7db"
 
   volumes:
-    - name: config
+    - name: kubeconfig-adm
       secret:
         secretName: tks-admin-kubeconfig-secret
     - name: awsconfig
@@ -66,7 +66,7 @@ spec:
       - name: cluster_id
         value: "{{workflow.parameters.cluster_id}}"
       volumeMounts:
-      - name: config
+      - name: kubeconfig-adm
         mountPath: "/kube"
       - name: awsconfig
         mountPath: "/aws"
@@ -97,7 +97,7 @@ spec:
       - name: cluster_id
         value: "{{workflow.parameters.cluster_id}}"
       volumeMounts:
-      - name: config
+      - name: kubeconfig-adm
         mountPath: "/kube"
       - name: awsconfig
         mountPath: "/aws"
