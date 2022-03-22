@@ -22,8 +22,8 @@ spec:
       - |
         echo $TOKEN | gh auth login --with-token
 
-        gh repo delete tks-management/${CLUSTER_ID} --confirm
-        gh repo delete tks-management/${CLUSTER_ID}-manifests --confirm
+        gh repo delete ${USERNAME}/${CLUSTER_ID} --confirm
+        gh repo delete ${USERNAME}/${CLUSTER_ID}-manifests --confirm
       envFrom:
         - secretRef:
             name: "github-tks-mgmt-token"

@@ -29,10 +29,10 @@ spec:
       - |
         echo $TOKEN | gh auth login --with-token
 
-        gh repo create tks-management/${CLUSTER_ID} --private --confirm
-        gh repo create tks-management/${CLUSTER_ID}-manifests --private --confirm
+        gh repo create ${USERNAME}/${CLUSTER_ID} --private --confirm
+        gh repo create ${USERNAME}/${CLUSTER_ID}-manifests --private --confirm
 
-        git clone https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}.git
+        git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
         cp -r ${CONTRACT_ID}/_github/ ${CLUSTER_ID}/.github
@@ -70,7 +70,7 @@ spec:
         git add *
         git commit -m "add new ${CLUSTER_ID} site"
         git branch -M main
-        git remote set-url origin https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}
+        git remote set-url origin https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}
         git remote -v
         git push -u origin main
         cd ..
@@ -80,7 +80,7 @@ spec:
         git add README
         git commit -m "add new ${CLUSTER_ID} site"
         git branch -M main
-        git remote set-url origin https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}-manifests
+        git remote set-url origin https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}-manifests
         git remote -v
         git push -u origin main
         cd ..
@@ -116,12 +116,12 @@ spec:
       - /bin/bash
       - -ecx
       - |
-        echo "===== Connect github repo tks-management/${CLUSTER_ID}-manifests with token ====="
+        echo "===== Connect github repo ${USERNAME}/${CLUSTER_ID}-manifests with token ====="
         # log into Argo CD server
         ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
         --password $ARGO_PASSWORD
 
-        ./argocd repo add https://github.com/tks-management/${CLUSTER_ID}-manifests --username ${USERNAME} --password ${TOKEN}
+        ./argocd repo add https://github.com/${USERNAME}/${CLUSTER_ID}-manifests --username ${USERNAME} --password ${TOKEN}
       envFrom:
         - secretRef:
             name: "github-tks-mgmt-token"

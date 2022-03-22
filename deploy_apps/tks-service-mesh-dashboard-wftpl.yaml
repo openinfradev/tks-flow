@@ -1038,7 +1038,7 @@ spec:
           echo "DASHBOARD_URL : ${DASHBOARD_URL}"
 
           echo $TOKEN | gh auth login --with-token
-          git clone https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}.git
+          git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}.git
           cd $CLUSTER_ID
 
           ## Replace site-values with fetched params ##
@@ -1057,7 +1057,7 @@ spec:
             git add $CLUSTER_ID/service-mesh/site-values.yaml
             git commit -m "update new ${CLUSTER_ID} site"
             git branch -M main
-            git remote set-url origin https://$(echo -n $TOKEN)@github.com/tks-management/${CLUSTER_ID}
+            git remote set-url origin https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}
             git remote -v
             git push -u origin main
 
