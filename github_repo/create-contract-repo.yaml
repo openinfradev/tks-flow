@@ -23,10 +23,10 @@ spec:
         echo $TOKEN | gh auth login --with-token
         echo "===== Current repo list ====="
         gh repo list openinfradev | grep tks-user-site
-        gh repo list tks-management
+        gh repo list ${USERNAME}
 
-        echo "===== Create and initialize tks-management/${CONTRACT_ID} site and manifests repositories ====="
-        gh repo create tks-management/${CONTRACT_ID} --private --confirm
+        echo "===== Create and initialize ${USERNAME}/${CONTRACT_ID} site and manifests repositories ====="
+        gh repo create ${USERNAME}/${CONTRACT_ID} --private --confirm
 
         cd ${CONTRACT_ID}
         echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
@@ -50,7 +50,7 @@ spec:
         git add .
         git commit -m "new contract: ${CONTRACT_ID}"
 
-        git remote add new_contract https://$(echo -n $TOKEN)@github.com/tks-management/${CONTRACT_ID}
+        git remote add new_contract https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}
         git push new_contract main:main
         cd ..
 
