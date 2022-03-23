@@ -117,7 +117,7 @@ spec:
                 {
                   "app_group": "tks-cluster-aws",
                   "path": "metrics-server",
-                  "namespace": "taco-system",
+                  "namespace": "kube-system",
                   "target_cluster": ""
                 },
                 {
