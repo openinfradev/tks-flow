@@ -40,7 +40,10 @@ spec:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
-
+  - name: awsconfig
+    secret:
+      secretName: awsconfig-secret
+      
   templates:
   - name: deploy
     steps:
