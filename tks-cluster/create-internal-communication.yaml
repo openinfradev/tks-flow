@@ -84,7 +84,6 @@ spec:
 
         kubectl get secret -n $cluster_id ${cluster_id}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config
 
-        sleep 1000
         # FIX network of kubeproxy to use cluster network
         kubectl patch daemonset -n kube-system kube-proxy -p '{"spec":{"template":{"spec":{"hostNetwork":false}}}}' 
 
