@@ -133,7 +133,7 @@ spec:
 
     - - name: create-internal-communication
         templateRef:
-          name: create-internal-communication
+          name: manage-internal-communication
           template: deploy
 
     - - name: update-cluster-status-to-running

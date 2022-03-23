@@ -21,6 +21,13 @@ spec:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+  - name: awsconfig
+    secret:
+      secretName: awsconfig-secret
+
   templates:
   - name: main
     steps:
@@ -35,6 +42,11 @@ spec:
 
     - - name: cleanupPVCs
         template: cleanupPVCs
+
+    - - name: delete-internal-communication
+        templateRef:
+          name: manage-internal-communication
+          template: DeleteInternalCon
 
     - - name: deleteCsiDriverApp
         templateRef:
