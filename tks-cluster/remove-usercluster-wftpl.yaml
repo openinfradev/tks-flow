@@ -40,6 +40,24 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-ingress-nginx"
 
+    - - name: deleteClusterAutoscalerApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
+
+    - - name: deleteMetricsServerApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-metrics-server"
+
     - - name: cleanupPVCs
         template: cleanupPVCs
 
