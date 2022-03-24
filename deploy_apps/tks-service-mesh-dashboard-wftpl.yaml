@@ -683,6 +683,7 @@ spec:
               - microprofile-jwt
               - offline_access
               - phone
+            secret: 4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A
           ${MAPPER}
           EOF
 
@@ -771,6 +772,7 @@ spec:
               - microprofile-jwt
               - offline_access
               - phone
+            secret: 4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A
           ${MAPPER}
           EOF
           log "INFO" "keycloak client: ${CLIENT_ID} successfully created."
