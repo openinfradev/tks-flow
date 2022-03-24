@@ -577,7 +577,7 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakUser
           metadata:
-            name: portal-admin
+            name: ${REALMS}-portal-admin
             namespace: ${KEYCLOAK_NAMESPACE}
           spec:
             realmSelector:
@@ -653,7 +653,7 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakClient
           metadata:
-            name: ${CLIENT_ID}
+            name: ${REALMS}-${CLIENT_ID}
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
               client: ${CLIENT_ID}
@@ -738,7 +738,7 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakClient
           metadata:
-            name: ${CLIENT_ID}
+            name: ${REALMS}-${CLIENT_ID}
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
               client: ${CLIENT_ID}
@@ -967,7 +967,7 @@ spec:
       image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
       volumeMounts:
       - name: out
-        mountPath: /mnt/out      
+        mountPath: /mnt/out
       command:
         - /bin/bash
         - '-c'
