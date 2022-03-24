@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: create-internal-communication
+  name: manage-internal-communication
   namespace: argo
 spec:
   entrypoint: deploy
@@ -51,15 +51,54 @@ spec:
         CIDR=$(kubectl get awscluster -n $cluster_id $cluster_id -o=jsonpath={.spec.network.vpc.cidrBlock})
 
         # Create Security Group
-        SG=$(aws ec2 create-security-group --group-name taco-internal --description "Security group for interanl communication among nodes" --vpc-id $VPC)
+        SG=$(aws ec2 create-security-group --group-name taco-internal --description "Security group for interanl communication among nodes" --vpc-id $VPC  --output text)
         # Set ingress rule
-        aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 237 --cidr $CIDR
+        # - 2379  for kube-etcd
+        # - 10249 for kube-proxy
+        aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 2379 --cidr $CIDR
+        aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 10249 --cidr $CIDR
 
         # Add Security Group to all node in the VPC
-        for instance in `aws ec2 describe-instances --filters "Name=vpc-id,Values=$VPC" --query "Reservations[].Instances[].InstanceId"`
+        for instance in `aws ec2 describe-instances --filters "Name=vpc-id,Values=$VPC" --output text --query "Reservations[].Instances[].InstanceId"`
         do
-          current=$(aws ec2 describe-instance-attribute --attribute "groupSet" --instance-id $instance --query "Groups[].GroupId" --output text)
+          current=$(aws ec2 describe-instance-attribute --attribute "groupSet" --instance-id $instance --output text --query "Groups[].GroupId")
           aws ec2 modify-instance-attribute --instance-id $instance --groups $current $SG
+        done
+
+      env:
+      - name: cluster_id
+        value: "{{workflow.parameters.cluster_id}}"
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      - name: awsconfig
+        mountPath: "/aws"
+
+  - name: DeleteInternalCon
+    activeDeadlineSeconds: 1800
+    container:
+      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.aws
+        cp /aws/* ~/.aws/
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+
+        # Gether VPC info.
+        VPC=$(kubectl get awscluster -n $cluster_id $cluster_id -o=jsonpath={.spec.network.vpc.id})
+
+        # Get Security Group id
+        SG=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC"  "Name=group-name,Values=taco-internal" --output text --query "SecurityGroups[].GroupId")
+
+        # Delete Security Group to all node in the VPC
+        for instance in `aws ec2 describe-instances --filters "Name=vpc-id,Values=$VPC" --output text --query "Reservations[].Instances[].InstanceId"`
+        do
+          current=$(aws ec2 describe-instance-attribute --attribute "groupSet" --instance-id $instance --output text --query "Groups[].GroupId")
+          newsgs=${current/$SG/}
+          aws ec2 modify-instance-attribute --instance-id $instance --groups $newsgs
         done
 
       env:
@@ -83,9 +122,6 @@ spec:
         cp /kube/value ~/.kube/config
 
         kubectl get secret -n $cluster_id ${cluster_id}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config
-
-        # FIX network of kubeproxy to use cluster network
-        kubectl patch daemonset -n kube-system kube-proxy -p '{"spec":{"template":{"spec":{"hostNetwork":false}}}}' 
 
         # FIX binding address of kubeproxy's metric server to 0.0.0.0
         kubectl get cm -n kube-system kube-proxy -o yaml > /tmp/kube-proxy.cm.yaml
