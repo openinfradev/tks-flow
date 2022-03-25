@@ -201,7 +201,7 @@ spec:
             # Iterate over cluster list except current cluster #
             for cluster in res.clusters:
                 if cluster.id != "{{inputs.parameters.cluster_id}}":
-                  print("Found cluster: {}" % format(cluster.id))
+                  print("Found cluster: {}".format(cluster.id))
                   temp_map["name"] = cluster.id
                   str_json = json.dumps(temp_map)
                   output_cluster_list.append(str_json)
