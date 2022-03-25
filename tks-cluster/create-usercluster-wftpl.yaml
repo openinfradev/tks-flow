@@ -90,6 +90,9 @@ spec:
     - - name: prepare-cluster-autoscaler
         template: prepare-cluster-autoscaler
 
+    - - name: install-volumesnapshot-crds
+        template: install-volumesnapshot-crds
+
     - - name: install-addons
         templateRef:
           name: create-application
@@ -196,3 +199,19 @@ spec:
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
+
+  - name: install-volumesnapshot-crds
+    container:
+      name: install-volumesnapshot-crds
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      command:
+        - /bin/bash
+        - '-cx'
+        - |
+          KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
+          cat <<< "$KUBECONFIG" > kubeconfig_temp
+
+          kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml -n kube-system
+          kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml -n kube-system
+          kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml -n kube-system
