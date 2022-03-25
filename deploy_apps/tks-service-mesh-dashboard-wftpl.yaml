@@ -8,11 +8,11 @@ spec:
   arguments:
     parameters:
     - name: cluster_id
-      value: "0f4d64b7-d0c8-4e0a-a8cf-49091406a145"
+      value: "5b2220b0-39c5-4752-8ecd-d8269c88a3c7"
     - name: app_prefix
       value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
     - name: aws_load_balancer
-      value: "ab1244140412948c9a8964d583497c5e-069753166a16f89f.elb.ap-northeast-2.amazonaws.com"
+      value: "ac11209ffe23043339efa1d0ad7c763a-4743f43cd92ad9c0.elb.ap-northeast-2.amazonaws.com"
     - name: zone_id
       value: "Z104697219C1N0592X9B3"
     - name: service_domain
@@ -242,7 +242,7 @@ spec:
           - name: client_id
             value: "grafana"
           - name: app_namespace
-            value: "lma"
+            value: "istio-system"
           - name: app_service
             value: "grafana"
           - name: app_port
@@ -303,7 +303,22 @@ spec:
           - name: client_secret
             value: "4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A"
 
-
+    - - name: install-grafana
+        template: install-grafana
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_id
+            value: "grafana"
+          - name: app_namespace
+            value: "istio-system"
   #=========================================================
   # Template Definition
   #=========================================================
@@ -978,6 +993,134 @@ spec:
           value: "{{inputs.parameters.service_domain}}"
         - name: CLIENT_SECRET
           value: "{{inputs.parameters.client_secret}}"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+
+  - name: install-grafana
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_url
+      - name: keycloak_namespace
+      - name: service_domain
+      - name: client_id
+      - name: app_namespace
+    container:
+      name: 'install-grafana'
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/bash
+        - -ecx
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+          CLIENT_ID={{inputs.parameters.client_id}}
+          APP_NAMESPACE={{inputs.parameters.app_namespace}}
+
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+
+          admin_kube_params=""
+          admin_kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "admin_kube_secret:\n$admin_kube_secret" | head -n 5
+          cat <<< "$admin_kube_secret" > /tmp/admin-kubeconfig
+          admin_kube_params+="--kubeconfig=/tmp/admin-kubeconfig"
+
+          kube_params=""
+          if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
+            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            echo -e "kube_secret:\n$kube_secret" | head -n 5
+            cat <<< "$kube_secret" > /tmp/kubeconfig
+            kube_params+="--kubeconfig=/tmp/kubeconfig"
+          fi
+
+          CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+
+          ## create grafana datasource
+          cat <<EOF | kubectl $kube_params apply -f -
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: grafana-datasource
+            namespace: ${APP_NAMESPACE}
+            labels:
+              grafana_datasource: "1"
+              app: grafana
+          data:
+            datasource.yaml: |-
+              apiVersion: 1
+              datasources:
+              - name: Prometheus
+                type: prometheus
+                url: http://thanos-query.lma:9090
+                access: proxy
+                isDefault: true
+          EOF
+
+
+          ## create grafana override values
+          cat <<EOF > /tmp/grafana-values.yaml
+          service:
+            type: ClusterIP
+          nodeSelector:
+            taco-lma: enabled
+          adminPassword: password
+          plugins:
+            - vonage-status-panel
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              searchNamespace: ${APP_NAMESPACE}
+            datasources:
+              enabled: true
+              label: grafana_datasource
+          grafana.ini:
+            plugins:
+              vonage-status-panel: true
+            server:
+              domain: dashboard-${REALMS}.${SERVICE_DOMAIN}
+              root_url: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/grafana
+              serve_from_sub_path: true
+            auth:
+              disable_login_form: false
+              oauth_auto_login: true
+              disable_signout_menu: true
+            auth.generic_oauth:
+              enabled: true
+              name: keycloak
+              allow_sign_up: true
+              client_id: grafana
+              client_secret: ${CLIENT_SECRET}
+              scopes: openid profile email
+              auth_url: https://${KEYCLOAK_URL}/auth/realms/${REALMS}/protocol/openid-connect/auth
+              token_url: https://${KEYCLOAK_URL}/auth/realms/${REALMS}/protocol/openid-connect/token
+              api_url: https://${KEYCLOAK_URL}/auth/realms/${REALMS}/protocol/openid-connect/userinfo
+            security:
+              allow_embedding: true
+              cookie_secure: true
+              cookie_samesite: none
+            user:
+              auto_assign_org: true
+            dashboards:
+              default_home_dashboard_path: /tmp/dashboards/istio-control-plane-dashboard.json
+          EOF
+
+          helm $kube_params upgrade -i grafana grafana/grafana --version 6.23.1 -f /tmp/grafana-values.yaml -n ${APP_NAMESPACE} 
+
+          log "INFO" "grafana: grafana-${REALMS} successfully created."
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
