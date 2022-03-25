@@ -101,6 +101,8 @@ spec:
           aws ec2 modify-instance-attribute --instance-id $instance --groups $newsgs
         done
 
+        # Delete Security Group 'taco-internal'
+        aws ec2 delete-security-group --group-id $SG
       env:
       - name: cluster_id
         value: "{{workflow.parameters.cluster_id}}"
