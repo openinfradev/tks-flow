@@ -45,8 +45,6 @@ spec:
           parameters:
             - name: target_namespace
               value: "lma"
-            - name: kubeconfig_secret_name
-              value: "{{workflow.parameters.cluster_id}}-kubeconfig"
 
     - - name: updateTksInfo
         templateRef:
@@ -97,7 +95,6 @@ spec:
     inputs:
       parameters:
         - name: target_namespace
-        - name: kubeconfig_secret_name
     container:
       name: delete-namespace
       image: 'k8s.gcr.io/hyperkube:v1.18.6'
@@ -112,20 +109,24 @@ spec:
             echo "[$date] $level     $msg"
           }
 
-          cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
-          kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
+          kube_params=""
+
+          if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
+            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            echo -e "kube_secret:\n$kube_secret" | head -n 5
+            cat <<< "$kube_secret" > /etc/kubeconfig
+
+            kube_params+="--kubeconfig=/etc/kubeconfig"
+          fi
+
+          kubectl $kube_params get ns ${TARGET_NAMESPACE}
           if [[ $? =~ 0 ]]; then
-            kubectl --kubeconfig=/etc/kubeconfig delete ns ${TARGET_NAMESPACE}
+            kubectl $kube_params delete ns ${TARGET_NAMESPACE}
             log "INFO" "${TARGET_NAMESPACE} was successfully deleted."
           fi
       env:
         - name: TARGET_NAMESPACE
           value: '{{inputs.parameters.target_namespace}}'
-        - name: KUBE_CONFIG
-          valueFrom:
-            secretKeyRef:
-              name: "{{ inputs.parameters.kubeconfig_secret_name }}"
-              key: value
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2

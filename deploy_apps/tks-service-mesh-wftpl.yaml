@@ -127,6 +127,7 @@ spec:
       env:
       - name: SITE_NAME
         value: '{{inputs.parameters.site_name}}'
+      ## WARNING: This doesn't work. The secret should be read from cluster namespace ##
       - name: KUBE_CONFIG
         valueFrom:
           secretKeyRef:
