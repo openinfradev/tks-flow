@@ -286,23 +286,6 @@ spec:
           - name: app_port
             value: 9110
 
-    - - name: install-servicemesh-portal
-        template: install-servicemesh-portal
-        arguments:
-          parameters:
-          - name: realms
-            value: "{{workflow.parameters.app_prefix}}"
-          - name: keycloak_url
-            value: "{{workflow.parameters.keycloak_url}}"
-          - name: keycloak_id
-            value: "portal-admin"
-          - name: keycloak_password
-            value: "tacoword"
-          - name: service_domain
-            value: "{{workflow.parameters.service_domain}}"
-          - name: client_secret
-            value: "4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A"
-
     - - name: install-grafana
         template: install-grafana
         arguments:
@@ -319,6 +302,24 @@ spec:
             value: "grafana"
           - name: app_namespace
             value: "istio-system"
+
+    - - name: install-servicemesh-portal
+        template: install-servicemesh-portal
+        arguments:
+          parameters:
+          - name: realms
+            value: "{{workflow.parameters.app_prefix}}"
+          - name: keycloak_namespace
+            value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
+          - name: keycloak_url
+            value: "{{workflow.parameters.keycloak_url}}"
+          - name: service_domain
+            value: "{{workflow.parameters.service_domain}}"
+          - name: client_secret
+            value: "4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A"
+
   #=========================================================
   # Template Definition
   #=========================================================
@@ -942,9 +943,9 @@ spec:
     inputs:
       parameters:
       - name: realms
+      - name: keycloak_namespace
+      - name: keycloak_instance_name
       - name: keycloak_url
-      - name: keycloak_id
-      - name: keycloak_password
       - name: service_domain
       - name: client_secret
     container:
@@ -956,43 +957,39 @@ spec:
         - -ecx
         - |
           mkdir ~/.kube
-          cp /kube/value ~/.kube/config
+          cp /kube/value ~/.kube/config_adm
+          KUBECONFIG_USERCLUSTER=$(kubectl --kubeconfig ~/.kube/config_adm get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d)
+          echo -e "kubeconfig_workload:\n$KUBECONFIG_USERCLUSTER" | head -n 5
+          cat <<< "$KUBECONFIG_USERCLUSTER" > ~/.kube/config_user
 
-          kubectl get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config
-
+          REALMS={{inputs.parameters.realms}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+          CLIENT_SECRET={{inputs.parameters.client_secret}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
+          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
+          KEYCLOAK_ADMIN_USERNAME=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          KEYCLOAK_ADMIN_PASSWORD=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
           DASHBOARD_URL=https://dashboard-${REALMS}.${SERVICE_DOMAIN}
-
+          
           helm repo add openinfradev https://openinfradev.github.io/helm-repo
           helm repo update
-
-          helm upgrade -i servicemesh-portal -n istio-system --wait \
-            --set application.tks.admin.username=${KEYCLOAK_ID} \
-            --set application.tks.admin.password=${KEYCLOAK_PASSWORD} \
+          helm --kubeconfig ~/.kube/config_user upgrade -i servicemesh-portal -n istio-system --wait \
+            --set application.tks.admin.username=${KEYCLOAK_ADMIN_USERNAME} \
+            --set application.tks.admin.password=${KEYCLOAK_ADMIN_PASSWORD} \
             --set application.tks.url=${DASHBOARD_URL} \
             --set application.keycloak.realm=${REALMS} \
             --set application.keycloak.credentials.secret=${CLIENT_SECRET} \
             --set application.keycloak.auth-server-url=https://${KEYCLOAK_URL}/auth \
             openinfradev/servicemesh-portal
 
-          kubectl rollout restart deployment servicemesh-portal -n istio-system
+          kubectl --kubeconfig ~/.kube/config_user rollout restart deployment servicemesh-portal -n istio-system
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
       env:
         - name: CLUSTER_ID
           value: "{{workflow.parameters.cluster_id}}"
-        - name: REALMS
-          value: "{{inputs.parameters.realms}}"
-        - name: KEYCLOAK_URL
-          value: "{{inputs.parameters.keycloak_url}}"
-        - name: KEYCLOAK_ID
-          value: "{{inputs.parameters.keycloak_id}}"
-        - name: KEYCLOAK_PASSWORD
-          value: "{{inputs.parameters.keycloak_password}}"
-        - name: SERVICE_DOMAIN
-          value: "{{inputs.parameters.service_domain}}"
-        - name: CLIENT_SECRET
-          value: "{{inputs.parameters.client_secret}}"
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
