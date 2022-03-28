@@ -131,6 +131,12 @@ spec:
                   "path": "cluster-autoscaler",
                   "namespace": "kube-system",
                   "target_cluster": ""
+                },
+                {
+                  "app_group": "tks-cluster-aws",
+                  "path": "kubed",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
                 }
               ]
 
