@@ -91,7 +91,6 @@ spec:
   # Template Definition #
   #######################
   - name: deleteNamespace
-    arguments: {}
     inputs:
       parameters:
         - name: target_namespace
