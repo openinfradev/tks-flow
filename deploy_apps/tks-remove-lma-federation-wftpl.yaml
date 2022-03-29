@@ -195,7 +195,7 @@ spec:
             csp_id = res.cluster.csp_id
             cur_cluster_name = res.cluster.id
 
-            res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=csp_id))
+            res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=''))
 
             print("Iterating over clusters in the same contract...")
 
