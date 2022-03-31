@@ -9,8 +9,6 @@ spec:
     parameters:
     - name: app_group
       value: "service-mesh"
-    - name: site_repo_url
-      value: "https://github.com/openinfradev/decapod-site"
     #===============================
     # For tks-info task
     #===============================
