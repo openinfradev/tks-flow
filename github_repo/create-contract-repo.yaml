@@ -9,6 +9,8 @@ spec:
     parameters:
     - name: contract_id
       value: "contract_uuid"
+    - name: revision
+      value: "main"
   templates:
   - name: createContractRepo
     activeDeadlineSeconds: 120
@@ -32,10 +34,10 @@ spec:
         echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
 
         # Clone user-site-template which only has tks-cluster-aws app_group, currently
-        git clone https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
+        git clone -b ${REVISION} https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
 
         # Use hanu-reference template as default 'template-std'
-        git clone https://github.com/openinfradev/decapod-site
+        git clone -b ${REVISION} https://github.com/openinfradev/decapod-site
         cp -r decapod-site/hanu-reference/* tks-user-site-template/template-std/
 
         cd tks-user-site-template
@@ -44,6 +46,8 @@ spec:
         # and then removed by FOR loop iteration.
         # For now, this hardcoding seems enough.
         rm -rf template-std/openstack template-std/decapod-controller
+
+        sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" _github/workflows/render-cd.sh
 
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
@@ -60,6 +64,8 @@ spec:
       env:
         - name: CONTRACT_ID
           value: "{{workflow.parameters.contract_id}}"
+        - name: REVISION
+          value: "{{workflow.parameters.revision}}"
 
   - name: main
     steps:
