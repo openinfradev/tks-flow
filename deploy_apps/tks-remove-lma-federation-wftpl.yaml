@@ -9,13 +9,10 @@ spec:
     parameters:
     - name: app_group
       value: "lma"
-    - name: site_repo_url
-      value: "https://github.com/openinfradev/decapod-site"
-    ##########################
-    # For updateTksInfo task #
-    ##########################
+    - name: github_account
+      value: "tks-management"
     - name: tks_info_host
-      value: "127.0.0.1"
+      value: "tks-info.tks.svc"
     - name: cluster_id
       value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
     - name: app_group_id
@@ -74,6 +71,8 @@ spec:
           template: updateManifest
         arguments:
           parameters:
+          - name: site_repo_url
+            value: "github.com/{{workflow.parameters.github_account}}/{{item.name}}"
           - name: action
             value: "delete"
           - name: cluster_name

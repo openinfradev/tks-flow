@@ -11,9 +11,8 @@ spec:
       value: "hanu-reference"
     - name: logging_component
       value: "efk"
-    # Replace these urls properly for your env #
-    - name: site_repo_url
-      value: "https://github.com/openinfradev/decapod-site"
+    - name: github_account
+      value: "tks-management"
     - name: manifest_repo_url
       value: "https://github.com/openinfradev/decapod-manifests"
     - name: revision
@@ -24,7 +23,7 @@ spec:
     # For tks-info task #
     ##########################
     - name: tks_info_host
-      value: "127.0.0.1"
+      value: "tks-info.tks.svc"
     - name: cluster_id
       value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
     - name: app_group_id
@@ -83,7 +82,7 @@ spec:
         arguments:
           parameters:
           - name: site_repo_url
-            value: "{{ workflow.parameters.site_repo_url }}"
+            value: "github.com/{{workflow.parameters.github_account}}/{{item.name}}"
           - name: action
             value: "insert"
           - name: cluster_name
@@ -104,10 +103,11 @@ spec:
         arguments:
           parameters:
           - name: site_repo_url
-            value: "{{ workflow.parameters.site_repo_url }}"
+            value: "github.com/{{workflow.parameters.github_account}}/{{workflow.parameters.cluster_id}}"
           - name: action
             value: "insert"
           # TODO: modify this to reflect actual cluster name for all cases
+          # instead of just using cluster id
           - name: cluster_name
             value: "{{steps.collectThanosScEndpoints.outputs.parameters.cur_cluster_name}}"
           - name: app_group
