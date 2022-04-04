@@ -188,8 +188,8 @@ spec:
         - |
           cp /kube/value kubeconfig
 
-          CLUSTER=tks-admin-v2
-          ADMIN_USER=tks-admin-v2-admin
+          CLUSTER=$(kubectl --kubeconfig kubeconfig get cl -ojsonpath='{.items[0].metadata.name}')
+          ADMIN_USER=${CLUSTER}-admin
           TOKEN=$(kubectl --kubeconfig kubeconfig get secrets -n {{workflow.parameters.cluster_id}} "$(kubectl --kubeconfig kubeconfig get sa cluster-autoscaler -n {{workflow.parameters.cluster_id}} -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
           kubectl --kubeconfig kubeconfig config set-credentials cluster-autoscaler --token=$TOKEN
           kubectl --kubeconfig kubeconfig config set-context cluster-autoscaler --cluster=$CLUSTER --user=cluster-autoscaler
