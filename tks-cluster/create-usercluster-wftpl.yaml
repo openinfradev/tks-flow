@@ -184,7 +184,7 @@ spec:
       image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
       command:
         - /bin/bash
-        - '-cx'
+        - '-exc'
         - |
           cp /kube/value kubeconfig
 
@@ -212,7 +212,7 @@ spec:
       image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
       command:
         - /bin/bash
-        - '-cx'
+        - '-exc'
         - |
           KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
