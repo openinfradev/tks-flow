@@ -56,8 +56,6 @@ spec:
           # TODO: Can this be pre-determined? Or composed dynamically on deployment?
           - name: endpoints
             value: "{'PROMETHEUS': 'thanos-sidecar.cluster_xy'}"
-          - name: app_group_status
-            value: "APP_GROUP_RUNNING"
 
       # LMA appGroup specific task #
     - - name: collectThanosScEndpoints

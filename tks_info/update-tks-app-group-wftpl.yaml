@@ -20,8 +20,6 @@ spec:
     inputs:
       parameters:
       - name: endpoints # Dict type
-      - name: app_group_status
-        value: APP_GROUP_RUNNING
     script:
       image: sktdev/python-centos-wf-worker:v1.0
       command: ["python"]
@@ -48,9 +46,6 @@ spec:
 
         with grpc.insecure_channel(addr) as channel:
             app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
-
-            res = app_stub.UpdateAppGroupStatus(info_pb2.UpdateAppGroupStatusRequest(app_group_id="{{workflow.parameters.app_group_id}}", status=common_pb2.{{inputs.parameters.app_group_status}}))
-            print("Response code from UpdateAppGroupStaus: %d" % res.code)
 
             for app_type_, ep in {{inputs.parameters.endpoints}}.items():
               res = app_stub.UpdateApp(info_pb2.UpdateAppRequest(app_group_id="{{workflow.parameters.app_group_id}}", app_type=app_type_, endpoint=ep, metadata="{}"))

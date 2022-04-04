@@ -145,14 +145,6 @@ spec:
           name: manage-internal-communication
           template: deploy
 
-    - - name: update-cluster-status-to-running
-        templateRef:
-          name: update-tks-cluster-status
-          template: updateClusterStatus
-        arguments:
-          parameters:
-          - name: cluster_status
-            value: RUNNING
 
   #######################
   # Template Definition #
