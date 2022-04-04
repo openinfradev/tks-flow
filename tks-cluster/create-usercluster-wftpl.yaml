@@ -184,11 +184,11 @@ spec:
       image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
       command:
         - /bin/bash
-        - '-cx'
+        - '-exc'
         - |
           cp /kube/value kubeconfig
 
-          CLUSTER=$(kubectl --kubeconfig kubeconfig get cl -ojsonpath='{.items[0].metadata.name}')
+          CLUSTER=$(kubectl --kubeconfig kubeconfig get cl -ojsonpath='{.items[0].metadata.name}' -n default)
           ADMIN_USER=${CLUSTER}-admin
           TOKEN=$(kubectl --kubeconfig kubeconfig get secrets -n {{workflow.parameters.cluster_id}} "$(kubectl --kubeconfig kubeconfig get sa cluster-autoscaler -n {{workflow.parameters.cluster_id}} -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
           kubectl --kubeconfig kubeconfig config set-credentials cluster-autoscaler --token=$TOKEN
@@ -212,7 +212,7 @@ spec:
       image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
       command:
         - /bin/bash
-        - '-cx'
+        - '-exc'
         - |
           KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
