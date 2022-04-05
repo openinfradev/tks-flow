@@ -31,6 +31,9 @@ spec:
   templates:
   - name: main
     steps:
+    - - name: disableAutoSync
+        template: disableAutoSync
+
     - - name: deleteIngressControllerApp
         templateRef:
           name: delete-apps
@@ -91,9 +94,6 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-kubernetes-addons"
 
-    - - name: disableAutoSyncOfClusterApp
-        template: disableAutoSync
-
     - - name: deleteClusterCR
         template: deleteClusterCR
         arguments:
@@ -133,18 +133,16 @@ spec:
         - /bin/bash
         - '-c'
         - |
-          APP_NAME="cluster-api-aws"
-          if [[ -n "{{workflow.parameters.app_prefix}}" ]]; then
-            APP_NAME="{{workflow.parameters.app_prefix}}-cluster-api-aws"
-          fi
-
           # Login to Argo CD server
           ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
           --password $ARGO_PASSWORD
 
-          # Disable auto-sync
-          echo "Disabling auto-sync of [$APP_NAME]' app.."
-          ./argocd app set $APP_NAME --sync-policy none
+          app_list=$(./argocd app list --output name | grep {{workflow.parameters.app_prefix}})
+          echo -e "App list:\n $app_list"
+          if [[ $? -eq 0 && -n $app_list ]]; then
+            # Disable auto-sync
+            echo "$app_list" | xargs -I '{}' ./argocd app set '{}' --sync-policy none
+          fi
       envFrom:
         - secretRef:
             name: "decapod-argocd-config"
