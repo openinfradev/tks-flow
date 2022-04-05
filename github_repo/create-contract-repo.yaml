@@ -55,7 +55,7 @@ spec:
         git commit -m "new contract: ${CONTRACT_ID}"
 
         git remote add new_contract https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}
-        git push new_contract main:main
+        git push new_contract ${REVISION}:main
         cd ..
 
       envFrom:
