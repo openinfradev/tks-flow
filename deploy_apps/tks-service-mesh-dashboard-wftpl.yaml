@@ -1115,7 +1115,12 @@ spec:
               default_home_dashboard_path: /tmp/dashboards/istio-control-plane-dashboard.json
           EOF
 
-          helm $kube_params upgrade -i grafana grafana/grafana --version 6.23.1 -f /tmp/grafana-values.yaml -n ${APP_NAMESPACE} 
+          ### delete psp and clusterrole, clusterrolebinding first.
+          kubectl $kube_params delete psp -n ${APP_NAMESPACE} grafana grafana-test || true
+          kubectl $kube_params delete clusterrole grafana-clusterrole || true
+          kubectl $kube_params delete clusterrolebinding grafana-clusterrolebinding || true
+
+          helm $kube_params upgrade -i grafana grafana/grafana --version 6.23.1 -f /tmp/grafana-values.yaml -n ${APP_NAMESPACE}
 
           log "INFO" "grafana: grafana-${REALMS} successfully created."
     activeDeadlineSeconds: 900
