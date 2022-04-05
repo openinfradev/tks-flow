@@ -157,6 +157,8 @@ spec:
             value: "{{workflow.parameters.app_prefix}}"
           - name: keycloak_namespace
             value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
           - name: cluster_domain
             value: "{{workflow.parameters.cluster_domain}}"
           - name: keycloak_url
@@ -178,6 +180,8 @@ spec:
             value: "{{workflow.parameters.app_prefix}}"
           - name: keycloak_namespace
             value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
           - name: cluster_domain
             value: "{{workflow.parameters.cluster_domain}}"
           - name: keycloak_url
@@ -296,6 +300,8 @@ spec:
             value: "{{workflow.parameters.keycloak_url}}"
           - name: keycloak_namespace
             value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
           - name: client_id
@@ -413,15 +419,15 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakRealm
           metadata:
-            name: ${REALMS}
+            name: "${REALMS}"
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
-              realm: ${REALMS}
+              realm: "${REALMS}"
           spec:
             realm:
-              realm: ${REALMS}
+              realm: "${REALMS}"
               enabled: True
-              displayName: ${REALMS}
+              displayName: "${REALMS}"
               roles:
                 realm:
                 - name: admin
@@ -567,12 +573,12 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakUser
           metadata:
-            name: ${REALMS}-portal-admin
+            name: "${REALMS}-portal-admin"
             namespace: ${KEYCLOAK_NAMESPACE}
           spec:
             realmSelector:
               matchLabels:
-                realm: ${REALMS}
+                realm: "${REALMS}"
             user:
               username: ${ADMIN_USERNAME}
               firstName: ${ADMIN_USERNAME}
@@ -633,7 +639,7 @@ spec:
                   protocol: openid-connect
                   protocolMapper: oidc-audience-mapper
                   config:
-                    included.client.audience: ${CLIENT_ID}
+                    included.client.audience: ${REALMS}-${CLIENT_ID}
                     id.token.claim: \"false\"
                     access.token.claim: \"true\"
             "
@@ -643,16 +649,16 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakClient
           metadata:
-            name: ${REALMS}-${CLIENT_ID}
+            name: "${REALMS}-${CLIENT_ID}"
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
-              client: ${CLIENT_ID}
+              client: "${REALMS}-${CLIENT_ID}"
           spec:
             realmSelector:
               matchLabels:
-                realm: ${REALMS}
+                realm: "${REALMS}"
             client:
-              clientId: ${CLIENT_ID}
+              clientId: "${REALMS}-${CLIENT_ID}"
               enabled: True
               protocol: openid-connect
               standardFlowEnabled: True
@@ -673,7 +679,6 @@ spec:
               - microprofile-jwt
               - offline_access
               - phone
-              secret: 4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A
           ${MAPPER}
           EOF
 
@@ -720,7 +725,7 @@ spec:
                   protocol: openid-connect
                   protocolMapper: oidc-audience-mapper
                   config:
-                    included.client.audience: ${CLIENT_ID}
+                    included.client.audience: ${REALMS}-${CLIENT_ID}
                     id.token.claim: \"false\"
                     access.token.claim: \"true\"
             "
@@ -729,16 +734,16 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakClient
           metadata:
-            name: ${REALMS}-${CLIENT_ID}
+            name: "${REALMS}-${CLIENT_ID}"
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
-              client: ${CLIENT_ID}
+              client: "${REALMS}-${CLIENT_ID}"
           spec:
             realmSelector:
               matchLabels:
-                realm: ${REALMS}
+                realm: "${REALMS}"
             client:
-              clientId: ${CLIENT_ID}
+              clientId: "${REALMS}-${CLIENT_ID}"
               enabled: True
               protocol: openid-connect
               standardFlowEnabled: True
@@ -762,7 +767,6 @@ spec:
               - microprofile-jwt
               - offline_access
               - phone
-              secret: 4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A
           ${MAPPER}
           EOF
           log "INFO" "keycloak client: ${CLIENT_ID} successfully created."
@@ -775,6 +779,7 @@ spec:
       parameters:
       - name: realms
       - name: keycloak_namespace
+      - name: keycloak_instance_name
       - name: cluster_domain
       - name: keycloak_url
       - name: client_id
@@ -797,6 +802,7 @@ spec:
 
           REALMS={{inputs.parameters.realms}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
           CLUSTER_DOMAIN={{inputs.parameters.cluster_domain}}
           KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
           CLIENT_ID={{inputs.parameters.client_id}}
@@ -821,12 +827,33 @@ spec:
             kube_params+="--kubeconfig=/tmp/kubeconfig"
           fi
 
-          CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          #CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          ADMIN_USERNAME=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          get_token
+          ID_OF_CLIENT=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r "select(.clientId == \"${REALMS}-${CLIENT_ID}\" )".id )
+          echo "${REALMS}-${CLIENT_ID} : ${ID_OF_CLIENT}"
+
+          get_token
+          CLIENT_SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/${ID_OF_CLIENT}/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
+
           UPSTREAM_URL="http://${APP_SERVICE}.${APP_NAMESPACE}.svc.${CLUSTER_DOMAIN}:${APP_PORT}"
 
           helm $kube_params upgrade -i gatekeeper-${CLIENT_ID}-${REALMS} gogatekeeper/gatekeeper -n ${APP_NAMESPACE} --version 0.1.16 \
           --set config.discovery-url="https://${KEYCLOAK_URL}/auth/realms/${REALMS}" \
-          --set config.client-id="${CLIENT_ID}" \
+          --set config.client-id="${REALMS}-${CLIENT_ID}" \
           --set config.client-secret="${CLIENT_SECRET}" \
           --set config.upstream-url="${UPSTREAM_URL}" \
           --set config.base-uri="/${CLIENT_ID}"
@@ -964,7 +991,8 @@ spec:
 
           REALMS={{inputs.parameters.realms}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
-          CLIENT_SECRET={{inputs.parameters.client_secret}}
+          CLIENT_ID=portal
+          #CLIENT_SECRET={{inputs.parameters.client_secret}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
           KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
           KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
@@ -972,13 +1000,35 @@ spec:
           KEYCLOAK_ADMIN_PASSWORD=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
           DASHBOARD_URL=https://dashboard-${REALMS}.${SERVICE_DOMAIN}
           
+          ADMIN_USERNAME=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          get_token
+          ID_OF_CLIENT=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r "select(.clientId == \"${REALMS}-${CLIENT_ID}\" )".id )
+          echo "${REALMS}-${CLIENT_ID} : ${ID_OF_CLIENT}"
+
+          get_token
+          CLIENT_SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/${ID_OF_CLIENT}/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
+
           helm repo add openinfradev https://openinfradev.github.io/helm-repo
           helm repo update
           helm --kubeconfig ~/.kube/config_user upgrade -i servicemesh-portal -n istio-system --wait \
             --set application.tks.admin.username=${KEYCLOAK_ADMIN_USERNAME} \
             --set application.tks.admin.password=${KEYCLOAK_ADMIN_PASSWORD} \
             --set application.tks.url=${DASHBOARD_URL} \
-            --set application.keycloak.realm=${REALMS} \
+            --set application.keycloak.realm="${REALMS}" \
+            --set application.keycloak.resource="${REALMS}-portal" \
             --set application.keycloak.credentials.secret=${CLIENT_SECRET} \
             --set application.keycloak.auth-server-url=https://${KEYCLOAK_URL}/auth \
             openinfradev/servicemesh-portal
@@ -1001,6 +1051,7 @@ spec:
       - name: realms
       - name: keycloak_url
       - name: keycloak_namespace
+      - name: keycloak_instance_name
       - name: service_domain
       - name: client_id
       - name: app_namespace
@@ -1022,6 +1073,7 @@ spec:
           REALMS={{inputs.parameters.realms}}
           KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
           CLIENT_ID={{inputs.parameters.client_id}}
           APP_NAMESPACE={{inputs.parameters.app_namespace}}
@@ -1043,7 +1095,27 @@ spec:
             kube_params+="--kubeconfig=/tmp/kubeconfig"
           fi
 
-          CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          #CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          ADMIN_USERNAME=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          get_token
+          ID_OF_CLIENT=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r "select(.clientId == \"${REALMS}-${CLIENT_ID}\" )".id )
+          echo "${REALMS}-${CLIENT_ID} : ${ID_OF_CLIENT}"
+
+          get_token
+          CLIENT_SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/${ID_OF_CLIENT}/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
 
           ## create grafana datasource
           cat <<EOF | kubectl $kube_params apply -f -
@@ -1099,7 +1171,7 @@ spec:
               enabled: true
               name: keycloak
               allow_sign_up: true
-              client_id: grafana
+              client_id: "${REALMS}-grafana"
               client_secret: ${CLIENT_SECRET}
               scopes: openid profile email
               auth_url: https://${KEYCLOAK_URL}/auth/realms/${REALMS}/protocol/openid-connect/auth
@@ -1126,5 +1198,3 @@ spec:
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
-
-
