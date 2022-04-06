@@ -99,7 +99,7 @@ spec:
             value: "{{workflow.parameters.keycloak_namespace}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
-          - name: client_id
+          - name: client_name
             value: "kiali"
           - name: add_mapper
             value: "true"
@@ -114,7 +114,7 @@ spec:
             value: "{{workflow.parameters.keycloak_namespace}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
-          - name: client_id
+          - name: client_name
             value: "jaeger"
           - name: add_mapper
             value: "true"
@@ -129,7 +129,7 @@ spec:
             value: "{{workflow.parameters.keycloak_namespace}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
-          - name: client_id
+          - name: client_name
             value: "grafana"
           - name: add_mapper
             value: "false"
@@ -144,7 +144,7 @@ spec:
             value: "{{workflow.parameters.keycloak_namespace}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
-          - name: client_id
+          - name: client_name
             value: "portal"
           - name: add_mapper
             value: "false"
@@ -157,11 +157,13 @@ spec:
             value: "{{workflow.parameters.app_prefix}}"
           - name: keycloak_namespace
             value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
           - name: cluster_domain
             value: "{{workflow.parameters.cluster_domain}}"
           - name: keycloak_url
             value: "{{workflow.parameters.keycloak_url}}"
-          - name: client_id
+          - name: client_name
             value: "kiali"
           - name: app_namespace
             value: "istio-system"
@@ -178,11 +180,13 @@ spec:
             value: "{{workflow.parameters.app_prefix}}"
           - name: keycloak_namespace
             value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
           - name: cluster_domain
             value: "{{workflow.parameters.cluster_domain}}"
           - name: keycloak_url
             value: "{{workflow.parameters.keycloak_url}}"
-          - name: client_id
+          - name: client_name
             value: "jaeger"
           - name: app_namespace
             value: "istio-system"
@@ -201,7 +205,7 @@ spec:
             value: "{{workflow.parameters.service_domain}}"
           - name: service_cert_secret_name
             value: "{{workflow.parameters.service_cert_secret_name}}"
-          - name: client_id
+          - name: client_name
             value: "kiali"
           - name: app_namespace
             value: "istio-system"
@@ -220,7 +224,7 @@ spec:
             value: "{{workflow.parameters.service_domain}}"
           - name: service_cert_secret_name
             value: "{{workflow.parameters.service_cert_secret_name}}"
-          - name: client_id
+          - name: client_name
             value: "jaeger"
           - name: app_namespace
             value: "istio-system"
@@ -239,12 +243,12 @@ spec:
             value: "{{workflow.parameters.service_domain}}"
           - name: service_cert_secret_name
             value: "{{workflow.parameters.service_cert_secret_name}}"
-          - name: client_id
+          - name: client_name
             value: "grafana"
           - name: app_namespace
             value: "istio-system"
           - name: app_service
-            value: "grafana"
+            value: "servicemesh-grafana"
           - name: app_port
             value: 80
 
@@ -258,7 +262,7 @@ spec:
             value: "{{workflow.parameters.service_domain}}"
           - name: service_cert_secret_name
             value: "{{workflow.parameters.service_cert_secret_name}}"
-          - name: client_id
+          - name: client_name
             value: "kibana"
           - name: app_namespace
             value: "lma"
@@ -277,7 +281,7 @@ spec:
             value: "{{workflow.parameters.service_domain}}"
           - name: service_cert_secret_name
             value: "{{workflow.parameters.service_cert_secret_name}}"
-          - name: client_id
+          - name: client_name
             value: "portal"
           - name: app_namespace
             value: "istio-system"
@@ -296,9 +300,11 @@ spec:
             value: "{{workflow.parameters.keycloak_url}}"
           - name: keycloak_namespace
             value: "{{workflow.parameters.keycloak_namespace}}"
+          - name: keycloak_instance_name
+            value: "{{workflow.parameters.keycloak_instance_name}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
-          - name: client_id
+          - name: client_name
             value: "grafana"
           - name: app_namespace
             value: "istio-system"
@@ -317,8 +323,10 @@ spec:
             value: "{{workflow.parameters.keycloak_url}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
-          - name: client_secret
-            value: "4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A"
+          - name: client_name
+            value: "portal"
+          - name: app_namespace
+            value: "istio-system"
 
   #=========================================================
   # Template Definition
@@ -413,15 +421,15 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakRealm
           metadata:
-            name: ${REALMS}
+            name: "${REALMS}"
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
-              realm: ${REALMS}
+              realm: "${REALMS}"
           spec:
             realm:
-              realm: ${REALMS}
+              realm: "${REALMS}"
               enabled: True
-              displayName: ${REALMS}
+              displayName: "${REALMS}"
               roles:
                 realm:
                 - name: admin
@@ -567,12 +575,12 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakUser
           metadata:
-            name: ${REALMS}-portal-admin
+            name: "${REALMS}-portal-admin"
             namespace: ${KEYCLOAK_NAMESPACE}
           spec:
             realmSelector:
               matchLabels:
-                realm: ${REALMS}
+                realm: "${REALMS}"
             user:
               username: ${ADMIN_USERNAME}
               firstName: ${ADMIN_USERNAME}
@@ -598,7 +606,7 @@ spec:
       - name: realms
       - name: keycloak_namespace
       - name: service_domain
-      - name: client_id
+      - name: client_name
       - name: add_mapper
     container:
       name: create-realm
@@ -617,7 +625,8 @@ spec:
           REALMS={{inputs.parameters.realms}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
-          CLIENT_ID={{inputs.parameters.client_id}}
+          CLIENT_NAME={{inputs.parameters.client_name}}
+          CLIENT_ID=${REALMS}-${CLIENT_ID}
           ADD_MAPPER={{inputs.parameters.add_mapper}}
 
           kube_params=""
@@ -643,24 +652,24 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakClient
           metadata:
-            name: ${REALMS}-${CLIENT_ID}
+            name: "${CLIENT_ID}"
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
-              client: ${CLIENT_ID}
+              client: "${CLIENT_ID}"
           spec:
             realmSelector:
               matchLabels:
-                realm: ${REALMS}
+                realm: "${REALMS}"
             client:
-              clientId: ${CLIENT_ID}
+              clientId: "${CLIENT_ID}"
               enabled: True
               protocol: openid-connect
               standardFlowEnabled: True
               directAccessGrantsEnabled: True
-              rootUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_ID}/
+              rootUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_NAME}/
               redirectUris:
-              - https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_ID}/*
-              adminUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_ID}/
+              - https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_NAME}/*
+              adminUrl: https://dashboard-${REALMS}.${SERVICE_DOMAIN}/${CLIENT_NAME}/
               webOrigins:
               - https://dashboard-${REALMS}.${SERVICE_DOMAIN}
               defaultClientScopes:
@@ -673,7 +682,6 @@ spec:
               - microprofile-jwt
               - offline_access
               - phone
-              secret: 4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A
           ${MAPPER}
           EOF
 
@@ -682,13 +690,14 @@ spec:
     retryStrategy:
       limit: 2
 
+
   - name: create-client-portal
     inputs:
       parameters:
       - name: realms
       - name: keycloak_namespace
       - name: service_domain
-      - name: client_id
+      - name: client_name
       - name: add_mapper
     container:
       name: create-client-portal
@@ -706,7 +715,8 @@ spec:
           REALMS={{inputs.parameters.realms}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
-          CLIENT_ID={{inputs.parameters.client_id}}
+          CLIENT_NAME={{inputs.parameters.client_name}}
+          CLIENT_ID=${REALMS}-${CLIENT_NAME}
           ADD_MAPPER={{inputs.parameters.add_mapper}}
           kube_params=""
           kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
@@ -729,16 +739,16 @@ spec:
           apiVersion: keycloak.org/v1alpha1
           kind: KeycloakClient
           metadata:
-            name: ${REALMS}-${CLIENT_ID}
+            name: "${CLIENT_ID}"
             namespace: ${KEYCLOAK_NAMESPACE}
             labels:
-              client: ${CLIENT_ID}
+              client: "${CLIENT_ID}"
           spec:
             realmSelector:
               matchLabels:
-                realm: ${REALMS}
+                realm: "${REALMS}"
             client:
-              clientId: ${CLIENT_ID}
+              clientId: "${CLIENT_ID}"
               enabled: True
               protocol: openid-connect
               standardFlowEnabled: True
@@ -762,7 +772,6 @@ spec:
               - microprofile-jwt
               - offline_access
               - phone
-              secret: 4HD80RVTQhkHTtb2eOqXocoP6bF3Vr7A
           ${MAPPER}
           EOF
           log "INFO" "keycloak client: ${CLIENT_ID} successfully created."
@@ -770,14 +779,16 @@ spec:
     retryStrategy:
       limit: 2
 
+
   - name: create-gatekeeper
     inputs:
       parameters:
       - name: realms
       - name: keycloak_namespace
+      - name: keycloak_instance_name
       - name: cluster_domain
       - name: keycloak_url
-      - name: client_id
+      - name: client_name
       - name: app_namespace
       - name: app_service
       - name: app_port
@@ -797,9 +808,11 @@ spec:
 
           REALMS={{inputs.parameters.realms}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
           CLUSTER_DOMAIN={{inputs.parameters.cluster_domain}}
           KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
-          CLIENT_ID={{inputs.parameters.client_id}}
+          CLIENT_NAME={{inputs.parameters.client_name}}
+          CLIENT_ID=${REALMS}-${CLIENT_NAME}
           APP_NAMESPACE={{inputs.parameters.app_namespace}}
           APP_SERVICE={{inputs.parameters.app_service}}
           APP_PORT={{inputs.parameters.app_port}}
@@ -821,17 +834,37 @@ spec:
             kube_params+="--kubeconfig=/tmp/kubeconfig"
           fi
 
-          CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          ADMIN_USERNAME=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          get_token
+          CLIENT_UUID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r "select(.clientId == \"${CLIENT_ID}\" )".id )
+          echo "${CLIENT_ID} : ${CLIENT_UUID}"
+
+          get_token
+          CLIENT_SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/${CLIENT_UUID}/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
+
           UPSTREAM_URL="http://${APP_SERVICE}.${APP_NAMESPACE}.svc.${CLUSTER_DOMAIN}:${APP_PORT}"
 
-          helm $kube_params upgrade -i gatekeeper-${CLIENT_ID}-${REALMS} gogatekeeper/gatekeeper -n ${APP_NAMESPACE} --version 0.1.16 \
+          helm $kube_params upgrade -i gatekeeper-${CLIENT_NAME}-${REALMS} gogatekeeper/gatekeeper -n ${APP_NAMESPACE} --version 0.1.16 \
           --set config.discovery-url="https://${KEYCLOAK_URL}/auth/realms/${REALMS}" \
           --set config.client-id="${CLIENT_ID}" \
           --set config.client-secret="${CLIENT_SECRET}" \
           --set config.upstream-url="${UPSTREAM_URL}" \
-          --set config.base-uri="/${CLIENT_ID}"
+          --set config.base-uri="/${CLIENT_NAME}"
 
-          log "INFO" "gatekeeper: gatekeeper-${CLIENT_ID}-${REALMS} successfully created."
+          log "INFO" "gatekeeper: gatekeeper-${CLIENT_NAME}-${REALMS} successfully created."
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
@@ -843,7 +876,7 @@ spec:
       - name: realms
       - name: service_domain
       - name: service_cert_secret_name
-      - name: client_id
+      - name: client_name
       - name: app_namespace
       - name: app_service
       - name: app_port
@@ -864,40 +897,41 @@ spec:
           REALMS={{inputs.parameters.realms}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
           SERVICE_CERT_SECRET_NAME={{inputs.parameters.service_cert_secret_name}}
-          CLIENT_ID={{inputs.parameters.client_id}}
+          CLIENT_NAME={{inputs.parameters.client_name}}
+          CLIENT_ID=${REALMS}-${CLIENT_NAME}
           APP_NAMESPACE={{inputs.parameters.app_namespace}}
           APP_SERVICE={{inputs.parameters.app_service}}
           APP_PORT={{inputs.parameters.app_port}}
-          INGRESS_NAME=${CLIENT_ID}-dashboard
-          HOST=${CLIENT_ID}-${REALMS}.${SERVICE_DOMAIN}
+          INGRESS_NAME=${CLIENT_NAME}-dashboard
+          HOST=${CLIENT_NAME}-${REALMS}.${SERVICE_DOMAIN}
 
           ##### kiali, jaeger
           if [[ "gatekeeper" == "${APP_SERVICE}" ]]; then
-            INGRESS_NAME=${CLIENT_ID}-gatekeeper
+            INGRESS_NAME=${CLIENT_NAME}-gatekeeper
             HOST=dashboard-${REALMS}.${SERVICE_DOMAIN}
-            APP_SERVICE=gatekeeper-${CLIENT_ID}-${REALMS}
+            APP_SERVICE=gatekeeper-${CLIENT_NAME}-${REALMS}
           fi
 
           ##### grafana
-          if [[ "grafana" == "${CLIENT_ID}" ]]; then
-            INGRESS_NAME=${CLIENT_ID}-dashboard
+          if [[ "grafana" == "${CLIENT_NAME}" ]]; then
+            INGRESS_NAME=${CLIENT_NAME}-dashboard
             HOST=dashboard-${REALMS}.${SERVICE_DOMAIN}
             APP_SERVICE=${APP_SERVICE}
           fi
 
           ##### kibana
-          if [[ "kibana" == "${CLIENT_ID}" ]]; then
-            INGRESS_NAME=${CLIENT_ID}
-            HOST=${CLIENT_ID}-${REALMS}.${SERVICE_DOMAIN}
+          if [[ "kibana" == "${CLIENT_NAME}" ]]; then
+            INGRESS_NAME=${CLIENT_NAME}
+            HOST=${CLIENT_NAME}-${REALMS}.${SERVICE_DOMAIN}
             APP_SERVICE=${APP_SERVICE}
           fi
 
           ##### portal
-          if [[ "portal" == "${CLIENT_ID}" ]]; then
-            INGRESS_NAME=${CLIENT_ID}-dashboard
+          if [[ "portal" == "${CLIENT_NAME}" ]]; then
+            INGRESS_NAME=${CLIENT_NAME}-dashboard
             HOST=dashboard-${REALMS}.${SERVICE_DOMAIN}
             APP_SERVICE=${APP_SERVICE}
-            CLIENT_ID=""
+            CLIENT_NAME=""
           fi
 
           kube_params=""
@@ -921,7 +955,7 @@ spec:
             - host: ${HOST}
               http:
                 paths:
-                - path: /${CLIENT_ID}
+                - path: /${CLIENT_NAME}
                   pathType: ImplementationSpecific
                   backend:
                     service:
@@ -939,61 +973,6 @@ spec:
     retryStrategy:
       limit: 2
 
-  - name: install-servicemesh-portal
-    inputs:
-      parameters:
-      - name: realms
-      - name: keycloak_namespace
-      - name: keycloak_instance_name
-      - name: keycloak_url
-      - name: service_domain
-      - name: client_secret
-    container:
-      name: 'install-servicemesh-portal'
-      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
-      imagePullPolicy: IfNotPresent
-      command:
-        - /bin/bash
-        - -ecx
-        - |
-          mkdir ~/.kube
-          cp /kube/value ~/.kube/config_adm
-          KUBECONFIG_USERCLUSTER=$(kubectl --kubeconfig ~/.kube/config_adm get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d)
-          echo -e "kubeconfig_workload:\n$KUBECONFIG_USERCLUSTER" | head -n 5
-          cat <<< "$KUBECONFIG_USERCLUSTER" > ~/.kube/config_user
-
-          REALMS={{inputs.parameters.realms}}
-          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
-          CLIENT_SECRET={{inputs.parameters.client_secret}}
-          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
-          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
-          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
-          KEYCLOAK_ADMIN_USERNAME=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
-          KEYCLOAK_ADMIN_PASSWORD=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
-          DASHBOARD_URL=https://dashboard-${REALMS}.${SERVICE_DOMAIN}
-          
-          helm repo add openinfradev https://openinfradev.github.io/helm-repo
-          helm repo update
-          helm --kubeconfig ~/.kube/config_user upgrade -i servicemesh-portal -n istio-system --wait \
-            --set application.tks.admin.username=${KEYCLOAK_ADMIN_USERNAME} \
-            --set application.tks.admin.password=${KEYCLOAK_ADMIN_PASSWORD} \
-            --set application.tks.url=${DASHBOARD_URL} \
-            --set application.keycloak.realm=${REALMS} \
-            --set application.keycloak.credentials.secret=${CLIENT_SECRET} \
-            --set application.keycloak.auth-server-url=https://${KEYCLOAK_URL}/auth \
-            openinfradev/servicemesh-portal
-
-          kubectl --kubeconfig ~/.kube/config_user rollout restart deployment servicemesh-portal -n istio-system
-      volumeMounts:
-      - name: kubeconfig-adm
-        mountPath: "/kube"
-      env:
-        - name: CLUSTER_ID
-          value: "{{workflow.parameters.cluster_id}}"
-    activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
-
 
   - name: install-grafana
     inputs:
@@ -1001,8 +980,9 @@ spec:
       - name: realms
       - name: keycloak_url
       - name: keycloak_namespace
+      - name: keycloak_instance_name
       - name: service_domain
-      - name: client_id
+      - name: client_name
       - name: app_namespace
     container:
       name: 'install-grafana'
@@ -1022,8 +1002,10 @@ spec:
           REALMS={{inputs.parameters.realms}}
           KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
-          CLIENT_ID={{inputs.parameters.client_id}}
+          CLIENT_NAME={{inputs.parameters.client_name}}
+          CLIENT_ID=${REALMS}-${CLIENT_NAME}
           APP_NAMESPACE={{inputs.parameters.app_namespace}}
 
           helm repo add grafana https://grafana.github.io/helm-charts
@@ -1043,7 +1025,26 @@ spec:
             kube_params+="--kubeconfig=/tmp/kubeconfig"
           fi
 
-          CLIENT_SECRET=$(kubectl $admin_kube_params get secret -n ${KEYCLOAK_NAMESPACE} keycloak-client-secret-${CLIENT_ID} -o jsonpath="{.data.CLIENT_SECRET}" | base64 -d)
+          ADMIN_USERNAME=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          get_token
+          CLIENT_UUID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r "select(.clientId == \"${CLIENT_ID}\" )".id )
+          echo "${CLIENT_ID} : ${CLIENT_UUID}"
+
+          get_token
+          CLIENT_SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/${CLIENT_UUID}/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
 
           ## create grafana datasource
           cat <<EOF | kubectl $kube_params apply -f -
@@ -1099,7 +1100,7 @@ spec:
               enabled: true
               name: keycloak
               allow_sign_up: true
-              client_id: grafana
+              client_id: "${REALMS}-grafana"
               client_secret: ${CLIENT_SECRET}
               scopes: openid profile email
               auth_url: https://${KEYCLOAK_URL}/auth/realms/${REALMS}/protocol/openid-connect/auth
@@ -1120,11 +1121,92 @@ spec:
           kubectl $kube_params delete clusterrole grafana-clusterrole || true
           kubectl $kube_params delete clusterrolebinding grafana-clusterrolebinding || true
 
-          helm $kube_params upgrade -i grafana grafana/grafana --version 6.23.1 -f /tmp/grafana-values.yaml -n ${APP_NAMESPACE}
+          helm $kube_params upgrade -i servicemesh-${CLIENT_NAME} grafana/grafana --version 6.23.1 -f /tmp/grafana-values.yaml -n ${APP_NAMESPACE} 
 
-          log "INFO" "grafana: grafana-${REALMS} successfully created."
+          log "INFO" "servicemesh-${CLIENT_NAME} successfully created."
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
 
+
+  - name: install-servicemesh-portal
+    inputs:
+      parameters:
+      - name: realms
+      - name: keycloak_namespace
+      - name: keycloak_instance_name
+      - name: keycloak_url
+      - name: service_domain
+      - name: client_name
+      - name: app_namespace
+    container:
+      name: 'install-servicemesh-portal'
+      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/bash
+        - -ecx
+        - |
+          mkdir ~/.kube
+          cp /kube/value ~/.kube/config_adm
+          KUBECONFIG_USERCLUSTER=$(kubectl --kubeconfig ~/.kube/config_adm get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d)
+          echo -e "kubeconfig_workload:\n$KUBECONFIG_USERCLUSTER" | head -n 5
+          cat <<< "$KUBECONFIG_USERCLUSTER" > ~/.kube/config_user
+
+          REALMS={{inputs.parameters.realms}}
+          KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
+          KEYCLOAK_INSTANCE_NAME={{inputs.parameters.keycloak_instance_name}}
+          KEYCLOAK_URL={{inputs.parameters.keycloak_url}}
+          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+          CLIENT_NAME={{inputs.parameters.client_name}}
+          CLIENT_ID=${REALMS}-${CLIENT_NAME}
+          APP_NAMESPACE={{inputs.parameters.app_namespace}}
+
+          KEYCLOAK_ADMIN_USERNAME=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          KEYCLOAK_ADMIN_PASSWORD=$(kubectl --kubeconfig ~/.kube/config_adm get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          DASHBOARD_URL=https://dashboard-${REALMS}.${SERVICE_DOMAIN}
+
+          ADMIN_USERNAME=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_USERNAME}' | base64 -d)
+          ADMIN_PASSWORD=$(kubectl $admin_kube_params get secrets -n ${KEYCLOAK_NAMESPACE} credential-${KEYCLOAK_INSTANCE_NAME} -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d)
+          TOKEN=""
+          function get_token() {
+            TOKEN=$(curl -s POST https://${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token \
+                      -d client_id=admin-cli -d grant_type=password \
+                      -d username=${ADMIN_USERNAME} -d password=${ADMIN_PASSWORD} \
+                      | jq -r '.access_token')
+          }
+
+          get_token
+          CLIENT_UUID=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq '.[]' | jq -r "select(.clientId == \"${CLIENT_ID}\" )".id )
+          echo "${CLIENT_ID} : ${CLIENT_UUID}"
+
+          get_token
+          CLIENT_SECRET=$(curl -s GET https://${KEYCLOAK_URL}/auth/admin/realms/${REALMS}/clients/${CLIENT_UUID}/client-secret \
+              -H "Content-Type: application/json" -H "Authorization: Bearer ${TOKEN}" \
+              | jq -r .value )
+
+          helm repo add openinfradev https://openinfradev.github.io/helm-repo
+          helm repo update
+          helm --kubeconfig ~/.kube/config_user upgrade -i servicemesh-${CLIENT_NAME} -n ${APP_NAMESPACE} --wait \
+            --set application.tks.admin.username=${KEYCLOAK_ADMIN_USERNAME} \
+            --set application.tks.admin.password=${KEYCLOAK_ADMIN_PASSWORD} \
+            --set application.tks.url=${DASHBOARD_URL} \
+            --set application.keycloak.realm="${REALMS}" \
+            --set application.keycloak.resource="${CLIENT_ID}" \
+            --set application.keycloak.credentials.secret=${CLIENT_SECRET} \
+            --set application.keycloak.auth-server-url=https://${KEYCLOAK_URL}/auth \
+            openinfradev/servicemesh-portal
+
+          kubectl --kubeconfig ~/.kube/config_user rollout restart deployment servicemesh-${CLIENT_NAME} -n ${APP_NAMESPACE}
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      env:
+        - name: CLUSTER_ID
+          value: "{{workflow.parameters.cluster_id}}"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
 
