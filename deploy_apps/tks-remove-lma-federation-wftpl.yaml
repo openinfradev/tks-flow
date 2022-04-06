@@ -62,7 +62,7 @@ spec:
             value: "{{ workflow.parameters.app_group_id }}"
           # Again, how can this be determined?
           - name: cur_endpoint
-            value: "thanos-sidecar.cluster_xy"
+            value: "{{workflow.parameters.cluster_id}}-thanos-ep"
 
     # Delete endpoint from other cluster's manifests
     - - name: updateDecapodManifestOutwards
@@ -152,6 +152,9 @@ spec:
       image: sktdev/python-centos-wf-worker:v1.0
       command:
       - python
+      envFrom:
+      - secretRef:
+          name: "github-tks-mgmt-token"
       env:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
@@ -163,6 +166,7 @@ spec:
         mountPath: /mnt/out
       source: |
         import sys
+        import os
         import google.protobuf
         import grpc
         import info_pb2
@@ -170,6 +174,7 @@ spec:
         import common_pb2
         import common_pb2_grpc
         import json
+        import git
 
         output_cluster_list = []
         temp_map = {}
@@ -200,10 +205,36 @@ spec:
             # Iterate over cluster list except current cluster #
             for cluster in res.clusters:
                 if cluster.id != "{{inputs.parameters.cluster_id}}":
-                  print("Found cluster: {}".format(cluster.id))
-                  temp_map["name"] = cluster.id
-                  str_json = json.dumps(temp_map)
-                  output_cluster_list.append(str_json)
+                  print("*******************************************")
+                  print("Checking cluster: {}".format(cluster.id))
+
+                  print("Checking if corresponding cluster repo exists..")
+                  url = "@github.com/{{workflow.parameters.github_account}}/{}".format(cluster.id)
+                  repoUrl = "https://" + os.environ['TOKEN'] + url
+                  try:
+                    repo = git.Repo.clone_from(repoUrl, './tempcluster')
+
+                  except git.exc.GitCommandError as e:
+                    print(e)
+                    print("Repo {} doesn't exist. Skipping this cluster..".format(repoUrl))
+                    continue
+
+                  res = app_stub.GetAppGroupsByClusterID(common_pb2.IDRequest(id=cluster.id))
+                  print("Response from GetAppGroupsByClusterID:")
+                  print(res.app_groups)
+
+                  os.system("rm -rf ./tempcluster")
+
+                  # Check if LMA group exists.
+                  for app_group in res.app_groups:
+                    if app_group.type == common_pb2.LMA:
+                      print("Found LMA app_group: {}".format(app_group.app_group_name))
+                      res = app_stub.GetApps(info_pb2.GetAppsRequest(app_group_id=app_group.app_group_id, type=common_pb2.PROMETHEUS))
+
+                      # Add this cluster to outward list so that current ep is deleted from this cluster
+                      temp_map["name"] = cluster.id
+                      str_json = json.dumps(temp_map)
+                      output_cluster_list.append(str_json)
 
         # Update current endpoint to other cluster's site-yaml #
         outwards_endpoint_map['querier.stores'] = "{{inputs.parameters.cur_endpoint}}"
