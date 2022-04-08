@@ -41,18 +41,6 @@ spec:
           name: service-mesh
           template: deploy-start
 
-    - - name: updateTksInfo
-        templateRef:
-          name: update-tks-app-group-info
-          template: updateTksAppGroup
-        arguments:
-          parameters:
-          # TODO: Can this be pre-determined? Or composed dynamically on deployment?
-          - name: endpoints
-            value: "{}"
-          - name: app_group_status
-            value: "APP_GROUP_RUNNING"
-
   #=========================================================
   # Template Definition
   #=========================================================
