@@ -626,7 +626,7 @@ spec:
           KEYCLOAK_NAMESPACE={{inputs.parameters.keycloak_namespace}}
           SERVICE_DOMAIN={{inputs.parameters.service_domain}}
           CLIENT_NAME={{inputs.parameters.client_name}}
-          CLIENT_ID=${REALMS}-${CLIENT_ID}
+          CLIENT_ID=${REALMS}-${CLIENT_NAME}
           ADD_MAPPER={{inputs.parameters.add_mapper}}
 
           kube_params=""
