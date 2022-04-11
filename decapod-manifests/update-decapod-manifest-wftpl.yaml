@@ -63,13 +63,18 @@ spec:
             print("Cloning repository...")
 
             repoUrl = "https://" + os.environ['TOKEN'] + "@{{inputs.parameters.site_repo_url}}"
-            repo = git.Repo.clone_from(repoUrl, siteDir)
-            with repo.config_writer() as git_config:
-                git_config.set_value('user', 'email', 'tks-argo@tks.com')
-                git_config.set_value('user', 'name', 'TKS Argo')
-            print("Cloned repo contents:")
-            os.system("ls -al {}".format(sitePath))
-            os.system("ls -al {}/{}".format(sitePath, clusterName))
+            try:
+              repo = git.Repo.clone_from(repoUrl, siteDir)
+              with repo.config_writer() as git_config:
+                  git_config.set_value('user', 'email', 'tks-argo@tks.com')
+                  git_config.set_value('user', 'name', 'TKS Argo')
+              print("Cloned repo contents:")
+              os.system("ls -al {}".format(sitePath))
+              os.system("ls -al {}/{}".format(sitePath, clusterName))
+            except git.exc.GitCommandError as e:
+              print("Repository {} doesn't exist. Skipping..".format(repoUrl))
+              print(e)
+              sys.exit(0)
         else:
             print("The repo already exists. Pulling latest updates..")
 
