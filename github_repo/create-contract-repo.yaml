@@ -36,9 +36,8 @@ spec:
         # Clone user-site-template which only has tks-cluster-aws app_group, currently
         git clone -b ${REVISION} https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
 
-        # Use hanu-reference template as default 'template-std'
         git clone -b ${REVISION} https://github.com/openinfradev/decapod-site
-        cp -r decapod-site/hanu-reference/* tks-user-site-template/template-std/
+        cp -r decapod-site/decapod-reference/* tks-user-site-template/template-std/
 
         cd tks-user-site-template
         # Remove unnecessary app_group directory before commit.
