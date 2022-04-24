@@ -28,7 +28,7 @@ spec:
         gh repo list ${USERNAME}
 
         echo "===== Create and initialize ${USERNAME}/${CONTRACT_ID} site and manifests repositories ====="
-        gh repo create ${USERNAME}/${CONTRACT_ID} --private --confirm
+        gh repo create ${USERNAME}/${CONTRACT_ID} --public --confirm
 
         cd ${CONTRACT_ID}
         echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
