@@ -29,8 +29,8 @@ spec:
       - |
         echo $TOKEN | gh auth login --with-token
 
-        gh repo create ${USERNAME}/${CLUSTER_ID} --private --confirm
-        gh repo create ${USERNAME}/${CLUSTER_ID}-manifests --private --confirm
+        gh repo create ${USERNAME}/${CLUSTER_ID} --public --confirm
+        gh repo create ${USERNAME}/${CLUSTER_ID}-manifests --public --confirm
 
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
