@@ -71,12 +71,8 @@ spec:
           parameters:
           - name: tks_info_host
             value:  "{{ workflow.parameters.tks_info_host }}"
-          - name: cluster_id
-            value: "{{ workflow.parameters.cluster_id }}"
           - name: app_group_id
             value: "{{ workflow.parameters.app_group_id }}"
-          - name: cur_endpoint
-            value: "{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}"
 
     - - name: updateDecapodManifestOutwards
         templateRef:
@@ -94,9 +90,8 @@ spec:
             value: "lma"
           - name: chart
             value: "thanos"
-          ## {"querier.stores": "CURRENT_ENDPOINT"}
           - name: kv_map_str 
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_endpoint_map}}"
+            value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
         withParam: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_cluster_list}}"
 
     - - name: updateDecapodManifestInwards
@@ -205,9 +200,7 @@ spec:
     inputs:
       parameters:
       - name: tks_info_host
-      - name: cluster_id
       - name: app_group_id
-      - name: cur_endpoint
     outputs:
       parameters:
       - name: outwards_cluster_list
@@ -216,9 +209,6 @@ spec:
       - name: inwards_endpoint_map
         valueFrom:
           path: /mnt/out/inwards_endpoint.txt
-      - name: outwards_endpoint_map
-        valueFrom:
-          path: /mnt/out/outwards_endpoint.txt
       - name: cur_cluster_name
         valueFrom:
           path: /mnt/out/cur_cluster_name.txt
@@ -270,13 +260,12 @@ spec:
             cl_stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
             app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
 
-            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{inputs.parameters.cluster_id}}"))
+            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{workflow.parameters.cluster_id}}"))
 
             print("Response from GetCluster: ")
             print(res.cluster)
             contract_id = res.cluster.contract_id
             csp_id = res.cluster.csp_id
-            # TODO: export this as step output to use it on next step
             cur_cluster_name = res.cluster.id
 
             res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=''))
@@ -328,9 +317,6 @@ spec:
                         str_json = json.dumps(temp_map)
                         output_cluster_list.append(str_json)
 
-        # Update current endpoint to other cluster's site-yaml #
-        outwards_endpoint_map['querier.stores'] = "{{inputs.parameters.cur_endpoint}}"
-
         # Compose profer format to be used as input on next step 
         inwards_endpoint_map['querier.stores'] = inwards_endpoint_list
 
@@ -352,10 +338,6 @@ spec:
         with open("/mnt/out/inwards_endpoint.txt", "w") as f:
           str_inwards_endpoint = repr(inwards_endpoint_map)
           f.write(str_inwards_endpoint)
-
-        with open("/mnt/out/outwards_endpoint.txt", "w") as f:
-          str_outwards_endpoint = repr(outwards_endpoint_map)
-          f.write(str_outwards_endpoint)
 
         with open("/mnt/out/cur_cluster_name.txt", "w") as f:
           f.write(cur_cluster_name)
