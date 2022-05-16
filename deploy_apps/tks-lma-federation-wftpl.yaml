@@ -330,6 +330,7 @@ spec:
         with open("/mnt/out/cluster_list.txt", "w") as f:
           f.write('[')
 
+          print("*** Outwards Cluster List ***")
           for idx, item in enumerate(output_cluster_list, start=1):
             print("item {}: {}".format(idx, item))
             f.write(item.strip("'"))
