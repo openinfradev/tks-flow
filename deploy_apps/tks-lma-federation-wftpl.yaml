@@ -187,7 +187,7 @@ spec:
           echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > /etc/kubeconfig
 
-          thanos_sc_ep=$(kubectl --kubeconfig=/etc/kubeconfig get svc THANOS_SC_SVC -n ${TARGET_NAMESPACE} -o jsonpath='{.spec.externalIP}')
+          thanos_sc_ep=$(kubectl --kubeconfig=/etc/kubeconfig get svc lma-thanos-external -n ${TARGET_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           if [[ -z "$thanos_sc_ep" ]]; then
             echo "Error: could not retrieve thanos sidecar endpoint from service resource."
             exit 1
@@ -277,7 +277,7 @@ spec:
                 if cluster.status != common_pb2.RUNNING:
                   continue
 
-                if cluster.id != "{{inputs.parameters.cluster_id}}":
+                if cluster.id != "{{workflow.parameters.cluster_id}}":
                   print("*******************************************")
                   print("Checking cluster: {}".format(cluster.id))
 
