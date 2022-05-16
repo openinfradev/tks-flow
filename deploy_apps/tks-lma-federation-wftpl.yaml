@@ -187,12 +187,14 @@ spec:
           echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > /etc/kubeconfig
 
-          thanos_sc_ep=$(kubectl --kubeconfig=/etc/kubeconfig get svc lma-thanos-external -n ${TARGET_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          THANOS_SC_PORT='10901'
+          THANOS_SC_SVC='lma-thanos-external'
+          thanos_sc_ep=$(kubectl --kubeconfig=/etc/kubeconfig get svc ${THANOS_SC_SVC} -n ${TARGET_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           if [[ -z "$thanos_sc_ep" ]]; then
             echo "Error: could not retrieve thanos sidecar endpoint from service resource."
             exit 1
           else
-            echo $thanos_sc_ep > /mnt/out/thanos_sc_ep.txt
+            echo "$thanos_sc_ep:$THANOS_SC_PORT" > /mnt/out/thanos_sc_ep.txt
           fi
 
 
