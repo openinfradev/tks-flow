@@ -20,9 +20,9 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-          echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
-          export KUBECONFIG
+          KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
+          export KUBECONFIG='/etc/kubeconfig_temp'
 
           sonobuoy run --mode {{workflow.parameters.sonobuoy_mode}} --e2e-parallel 30 --wait
           sonobuoy retrieve && mkdir ./results
