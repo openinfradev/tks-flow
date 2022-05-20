@@ -17,9 +17,6 @@ spec:
       value: "template-std"
     - name: git_account
       value: "tks-management"
-    # TODO: if gittoken is necessary, the following options might be tried.
-    # 1. Pass gittoken name (or use predefined name) and createApp reconstructs this repo URL.
-    # 2. Make argocd pod always use the common gittoken.
     - name: manifest_repo_url
       value: ""
     - name: revision

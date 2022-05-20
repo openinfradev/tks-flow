@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-validate-usercluster
+  namespace: argo
+spec:
+  entrypoint: run-sonobuoy
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "011b88fa-4d53-439f-9336-67845f994051"
+    - name: sonobuoy_mode
+      value: "quick"
+  templates:
+  - name: run-sonobuoy
+    container:
+      name: sonobuoy
+      image: 'sonobuoy/sonobuoy'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
+          export KUBECONFIG
+
+          sonobuoy run --mode {{workflow.parameters.sonobuoy_mode}} --e2e-parallel 30 --wait
+          sonobuoy retrieve && mkdir ./results
+          tar xzf ./*.tar.gz -C ./results
+          cat ./results/plugins/e2e/results/global/e2e.log
+
+          status=$(sonobuoy status)
+
+          if grep -q "failed" <<< "$status"; then
+            echo "Sonobuoy e2e test failed!"
+            exit 1
+          fi
+
+          sonobuoy delete --all --wait
