@@ -47,15 +47,21 @@ spec:
           name: lma-federation
           template: deploy
 
+    - - name: GetMyThanosScEndpoint
+        template: GetMyThanosScEndpoint
+        arguments:
+          parameters:
+          - name: target_namespace
+            value: lma
+
     - - name: updateEndpointToTksInfo
         templateRef:
           name: update-tks-app-group-info
           template: updateTksAppGroup
         arguments:
           parameters:
-          # TODO: Can this be pre-determined? Or composed dynamically on deployment?
           - name: endpoints
-            value: "{'PROMETHEUS': '{{workflow.parameters.cluster_id}}-thanos-ep'}"
+            value: "{'PROMETHEUS': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
 
       # LMA appGroup specific task #
     - - name: collectThanosScEndpoints
@@ -65,13 +71,8 @@ spec:
           parameters:
           - name: tks_info_host
             value:  "{{ workflow.parameters.tks_info_host }}"
-          - name: cluster_id
-            value: "{{ workflow.parameters.cluster_id }}"
           - name: app_group_id
             value: "{{ workflow.parameters.app_group_id }}"
-          # Again, how can this be determined?
-          - name: cur_endpoint
-            value: "{{workflow.parameters.cluster_id}}-thanos-ep"
 
     - - name: updateDecapodManifestOutwards
         templateRef:
@@ -89,9 +90,8 @@ spec:
             value: "lma"
           - name: chart
             value: "thanos"
-          ## {"querier.stores": "CURRENT_ENDPOINT"}
           - name: kv_map_str 
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_endpoint_map}}"
+            value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
         withParam: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_cluster_list}}"
 
     - - name: updateDecapodManifestInwards
@@ -155,13 +155,54 @@ spec:
     retryStrategy:
       limit: 2
 
+  - name: GetMyThanosScEndpoint
+    inputs:
+      parameters:
+      - name: target_namespace
+    outputs:
+      parameters:
+      - name: my_thanos_sc_ep
+        valueFrom:
+          path: /mnt/out/thanos_sc_ep.txt
+    volumes:
+    - name: out
+      emptyDir: {}
+    container:
+      name: 'get-thanos-ep'
+      image: 'k8s.gcr.io/hyperkube:v1.18.6'
+      envFrom:
+      - secretRef:
+          name: "github-tks-mgmt-token"
+      env:
+        - name: TARGET_NAMESPACE
+          value: '{{inputs.parameters.target_namespace}}'
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /etc/kubeconfig
+
+          THANOS_SC_PORT='10901'
+          THANOS_SC_SVC='lma-thanos-external'
+          thanos_sc_ep=$(kubectl --kubeconfig=/etc/kubeconfig get svc ${THANOS_SC_SVC} -n ${TARGET_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          if [[ -z "$thanos_sc_ep" ]]; then
+            echo "Error: could not retrieve thanos sidecar endpoint from service resource."
+            exit 1
+          else
+            echo "$thanos_sc_ep:$THANOS_SC_PORT" > /mnt/out/thanos_sc_ep.txt
+          fi
+
+
   - name: collectThanosScEndpoints
     inputs:
       parameters:
       - name: tks_info_host
-      - name: cluster_id
       - name: app_group_id
-      - name: cur_endpoint
     outputs:
       parameters:
       - name: outwards_cluster_list
@@ -170,9 +211,6 @@ spec:
       - name: inwards_endpoint_map
         valueFrom:
           path: /mnt/out/inwards_endpoint.txt
-      - name: outwards_endpoint_map
-        valueFrom:
-          path: /mnt/out/outwards_endpoint.txt
       - name: cur_cluster_name
         valueFrom:
           path: /mnt/out/cur_cluster_name.txt
@@ -224,13 +262,12 @@ spec:
             cl_stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
             app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
 
-            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{inputs.parameters.cluster_id}}"))
+            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{workflow.parameters.cluster_id}}"))
 
             print("Response from GetCluster: ")
             print(res.cluster)
             contract_id = res.cluster.contract_id
             csp_id = res.cluster.csp_id
-            # TODO: export this as step output to use it on next step
             cur_cluster_name = res.cluster.id
 
             res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=''))
@@ -242,7 +279,7 @@ spec:
                 if cluster.status != common_pb2.RUNNING:
                   continue
 
-                if cluster.id != "{{inputs.parameters.cluster_id}}":
+                if cluster.id != "{{workflow.parameters.cluster_id}}":
                   print("*******************************************")
                   print("Checking cluster: {}".format(cluster.id))
 
@@ -282,9 +319,6 @@ spec:
                         str_json = json.dumps(temp_map)
                         output_cluster_list.append(str_json)
 
-        # Update current endpoint to other cluster's site-yaml #
-        outwards_endpoint_map['querier.stores'] = "{{inputs.parameters.cur_endpoint}}"
-
         # Compose profer format to be used as input on next step 
         inwards_endpoint_map['querier.stores'] = inwards_endpoint_list
 
@@ -296,6 +330,7 @@ spec:
         with open("/mnt/out/cluster_list.txt", "w") as f:
           f.write('[')
 
+          print("*** Outwards Cluster List ***")
           for idx, item in enumerate(output_cluster_list, start=1):
             print("item {}: {}".format(idx, item))
             f.write(item.strip("'"))
@@ -306,10 +341,6 @@ spec:
         with open("/mnt/out/inwards_endpoint.txt", "w") as f:
           str_inwards_endpoint = repr(inwards_endpoint_map)
           f.write(str_inwards_endpoint)
-
-        with open("/mnt/out/outwards_endpoint.txt", "w") as f:
-          str_outwards_endpoint = repr(outwards_endpoint_map)
-          f.write(str_outwards_endpoint)
 
         with open("/mnt/out/cur_cluster_name.txt", "w") as f:
           f.write(cur_cluster_name)

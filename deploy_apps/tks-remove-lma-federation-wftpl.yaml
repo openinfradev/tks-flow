@@ -31,6 +31,15 @@ spec:
   templates:
   - name: removeLMA
     steps:
+    - - name: GetMyThanosScEndpoint
+        templateRef:
+          name: tks-lma-federation
+          template: GetMyThanosScEndpoint
+        arguments:
+          parameters:
+          - name: target_namespace
+            value: lma
+
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation
@@ -43,6 +52,7 @@ spec:
             - name: target_namespace
               value: "lma"
 
+    # TODO: Is this still necessary?
     - - name: updateTksInfo
         templateRef:
           name: delete-tks-app-group-info
@@ -56,13 +66,8 @@ spec:
           parameters:
           - name: tks_info_host
             value:  "{{ workflow.parameters.tks_info_host }}"
-          - name: cluster_id
-            value: "{{ workflow.parameters.cluster_id }}"
           - name: app_group_id
             value: "{{ workflow.parameters.app_group_id }}"
-          # Again, how can this be determined?
-          - name: cur_endpoint
-            value: "{{workflow.parameters.cluster_id}}-thanos-ep"
 
     # Delete endpoint from other cluster's manifests
     - - name: updateDecapodManifestOutwards
@@ -81,9 +86,8 @@ spec:
             value: "{{workflow.parameters.app_group}}"
           - name: chart
             value: "thanos"
-          ## {"querier.stores": "CURRENT_ENDPOINT"}
           - name: kv_map_str 
-            value: "{{steps.collectClusterList.outputs.parameters.outwards_endpoint_map}}"
+            value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
         withParam: "{{steps.collectClusterList.outputs.parameters.outwards_cluster_list}}"
 
   #######################
@@ -133,17 +137,12 @@ spec:
     inputs:
       parameters:
       - name: tks_info_host
-      - name: cluster_id
       - name: app_group_id
-      - name: cur_endpoint
     outputs:
       parameters:
       - name: outwards_cluster_list
         valueFrom:
           path: /mnt/out/cluster_list.txt
-      - name: outwards_endpoint_map
-        valueFrom:
-          path: /mnt/out/outwards_endpoint.txt
     volumes:
     - name: out
       emptyDir: {}
@@ -190,7 +189,7 @@ spec:
             cl_stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
             app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
 
-            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{inputs.parameters.cluster_id}}"))
+            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{workflow.parameters.cluster_id}}"))
 
             print("Response from GetCluster: ")
             print(res.cluster)
@@ -204,7 +203,7 @@ spec:
 
             # Iterate over cluster list except current cluster #
             for cluster in res.clusters:
-                if cluster.id != "{{inputs.parameters.cluster_id}}":
+                if cluster.id != "{{workflow.parameters.cluster_id}}":
                   print("*******************************************")
                   print("Checking cluster: {}".format(cluster.id))
 
@@ -236,9 +235,6 @@ spec:
                       str_json = json.dumps(temp_map)
                       output_cluster_list.append(str_json)
 
-        # Update current endpoint to other cluster's site-yaml #
-        outwards_endpoint_map['querier.stores'] = "{{inputs.parameters.cur_endpoint}}"
-
         ###########################
         # Construct output params #
         ###########################
@@ -247,13 +243,10 @@ spec:
         with open("/mnt/out/cluster_list.txt", "w") as f:
           f.write('[')
 
+          print("*** Outwards Cluster List ***")
           for idx, item in enumerate(output_cluster_list, start=1):
             print("item {}: {}".format(idx, item))
             f.write(item.strip("'"))
             if idx < len_list:
               f.write(',')
           f.write(']')
-
-        with open("/mnt/out/outwards_endpoint.txt", "w") as f:
-          str_outwards_endpoint = repr(outwards_endpoint_map)
-          f.write(str_outwards_endpoint)
