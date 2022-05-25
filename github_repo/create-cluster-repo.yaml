@@ -35,7 +35,7 @@ spec:
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
-        cp -r ${CONTRACT_ID}/_github/ ${CLUSTER_ID}/.github
+        cp -r ${CONTRACT_ID}/.github ${CLUSTER_ID}/.github
 
         echo $CLUSTER_INFO
 
