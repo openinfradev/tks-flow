@@ -9,6 +9,7 @@ spec:
     parameters:
     - name: contract_id
       value: "contract_uuid"
+    # Revision for decapod-base and decapod-site repo
     - name: revision
       value: "main"
   templates:
@@ -24,7 +25,7 @@ spec:
       - |
         echo $TOKEN | gh auth login --with-token
         echo "===== Current repo list ====="
-        gh repo list openinfradev | grep tks-user-site
+        gh repo list openinfradev | grep decapod-site
         gh repo list ${USERNAME}
 
         echo "===== Create and initialize ${USERNAME}/${CONTRACT_ID} site and manifests repositories ====="
@@ -33,20 +34,19 @@ spec:
         cd ${CONTRACT_ID}
         echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
 
-        # Clone user-site-template which only has tks-cluster-aws app_group, currently
-        git clone -b ${REVISION} https://$(echo -n $TOKEN)@github.com/openinfradev/tks-user-site-template
-
         git clone -b ${REVISION} https://github.com/openinfradev/decapod-site
-        cp -r decapod-site/decapod-reference/* tks-user-site-template/template-std/
 
-        cd tks-user-site-template
+        cd decapod-site
+        # TODO: support to use decapod-reference-offline later?
+        mv decapod-reference template-std
+        rm -rf decapod-reference-offline
         # Remove unnecessary app_group directory before commit.
         # If these kinds of apps increases, then they might be defined as black list
         # and then removed by FOR loop iteration.
         # For now, this hardcoding seems enough.
         rm -rf template-std/openstack template-std/decapod-controller
 
-        sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" _github/workflows/render-cd.sh
+        sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" .github/workflows/render-cd.sh
 
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
