@@ -15,7 +15,7 @@ spec:
       value: "template-std"
   templates:
   - name: createClusterRepo
-    activeDeadlineSeconds: 120
+    activeDeadlineSeconds: 300
     inputs:
       parameters:
       - name: cluster_info
