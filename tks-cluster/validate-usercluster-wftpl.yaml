@@ -4,7 +4,7 @@ metadata:
   name: tks-validate-usercluster
   namespace: argo
 spec:
-  entrypoint: run-sonobuoy
+  entrypoint: main
   arguments:
     parameters:
     - name: cluster_id
@@ -12,7 +12,23 @@ spec:
     - name: sonobuoy_mode
       value: "quick"
   templates:
+  - name: main
+    steps:
+      - - name: validate-cluster
+          template: run-sonobuoy
+          arguments:
+            parameters:
+              - name: cluster_id
+                value: "{{workflow.parameters.cluster_id}}"
+              - name: sonobuoy_mode
+                value: "{{workflow.parameters.sonobuoy_mode}}"
+
   - name: run-sonobuoy
+    inputs:
+      parameters:
+        - name: cluster_id
+        - name: sonobuoy_mode
+          value: "quick"
     container:
       name: sonobuoy
       image: 'sktcloud/sonobuoy-worker'
@@ -20,11 +36,11 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 
-          sonobuoy run --mode {{workflow.parameters.sonobuoy_mode}} --e2e-parallel 30 --wait
+          sonobuoy run --mode {{inputs.parameters.sonobuoy_mode}} --e2e-parallel 30 --wait
           sonobuoy retrieve && mkdir ./results
           tar xzf ./*.tar.gz -C ./results
           cat ./results/plugins/e2e/results/global/e2e.log
