@@ -72,7 +72,21 @@ spec:
                   "path": "cluster-api-aws",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
-                },
+                }
+              ]
+
+    - - name: wait-for-clster-to-be-registered
+        template: wait-for-cluster-registration
+
+    - - name: install-cluster-autoscaler-rbac
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
                 {
                   "app_group": "tks-cluster-aws",
                   "path": "cluster-autoscaler-rbac",
@@ -80,9 +94,6 @@ spec:
                   "target_cluster": "tks-admin"
                 }
               ]
-
-    - - name: wait-for-clster-to-be-registered
-        template: wait-for-cluster-registration
 
     - - name: prepare-cluster-autoscaler
         template: prepare-cluster-autoscaler
@@ -95,7 +106,7 @@ spec:
           name: create-application
           template: installApps
         arguments:
-          parameters: 
+          parameters:
           - name: list
             value: |
               [
