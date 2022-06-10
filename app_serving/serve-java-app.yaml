@@ -113,12 +113,12 @@ spec:
         kubectl create ns {{workflow.parameters.app_name}}
         kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}}
 
-        # Debug
+        # Debug (temporary)
+        sleep 5
         kubectl get pods -n {{workflow.parameters.app_name}}
         kubectl get svc -n {{workflow.parameters.app_name}}
 
         # Temporary output until app-serving service is implemented
-        sleep 10
         echo "The app <{{workflow.parameters.app_name}}> has been deployed successfully. Check the app endpoint as follows.
 
-$ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'"
+        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'"
