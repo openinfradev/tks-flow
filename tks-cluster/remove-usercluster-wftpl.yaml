@@ -7,16 +7,18 @@ spec:
   entrypoint: main
   arguments:
     parameters:
-    - name: app_group
-      value: "tks-cluster-aws"
+    - name: app_group_prefix
+      value: "tks-cluster"
     - name: tks_info_host
       value: "tks-info.tks.svc"
     - name: cluster_id
       value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+    - name: infra_provider
+      value: "aws"
     - name: app_prefix
       value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
     - name: filter
-      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
+      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group_prefix}}-{{workflow.parameters.infra_provider}}"
   volumes:
   - name: tks-proto-vol
     configMap:
@@ -51,6 +53,15 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
+
+    - - name: deleteClusterAutoscalerRbacApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler-rbac"
 
     - - name: deleteMetricsServerApp
         templateRef:
