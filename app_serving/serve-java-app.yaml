@@ -15,6 +15,8 @@ spec:
       value: "http://github.com/robertchoi80/sample-petclinic"
     - name: app_path
       value: "spring-petclinic-2.7.0-SNAPSHOT.jar"
+    - name: app_version
+      value: "v1.0"
     - name: port
       value: "8080"
     - name: container_registry
@@ -74,7 +76,7 @@ spec:
         sed -i "s/JARFILENAME/{{workflow.parameters.app_path}}/g" ./Dockerfile ./manifest.yaml
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile ./manifest.yaml
 
-        image_name="{{workflow.parameters.container_registry}}/{{workflow.parameters.app_name}}:latest"
+        image_name="{{workflow.parameters.container_registry}}/{{workflow.parameters.app_name}}:{{workflow.parameters.app_version}}"
         image_name_alt=$(echo $image_name | sed 's:/:\\\/:g')
 
         # Build docker image
@@ -110,7 +112,6 @@ spec:
         export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
-        kubectl create ns {{workflow.parameters.app_name}}
         kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}}
 
         # Debug (temporary)
@@ -119,6 +120,11 @@ spec:
         kubectl get svc -n {{workflow.parameters.app_name}}
 
         # Temporary output until app-serving service is implemented
+        # This msg will be sent to CLI by app-serviing service.
         echo "The app <{{workflow.parameters.app_name}}> has been deployed successfully. Check the app endpoint as follows.
 
         $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'"
+
+        # For demo purpose only
+        echo "Fetching app endpoint..."
+        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
