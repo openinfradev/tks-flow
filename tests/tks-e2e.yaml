@@ -5,6 +5,7 @@ metadata:
   namespace: argo
 spec:
   entrypoint: main
+  onExit: notify-slack
   arguments:
     parameters:
     - name: tks_info_url
@@ -165,6 +166,10 @@ spec:
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     # TODO: cleaup remaining AWS resources
+
+  #######################
+  # Template Definition #
+  #######################
 
   - name: create-tks-client-conf
     container:
@@ -345,3 +350,18 @@ spec:
             fi
             sleep 1m
           done
+
+  - name: notify-slack
+    container:
+      image: centos:centos7
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: tks-slack-webhook-secret
+            key: url
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          curl -X POST -H 'Content-type: application/json' --data '{"text": "**************** E2E Test Result ****************\nWorkflow: {{workflow.name}}\nStatus: {{workflow.status}}\nDuration: {{workflow.duration}}" }' $SLACK_WEBHOOK_URL
