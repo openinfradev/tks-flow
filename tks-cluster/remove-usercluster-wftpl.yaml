@@ -88,6 +88,7 @@ spec:
         templateRef:
           name: manage-internal-communication
           template: DeleteInternalCon
+        when: "{{workflow.parameters.infra_provider}} == aws"
 
     - - name: deleteCsiDriverApp
         templateRef:
@@ -97,6 +98,7 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-aws-ebs-csi-driver"
+        when: "{{workflow.parameters.infra_provider}} == aws"
 
     - - name: deleteCalicoController
         template: deleteCalicoController

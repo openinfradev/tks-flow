@@ -11,8 +11,6 @@ spec:
       value: "0010010a-d6cb-459b-9148-1b02ac545753"
     - name: cluster_id
       value: "011b88fa-4d53-439f-9336-67845f994051"
-    - name: infra_provider
-      value: "aws" # aws or byoh
     - name: site_name
       value: "{{ workflow.parameters.cluster_id }}"
     - name: template_name
@@ -60,7 +58,7 @@ spec:
           - name: cluster_info
             value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
 
-    - - name: k8s-by-capi
+    - - name: k8s-by-aws
         templateRef:
           name: create-application
           template: installApps
@@ -76,7 +74,7 @@ spec:
                   "target_cluster": "tks-admin"
                 }
               ]
-        when: "{{workflow.parameters.infra_provider}} == aws"
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
 
     - - name: k8s-by-byoh
         templateRef:
@@ -94,10 +92,16 @@ spec:
                   "target_cluster": "tks-admin"
                 }
               ]
-        when: "{{workflow.parameters.infra_provider}} == byoh"
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{ workflow.parameters.cluster_id }}"
+            - name: infra_provider
+              value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
 
     - - name: install-cluster-autoscaler-rbac
         templateRef:
@@ -179,18 +183,22 @@ spec:
                   "target_cluster": ""
                 }
               ]
-        when: "{{workflow.parameters.infra_provider}} == aws"
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
 
     - - name: create-internal-communication
         templateRef:
           name: manage-internal-communication
           template: deploy
-        when: "{{workflow.parameters.infra_provider}} == aws"
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
 
   #######################
   # Template Definition #
   #######################
   - name: init-cluster-for-tks
+    inputs:
+      parameters:
+        - name: cluster_id
+        - name: infra_provider
     container:
       name: cluster-init
       image: 'ghcr.io/openinfradev/python_kubectl_argo:v1.1.0'
@@ -273,9 +281,9 @@ spec:
           name: "decapod-argocd-config"
       env:
       - name: CLUSTER_ID
-        value: "{{ workflow.parameters.cluster_id }}"
+        value: "{{ inputs.parameters.cluster_id }}"
       - name: INFRA_PROVIDER
-        value: "{{ workflow.parameters.infra_provider }}"
+        value: "{{ inputs.parameters.infra_provider }}"
       - name: TKS_NODE_NAME
         value: "taco"
 

@@ -13,8 +13,6 @@ spec:
       value: "cluster_uuid"
     - name: template_name
       value: "template-std"
-    - name: infra_provider
-      value: "aws"
 
   templates:
   - name: createClusterRepo
@@ -37,8 +35,13 @@ spec:
 
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
+        # Get cluster-api infra provider in the template
+        infra_provider_group="$(ls ${CONTRACT_ID}/$TEMPLATE_NAME | grep -v tks-cluster-common | grep tks-cluster)"
+        INFRA_PROVIDER=${infra_provider_group#tks-cluster-}
+        echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
+
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
-        cp -r ${CONTRACT_ID}/.github ${CLUSTER_ID}/.github
+        cp -r ${CONTRACT_ID}/_github ${CLUSTER_ID}/.github
 
         echo $CLUSTER_INFO
 
@@ -120,10 +123,20 @@ spec:
         value: "{{workflow.parameters.cluster_id}}"
       - name: TEMPLATE_NAME
         value: "{{workflow.parameters.template_name}}"
-      - name: INFRA_PROVIDER
-        value: "{{workflow.parameters.infra_provider}}"
       - name: CLUSTER_INFO
         value: "{{inputs.parameters.cluster_info}}"
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: infra_provider
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/infra_provider.txt
 
   - name: createRepoCredential
     activeDeadlineSeconds: 120
@@ -165,3 +178,9 @@ spec:
       - - name: createRepoCredential
           template: createRepoCredential
           arguments: {}
+
+    outputs:
+      parameters:
+      - name: infra_provider
+        valueFrom:
+          parameter: "{{steps.createClusterRepo.outputs.parameters.infra_provider}}"
