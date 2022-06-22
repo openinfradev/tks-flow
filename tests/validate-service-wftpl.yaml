@@ -1,0 +1,113 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-validate-service
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "93460371-6dbe-4a10-a574-97e35c049e10"
+  templates:
+  - name: main
+    steps:
+      - - name: validate-lma
+          template: validate-lma
+          arguments:
+            parameters:
+             - name: cluster_id
+               value: "{{workflow.parameters.cluster_id}}"
+      - - name: validate-servicemesh
+          template: validate-servicemesh
+          arguments:
+            parameters:
+             - name: cluster_id
+               value: "{{workflow.parameters.cluster_id}}"
+  - name: validate-lma
+    inputs:
+      parameters:
+        - name: cluster_id
+    container:
+      name: checker-lma
+      image: 'sktcloud/sonobuoy-worker'
+      command:
+        - /bin/bash
+        - -c
+        - |
+          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
+          export KUBECONFIG='/etc/kubeconfig_temp'
+
+          # check status of pods
+          kubectl get ns | grep lma | grep -v NAME
+          if [[ $? != 0 ]]; then
+             echo "ERROR - no namespace 'lma'"
+             exit 1
+          fi
+
+          kubectl get po -n lma | grep -Ev "Running|Completed|NAME"
+          if [[ $? != 1 ]]; then
+            echo "ERROR - invalid pod status"
+            exit 1
+          fi
+
+          # check endpoints
+          function check_status(){
+            status=$(kubectl run --quiet -i --tty --rm -n default --image=curlimages/curl --restart=Never curltest-$RANDOM -- -o /dev/null --write-out %{http_code} --silent --max-time 5 $1)
+            if [[ $status != 200 ]]; then
+               echo "ERROR - STATUS:$status, URL:$1"
+               exit 1
+            else
+               echo "GOOD - STATUS:$status, URL:$1"
+            fi
+          }
+
+          check_status http://admin:password@grafana.lma.svc/api/search
+          check_status http://lma-prometheus.lma.svc:9090/api/v1/labels
+          check_status http://lma-alertmanager.lma.svc:9093/api/v2/status
+
+          echo "LMA verification completed."
+
+  - name: validate-servicemesh
+    inputs:
+      parameters:
+        - name: cluster_id
+    container:
+      name: checker-servicemesh
+      image: 'sktcloud/sonobuoy-worker'
+      command:
+        - /bin/bash
+        - -c
+        - |
+          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
+          export KUBECONFIG='/etc/kubeconfig_temp'
+
+          # check status of pods
+          kubectl get ns | grep istio-system | grep -v NAME
+          if [[ $? != 0 ]]; then
+             echo "ERROR - no namespace 'istio-system'"
+             exit 1
+          fi
+
+          kubectl get po -n istio-system | grep -Ev "Running|Completed|NAME"
+          if [[ $? != 1 ]]; then
+            echo "ERROR - invalid pod status"
+            exit 1
+          fi
+
+          # check endpoints
+          function check_status(){
+            status=$(kubectl run --quiet -i --tty --rm -n default --image=curlimages/curl --restart=Never curltest-$RANDOM -- -o /dev/null --write-out %{http_code} --silent --max-time 5 $1)
+            if [[ $status != 200 ]]; then
+               echo "ERROR - STATUS:$status, URL:$1"
+               exit 1
+            else
+               echo "GOOD - STATUS:$status, URL:$1"
+            fi
+          }
+
+          check_status http://kiali.istio-system.svc:20001/kiali/console/overview
+
+          echo "servicemesh verification completed."
