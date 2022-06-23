@@ -124,7 +124,14 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: service_name
             value: "SERVICE_MESH"
-    # TODO: SERVICE_MESH validation
+    - - name: call-validate-servicemesh-2nd
+        templateRef:
+          name: tks-validate-service
+          template: validate-servicemesh
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     - - name: call-delete-service-for-SERVICEMESH-2nd
         template: delete-service
         arguments:
@@ -137,14 +144,6 @@ spec:
             value: "SERVICE_MESH"
           - name: svc_id
             value: "{{steps.call-create-service-for-SERVICEMESH-2nd.outputs.parameters.svc_id}}"
-    - - name: call-validate-servicemesh-2nd
-        templateRef:
-          name: tks-validate-service
-          template: validate-servicemesh
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     - - name: call-delete-service-for-LMA-2nd
         template: delete-service
         arguments:
