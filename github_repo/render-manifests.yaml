@@ -1,0 +1,190 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: render-manifests
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: site_name
+      value: decapod-reference
+    - name: base_repo_url
+      value: 'github.com/openinfradev/decapod-base-yaml'
+    - name: base_repo_branch
+      value: main
+    - name: site_repo_url
+      value: 'github.com/openinfradev/decapod-site'
+    - name: site_repo_branch
+      value: main
+    - name: manifest_repo_url
+      value: 'github.com/openinfradev/decapod-manifests'
+    - name: manifest_repo_branch
+      value: main
+
+  templates:
+  #=========================================================
+  # Template Pipeline
+  #=========================================================
+  - name: main
+    steps:
+    - - name: render-manifests
+        template: render-manifests-template
+        arguments:
+          parameters:
+          - name: site_name
+            value: "{{workflow.parameters.site_name}}"
+          - name: base_repo_url
+            value: "{{workflow.parameters.base_repo_url}}"
+          - name: base_repo_branch
+            value: "{{workflow.parameters.base_repo_branch}}"
+          - name: site_repo_url
+            value: "{{workflow.parameters.site_repo_url}}"
+          - name: site_repo_branch
+            value: "{{workflow.parameters.site_repo_branch}}"
+          - name: manifest_repo_url
+            value: "{{workflow.parameters.manifest_repo_url}}"
+          - name: manifest_repo_branch
+            value: "{{workflow.parameters.manifest_repo_branch}}"
+
+  #=========================================================
+  # Template Definition
+  #=========================================================
+  - name: render-manifests-template
+    inputs:
+      parameters:
+      - name: site_name
+      - name: base_repo_url
+      - name: base_repo_branch
+      - name: site_repo_url
+      - name: site_repo_branch
+      - name: manifest_repo_url
+      - name: manifest_repo_branch
+    container:
+      name: render-manifests-template
+      image: 'sktcloud/decapod-render:v2.0.0'
+      command:
+      - /bin/bash
+      - '-exc'
+      - |
+        #!/bin/bash
+
+        function log() {
+          level=$2
+          msg=$3
+          date=$(date '+%F %H:%M:%S')
+          if [ $1 -eq 0 ];then
+            echo "[$date] $level     $msg"
+          else
+            level="ERROR"
+            echo "[$date] $level     $msg failed"
+            exit $1
+          fi
+        }
+
+        SITE_NAME={{inputs.parameters.site_name}}
+        BASE_REPO_URL={{inputs.parameters.base_repo_url}}
+        BASE_REPO_BRANCH={{inputs.parameters.base_repo_branch}}
+        SITE_REPO_URL={{inputs.parameters.site_repo_url}}
+        SITE_REPO_BRANCH={{inputs.parameters.site_repo_branch}}
+        MANIFEST_REPO_URL={{inputs.parameters.manifest_repo_url}}
+        MANIFEST_REPO_BRANCH={{inputs.parameters.manifest_repo_branch}}
+        SITE_DIR="tks-site-yaml"
+        BASE_DIR="decapod-base-yaml"
+        DOCKER_IMAGE_REPO="docker.io"
+        OUTPUT_DIR="output"
+
+        # download site-yaml
+        git clone -b ${SITE_REPO_BRANCH} https://$(echo -n ${TOKEN})@${SITE_REPO_URL} ${SITE_DIR}
+        log $? "INFO" "Fetching ${SITE_REPO_URL} with ${SITE_REPO_BRANCH} branch/tag........."
+        cd ${SITE_DIR}
+        site_commit_msg=$(git show -s --format="%h %s" HEAD)
+
+        # extract directory for rendering
+        site_list=$(ls -d */ | sed 's/\///g' | egrep -v "docs|^template|^deprecated|output|offline")
+
+        # download base-yaml
+        git clone -b ${BASE_REPO_BRANCH} https://$(echo -n ${TOKEN})@${BASE_REPO_URL} ${BASE_DIR}
+        log $? "INFO" "Fetching ${BASE_REPO_URL} with ${BASE_REPO_BRANCH} branch/tag........."
+        base_commit_msg=$(cd ${BASE_DIR}; git show -s --format="%h %s" HEAD)
+
+        mkdir -p ${OUTPUT_DIR}
+
+        for site in ${site_list}
+        do
+          log 0 "INFO" "Starting build manifests for '${site}' site"
+          for app in `ls ${site}/`
+          do
+            hr_file="${BASE_DIR}/${app}/${site}/${app}-manifest.yaml"
+            mkdir -p ${BASE_DIR}/${app}/${site}
+            cp -r ${site}/${app}/*.yaml ${BASE_DIR}/${app}/${site}/
+
+            log 0 "INFO" ">>>>>>>>>> Rendering ${app}-manifest.yaml for ${site} site"
+            kustomize build --enable-alpha-plugins ${BASE_DIR}/${app}/${site} -o ${BASE_DIR}/${app}/${site}/${app}-manifest.yaml
+            log $? "INFO" "run kustomize build"
+
+            if [ -f "${hr_file}" ]; then
+              log 0 "INFO" "[${hr_file}] Successfully Generate Helm-Release Files!"
+            else
+              log 1 "ERROR" "[${hr_file}] Failed to render manifest yaml"
+            fi
+
+            helm2yaml -m ${hr_file} -t -o ${OUTPUT_DIR}/${site}/${app}
+            log 0 "INFO" "Successfully Generate ${app} manifests Files!"
+
+            rm -f $hr_file
+
+          done
+
+          if [[ ${SITE_NAME} != *"decapod"* ]]; then
+            log 0 "INFO" "Almost finished: changing namespace for aws-cluster-resouces from argo to cluster-name.."
+            sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/*
+            sed -i "s/ - argo/ - ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/*
+            # It's possible besides of two above but very tricky!!
+            # sed -i "s/ argo$/ ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/*
+            echo "---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${site}
+          labels:
+            name: ${site}
+            # It bring the secret 'dacapod-argocd-config' using kubed
+            decapod-argocd-config: enabled
+        " > Namespace_aws_rc.yaml
+            mv Namespace_aws_rc.yaml $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/
+          fi
+
+        done
+
+        #-----------------------------------------------
+        # push manifests files
+        #-----------------------------------------------
+        git clone https://$(echo -n ${TOKEN})@${MANIFEST_REPO_URL} origin-manifests
+        log 0 "INFO" "git clone ${MANIFEST_REPO_URL}"
+        cd origin-manifests
+        check_branch=$(git ls-remote --heads origin ${MANIFEST_REPO_BRANCH})
+        if [[ -z ${check_branch} ]]; then
+          git checkout -b ${MANIFEST_REPO_BRANCH}
+          log 0 "INFO" "create and checkout new branch: ${MANIFEST_REPO_BRANCH}"
+        else
+          git checkout ${MANIFEST_REPO_BRANCH}
+          log 0 "INFO" "checkout exist branch: ${MANIFEST_REPO_BRANCH}"
+        fi
+
+        rm -rf ./*
+        cp -r ../${OUTPUT_DIR}/* ./
+
+        git config --global user.email "taco_support@sk.com"
+        git config --global user.name "SKTelecom TACO"
+        git add -A
+        git commit -m "base_commit_msg: ${base_commit_msg}\n site_commit_msg: ${site_commit_msg}"
+        git push origin ${MANIFEST_REPO_BRANCH}
+        log 0 "INFO" "pushed all manifests files"
+
+      envFrom:
+      - secretRef:
+          name: "github-tks-mgmt-token"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
