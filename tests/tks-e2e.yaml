@@ -363,4 +363,11 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          curl -X POST -H 'Content-type: application/json' --data '{"text": "**************** E2E Test Result ****************\nWorkflow: {{workflow.name}}\nStatus: {{workflow.status}}\nDuration: {{workflow.duration}}" }' $SLACK_WEBHOOK_URL
+          dur_secs={{workflow.duration}}
+          hour=$(echo $dur_secs 3600 | awk '{print $1 / $2}')
+          min=$(echo $dur_secs 3600 60 | awk '{print $1 % $2 / $3}')
+          sec=$(echo $dur_secs 60 | awk '{print $1 % $2}')
+
+          duration=$(printf '%dh:%dm:%ds\n' $hour $min $sec) || true
+
+          curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"**************** E2E Test Result ****************\nWorkflow: {{workflow.name}}\nStatus: {{workflow.status}}\nDuration: `echo $duration`\" }" $SLACK_WEBHOOK_URL
