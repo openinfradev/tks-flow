@@ -21,11 +21,9 @@ spec:
   - name: config
     secret:
       secretName: tks-admin-kubeconfig-secret
-      namespace: argo
   - name: artifacts
     configMap:
       name: aws-artifacts
-      namespace: argo
       defaultMode: 0555
 
   templates:
@@ -41,5 +39,5 @@ spec:
           - name: list
             value: |
               [
-                { "app_group": "tks-cluster-aws", "path": "ingress-nginx", "namespace": "taco-system", "target_cluster": "" }
+                { "app_group": "tks-cluster-common", "path": "ingress-nginx", "namespace": "taco-system", "target_cluster": "" }
               ]
