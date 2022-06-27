@@ -363,11 +363,8 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          dur_secs={{workflow.duration}}
-          hour=$(echo $dur_secs 3600 | awk '{print $1 / $2}')
-          min=$(echo $dur_secs 3600 60 | awk '{print $1 % $2 / $3}')
-          sec=$(echo $dur_secs 60 | awk '{print $1 % $2}')
-
-          duration=$(printf '%dh:%dm:%ds\n' $hour $min $sec) || true
+          raw_dur_secs={{workflow.duration}}
+          dur_secs=${raw_dur_secs%.*}
+          duration=$(printf '%dh:%dm:%ds\n' $((dur_secs/3600)) $((dur_secs%3600/60)) $((dur_secs%60)))
 
           curl -X POST -H 'Content-type: application/json' --data "{\"text\": \"**************** E2E Test Result ****************\nWorkflow: {{workflow.name}}\nStatus: {{workflow.status}}\nDuration: `echo $duration`\" }" $SLACK_WEBHOOK_URL
