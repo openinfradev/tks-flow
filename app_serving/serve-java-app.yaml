@@ -114,10 +114,8 @@ spec:
         # Deploy
         kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}}
 
-        # Debug (temporary)
-        sleep 5
-        kubectl get pods -n {{workflow.parameters.app_name}}
-        kubectl get svc -n {{workflow.parameters.app_name}}
+        # Wait for pod to be ready
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}}
 
         # Temporary output until app-serving service is implemented
         # This msg will be sent to CLI by app-serviing service.
