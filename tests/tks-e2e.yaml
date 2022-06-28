@@ -217,12 +217,18 @@ spec:
           echo "* Create $CL_NAME cluster"
           tks cluster create ${CL_NAME}
 
-          while :
+          threshold=30
+          for i in $(seq 1 $threshold)
           do
             CL_STATUS=$(tks cluster list  | grep $CL_NAME | awk '{ print $3 }')
             if [ "$CL_STATUS" = "RUNNING" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for user-cluster to be ready."
               exit 1
             fi
             sleep 1m
@@ -258,7 +264,8 @@ spec:
 
           tks cluster delete {{inputs.parameters.cluster_id}}
 
-          while :
+          threshold=30
+          for i in $(seq 1 $threshold)
           do
             CL_EXIST=$(tks cluster list | grep {{inputs.parameters.cluster_id}} | wc -l)
             if [ "$CL_EXIST" = "0" ]; then
@@ -269,6 +276,11 @@ spec:
             if [ "$CL_STATUS" = "DELETED" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for user-cluster to be deleted."
               exit 1
             fi
             sleep 1m
@@ -291,12 +303,18 @@ spec:
 
           tks service create --cluster-id {{inputs.parameters.cluster_id}} --service-name {{inputs.parameters.service_name}}
 
-          while :
+          threshold=30
+          for i in $(seq 1 $threshold)
           do
             SVC_STATUS=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $3}')
             if [ "$SVC_STATUS" = "APP_GROUP_RUNNING" ]; then
               break
             elif [ "$SVC_STATUS" = "APP_GROUP_ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for {{inputs.parameters.service_name}} to be ready."
               exit 1
             fi
             sleep 1m
@@ -334,7 +352,8 @@ spec:
 
           tks service delete {{inputs.parameters.svc_id}}
 
-          while :
+          threshold=30
+          for i in $(seq 1 $threshold)
           do
             SVC_EXIST=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.svc_id}} | wc -l)
             if [ "$SVC_EXIST" = "0" ]; then
@@ -345,6 +364,11 @@ spec:
             if [ "$SVC_STATUS" = "APP_GROUP_DELETED" ]; then
               break
             elif [ "$SVC_STATUS" = "APP_GROUP_ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for {{inputs.parameters.service_name}} to be deleted."
               exit 1
             fi
             sleep 1m
