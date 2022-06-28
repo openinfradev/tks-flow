@@ -19,6 +19,8 @@ spec:
       value: "v1.0"
     - name: port
       value: "8080"
+    - name: profile
+      value: "default"
     - name: container_registry
       value: "docker.io/robertchoi80"
   templates:
@@ -101,6 +103,7 @@ spec:
         # replace variable for the app
         sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
         sed -i "s/IMAGEURL/${image_name_alt}/g" ./manifest.yaml
+        sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./manifest.yaml
 
         # Debug
         cat Dockerfile
