@@ -63,11 +63,6 @@ spec:
         # fetch Dockerfile & manifests from git
         git clone https://github.com/openinfradev/app-serve-template.git
 
-        # Extract app_repo basename
-        #app_root=${app_repo##*\/}
-
-        ls -l .
-
         cp -r ./app-serve-template/* ./app_root/
         ls -l ./app_root/
 
