@@ -77,7 +77,6 @@ spec:
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile ./base/*.yaml
 
         image_name="{{workflow.parameters.container_registry}}/{{workflow.parameters.app_name}}:{{workflow.parameters.app_version}}"
-        image_name_alt=$(echo $image_name | sed 's:/:\\\/:g')
 
         # Build docker image
         docker build -t $image_name .
@@ -99,15 +98,11 @@ spec:
         ##############
 
         # Build manifest using kustomize
-        if [[ "{{workflow.parameters.resource_spec}}" != "medium" ]]; then
-          kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
-        else
-          kustomize build base > manifest.yaml
-        fi
+        kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
 
         # replace variable for the app
         sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
-        sed -i "s/IMAGEURL/${image_name_alt}/g" ./manifest.yaml
+        sed -i "s#IMAGEURL#${image_name}#g" ./manifest.yaml
         sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./manifest.yaml
 
         # Debug
