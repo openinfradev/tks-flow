@@ -21,6 +21,9 @@ spec:
       value: "8080"
     - name: profile
       value: "default"
+    # Possible values: tiny, medium, large
+    - name: resource_spec
+      value: "medium"
     - name: container_registry
       value: "docker.io/robertchoi80"
   templates:
@@ -65,7 +68,7 @@ spec:
 
         ls -l .
 
-        cp ./app-serve-template/* ./app_root/
+        cp -r ./app-serve-template/* ./app_root/
         ls -l ./app_root/
 
         ###############
@@ -75,8 +78,8 @@ spec:
         cd /apps/app_root
 
         # Replace port number in Dockerfile
-        sed -i "s/JARFILENAME/{{workflow.parameters.app_path}}/g" ./Dockerfile ./manifest.yaml
-        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile ./manifest.yaml
+        sed -i "s/JARFILENAME/{{workflow.parameters.app_path}}/g" ./Dockerfile ./base/*.yaml
+        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile ./base/*.yaml
 
         image_name="{{workflow.parameters.container_registry}}/{{workflow.parameters.app_name}}:{{workflow.parameters.app_version}}"
         image_name_alt=$(echo $image_name | sed 's:/:\\\/:g')
@@ -99,6 +102,13 @@ spec:
         ##############
         # Deployment #
         ##############
+
+        # Build manifest using kustomize
+        if [[ "{{workflow.parameters.resource_spec}}" != "medium" ]]; then
+          kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
+        else
+          kustomize build base > manifest.yaml
+        fi
 
         # replace variable for the app
         sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
@@ -124,7 +134,10 @@ spec:
         # This msg will be sent to CLI by app-serviing service.
         echo "The app <{{workflow.parameters.app_name}}> has been deployed successfully. Check the app endpoint as follows.
 
-        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'"
+        # Endpoint
+        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+        # Port number
+        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.spec.ports[0].port}'"
 
         # For demo purpose only
         echo "Fetching app endpoint..."
