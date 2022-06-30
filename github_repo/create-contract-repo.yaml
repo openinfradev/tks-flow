@@ -37,14 +37,19 @@ spec:
         git clone -b ${REVISION} https://github.com/openinfradev/decapod-site
 
         cd decapod-site
+
+        mv .github _github
+
         # TODO: support to use decapod-reference-offline later?
-        mv decapod-reference template-std
+        rm -rf decapod-reference
         rm -rf decapod-reference-offline
+
         # Remove unnecessary app_group directory before commit.
         # If these kinds of apps increases, then they might be defined as black list
         # and then removed by FOR loop iteration.
         # For now, this hardcoding seems enough.
-        rm -rf template-std/openstack template-std/decapod-controller
+        rm -rf aws-reference/openstack aws-reference/decapod-controller aws-reference/admin-tools
+        rm -rf byoh-reference/openstack byoh-reference/decapod-controller byoh-reference/admin-tools
 
         sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" .github/workflows/render-cd.sh
 

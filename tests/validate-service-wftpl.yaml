@@ -35,7 +35,8 @@ spec:
         - /bin/bash
         - -c
         - |
-          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          KUBECONFIG_=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 
@@ -80,7 +81,8 @@ spec:
         - /bin/bash
         - -c
         - |
-          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          KUBECONFIG_=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 

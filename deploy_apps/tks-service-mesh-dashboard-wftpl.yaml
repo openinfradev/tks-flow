@@ -828,7 +828,8 @@ spec:
 
           kube_params=""
           if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
-            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+            kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             echo -e "kube_secret:\n$kube_secret" | head -n 5
             cat <<< "$kube_secret" > /tmp/kubeconfig
             kube_params+="--kubeconfig=/tmp/kubeconfig"
@@ -936,7 +937,8 @@ spec:
 
           kube_params=""
           if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
-            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+            kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             echo -e "kube_secret:\n$kube_secret" | head -n 5
             cat <<< "$kube_secret" > /tmp/kubeconfig
             kube_params+="--kubeconfig=/tmp/kubeconfig"
@@ -1019,7 +1021,8 @@ spec:
 
           kube_params=""
           if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
-            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+            kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             echo -e "kube_secret:\n$kube_secret" | head -n 5
             cat <<< "$kube_secret" > /tmp/kubeconfig
             kube_params+="--kubeconfig=/tmp/kubeconfig"
@@ -1149,7 +1152,8 @@ spec:
         - |
           mkdir ~/.kube
           cp /kube/value ~/.kube/config_adm
-          KUBECONFIG_USERCLUSTER=$(kubectl --kubeconfig ~/.kube/config_adm get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d)
+          USER_CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          KUBECONFIG_USERCLUSTER=$(kubectl --kubeconfig ~/.kube/config_adm get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig_workload:\n$KUBECONFIG_USERCLUSTER" | head -n 5
           cat <<< "$KUBECONFIG_USERCLUSTER" > ~/.kube/config_user
 
@@ -1203,9 +1207,6 @@ spec:
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
-      env:
-        - name: CLUSTER_ID
-          value: "{{workflow.parameters.cluster_id}}"
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2

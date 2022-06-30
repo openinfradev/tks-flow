@@ -13,8 +13,8 @@ spec:
       value: "cluster_uuid"
     - name: template_name
       value: "template-std"
-    - name: infra_provider
-      value: "aws"
+    - name: test_template_name
+      value: "aws-reference"
 
   templates:
   - name: createClusterRepo
@@ -37,13 +37,21 @@ spec:
 
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
+        # Get cluster-api infra provider in the template
+        infra_provider_group="$(ls ${CONTRACT_ID}/$TEMPLATE_NAME | grep -v tks-cluster-common | grep tks-cluster)"
+        INFRA_PROVIDER=${infra_provider_group#tks-cluster-}
+        echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
+
+        # We se only the first UUID group for the cluster name and namespace.
+        CLUSTER_NAME=${CLUSTER_ID%%-*}
+
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
-        cp -r ${CONTRACT_ID}/.github ${CLUSTER_ID}/.github
+        cp -r ${CONTRACT_ID}/_github ${CLUSTER_ID}/.github
 
         echo $CLUSTER_INFO
 
         ## Replace site-values with fetched params ##
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-common/site-values.yaml
+        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_NAME/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-common/site-values.yaml
         case $INFRA_PROVIDER in
           aws)
             ## Fetch cluster params from cluster_info file ##
@@ -56,7 +64,7 @@ spec:
             val_max_size=$(echo $CLUSTER_INFO | sed 's/.*\(max_size_per_az:\ \S*\).*/\1/' | cut -d ':' -f2 | xargs)
             echo "max_size_per_az: $val_max_size"
 
-            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
+            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_NAME/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
             sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
             sed -i "s/clusterRegion:\ CHANGEME/clusterRegion: $val_region/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
             sed -i "s/mdNumOfAz:\ CHANGEME/mdNumOfAz: $val_num_of_az/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
@@ -66,7 +74,7 @@ spec:
             ;;
 
           byoh)
-            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-byoh/site-values.yaml
+            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_NAME/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-byoh/site-values.yaml
             echo "BYOH"
             ;;
 
@@ -119,11 +127,21 @@ spec:
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
       - name: TEMPLATE_NAME
-        value: "{{workflow.parameters.template_name}}"
-      - name: INFRA_PROVIDER
-        value: "{{workflow.parameters.infra_provider}}"
+        value: "{{workflow.parameters.test_template_name}}"
       - name: CLUSTER_INFO
         value: "{{inputs.parameters.cluster_info}}"
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: infra_provider
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/infra_provider.txt
 
   - name: createRepoCredential
     activeDeadlineSeconds: 120
@@ -165,3 +183,9 @@ spec:
       - - name: createRepoCredential
           template: createRepoCredential
           arguments: {}
+
+    outputs:
+      parameters:
+      - name: infra_provider
+        valueFrom:
+          parameter: "{{steps.createClusterRepo.outputs.parameters.infra_provider}}"

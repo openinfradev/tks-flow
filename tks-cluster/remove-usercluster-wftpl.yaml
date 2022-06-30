@@ -33,6 +33,13 @@ spec:
   templates:
   - name: main
     steps:
+    - - name: findInfraProvider
+        template: findInfraProvider
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{workflow.parameters.cluster_id}}"
+
     - - name: disableAutoSync
         template: disableAutoSync
 
@@ -88,6 +95,7 @@ spec:
         templateRef:
           name: manage-internal-communication
           template: DeleteInternalCon
+        when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws"
 
     - - name: deleteCsiDriverApp
         templateRef:
@@ -97,6 +105,7 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-aws-ebs-csi-driver"
+        when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws"
 
     - - name: deleteCalicoController
         template: deleteCalicoController
@@ -119,7 +128,7 @@ spec:
         arguments:
           parameters:
             - name: target_namespace
-              value: "{{workflow.parameters.cluster_id}}"
+              value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
 
     - - name: deleteArgoCDAppGroup
         templateRef:
@@ -135,6 +144,44 @@ spec:
   #######################
   # Template Definition #
   #######################
+  - name: findInfraProvider
+    activeDeadlineSeconds: 300
+    inputs:
+      parameters:
+      - name: cluster_id
+    container:
+      name: 'createClusterRepo'
+      image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+        git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}.git
+
+        # Get cluster-api infra provider in the cluster
+        infra_provider_group="$(ls ${CLUSTER_ID}/$CLUSTER_ID | grep -v tks-cluster-common | grep tks-cluster)"
+        INFRA_PROVIDER=${infra_provider_group#tks-cluster-}
+        echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
+      envFrom:
+        - secretRef:
+            name: "github-tks-mgmt-token"
+      env:
+      - name: CLUSTER_ID
+        value: "{{inputs.parameters.cluster_id}}"
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: infra_provider
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/infra_provider.txt
+
   - name: disableAutoSync
     container:
       name: disable-auto-sync
@@ -165,7 +212,8 @@ spec:
         - /bin/bash
         - '-c'
         - |
-          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > /etc/kubeconfig
 
@@ -195,7 +243,8 @@ spec:
         - /bin/bash
         - '-c'
         - |
-          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > /etc/kubeconfig
 
@@ -241,4 +290,4 @@ spec:
         - name: TARGET_NAMESPACE
           value: "{{inputs.parameters.target_namespace}}"
         - name: CLUSTER_NAME
-          value: "{{workflow.parameters.cluster_id}}"
+          value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
