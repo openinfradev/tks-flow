@@ -1,0 +1,17 @@
+FROM docker:20.10.16-git
+
+MAINTAINER Cloud Co, SK Telecom
+
+USER root
+
+RUN apk add --no-cache curl bash
+
+# Install kubectl
+RUN curl -Lo /usr/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN chmod +x /usr/bin/kubectl
+
+# Install kustomize
+RUN curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+RUN mv kustomize /usr/bin/
+
+CMD ["sh"]

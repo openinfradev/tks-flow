@@ -1,0 +1,134 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: serve-java-app
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "011b88fa-4d53-439f-9336-67845f994051"
+    - name: app_name
+      value: "sample-petclinic"
+    - name: app_repo
+      value: "http://github.com/robertchoi80/sample-petclinic"
+    - name: app_path
+      value: "spring-petclinic-2.7.0-SNAPSHOT.jar"
+    - name: app_version
+      value: "v1.0"
+    - name: port
+      value: "8080"
+    - name: profile
+      value: "default"
+    # Possible values: tiny, medium, large
+    - name: resource_spec
+      value: "medium"
+    - name: container_registry
+      value: "docker.io/robertchoi80"
+  templates:
+  - name: main
+    volumes:
+    - name: varrun
+      emptyDir: {}
+    sidecars:
+    - name: dind
+      image: 'docker:20.10.16-dind'
+      volumeMounts:
+      - mountPath: /var/run
+        name: varrun
+      securityContext:
+        privileged: true
+    container:
+      image: 'sktcloud/appserving-worker:latest'
+      volumeMounts:
+      - mountPath: /var/run
+        name: varrun
+      env:
+      - name: DOCKERHUB_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: dockerhub-robert-token
+            key: TOKEN
+      command:
+      - /bin/sh
+      - '-exc'
+      - |
+        app_repo="{{workflow.parameters.app_repo}}"
+        mkdir -p /apps && cd /apps/
+
+        # Clone app repo (Jar file)
+        git clone ${app_repo}.git app_root
+
+        # fetch Dockerfile & manifests from git
+        git clone https://github.com/openinfradev/app-serve-template.git
+
+        cp -r ./app-serve-template/* ./app_root/
+        ls -l ./app_root/
+
+        ###############
+        # Build Image #
+        ###############
+
+        cd /apps/app_root
+
+        # Replace port number in Dockerfile
+        sed -i "s/JARFILENAME/{{workflow.parameters.app_path}}/g" ./Dockerfile ./base/*.yaml
+        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile ./base/*.yaml
+
+        image_name="{{workflow.parameters.container_registry}}/{{workflow.parameters.app_name}}:{{workflow.parameters.app_version}}"
+
+        # Build docker image
+        docker build -t $image_name .
+
+        # TODO: dynamically create repository in dockerhub
+        # Not urgent task since it's likely to use another registry for real service.
+
+
+
+
+        # Login to dockerhub
+        docker login -u robertchoi80 -p $DOCKERHUB_TOKEN
+
+        # Push image
+        docker push $image_name
+
+        ##############
+        # Deployment #
+        ##############
+
+        # Build manifest using kustomize
+        kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
+
+        # replace variable for the app
+        sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
+        sed -i "s#IMAGEURL#${image_name}#g" ./manifest.yaml
+        sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./manifest.yaml
+
+        # Debug
+        cat Dockerfile
+        cat manifest.yaml
+
+        # Prepare kubeconfig
+        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        echo "$KUBECONFIG_" > /etc/kubeconfig_temp
+        export KUBECONFIG='/etc/kubeconfig_temp'
+
+        # Deploy
+        kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}}
+
+        # Wait for pod to be ready
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}}
+
+        # Temporary output until app-serving service is implemented
+        # This msg will be sent to CLI by app-serviing service.
+        echo "The app <{{workflow.parameters.app_name}}> has been deployed successfully. Check the app endpoint as follows.
+
+        # Endpoint
+        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+        # Port number
+        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.spec.ports[0].port}'"
+
+        # For demo purpose only
+        echo "Fetching app endpoint..."
+        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
