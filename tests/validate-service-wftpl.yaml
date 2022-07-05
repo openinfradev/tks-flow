@@ -35,10 +35,12 @@ spec:
         - /bin/bash
         - -c
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          CLUSTER_NAME={{=sprig.substr(0, 8, inputs.parameters.cluster_id)}}
           KUBECONFIG_=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
+
+          sleep 1m
 
           # check status of pods
           kubectl get ns | grep lma | grep -v NAME
@@ -81,11 +83,13 @@ spec:
         - /bin/bash
         - -c
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
+          CLUSTER_NAME={{=sprig.substr(0, 8, inputs.parameters.cluster_id)}}
           KUBECONFIG_=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 
+          sleep 1m
+          
           # check status of pods
           kubectl get ns | grep istio-system | grep -v NAME
           if [[ $? != 0 ]]; then
