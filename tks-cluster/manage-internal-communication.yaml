@@ -67,7 +67,7 @@ spec:
 
       env:
       - name: cluster_id
-        value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+        value: "{{workflow.parameters.cluster_id}}"
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
@@ -105,7 +105,7 @@ spec:
         aws ec2 delete-security-group --group-id $SG
       env:
       - name: cluster_id
-        value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+        value: "{{workflow.parameters.cluster_id}}"
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
@@ -132,7 +132,7 @@ spec:
 
       env:
       - name: cluster_id
-        value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+        value: "{{workflow.parameters.cluster_id}}"
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"

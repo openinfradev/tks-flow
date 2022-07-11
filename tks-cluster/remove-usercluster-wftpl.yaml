@@ -128,7 +128,7 @@ spec:
         arguments:
           parameters:
             - name: target_namespace
-              value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+              value: "{{workflow.parameters.cluster_id}}"
 
     - - name: deleteArgoCDAppGroup
         templateRef:
@@ -212,8 +212,7 @@ spec:
         - /bin/bash
         - '-c'
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
-          kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > /etc/kubeconfig
 
@@ -243,8 +242,7 @@ spec:
         - /bin/bash
         - '-c'
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
-          kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > /etc/kubeconfig
 
@@ -290,4 +288,4 @@ spec:
         - name: TARGET_NAMESPACE
           value: "{{inputs.parameters.target_namespace}}"
         - name: CLUSTER_NAME
-          value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+          value: "{{workflow.parameters.cluster_id}}"

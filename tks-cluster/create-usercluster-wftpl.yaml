@@ -211,43 +211,35 @@ spec:
           cp /kube/value kubeconfig_adm
           export KUBECONFIG=kubeconfig_adm
 
-          CLUSTER_NAME=${CLUSTER_ID%%-*}
+          kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID-control-plane
 
-          kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_NAME $CLUSTER_NAME-control-plane
-
-          KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
 
           case $INFRA_PROVIDER in
             aws)
               echo "Wait for machinepoool $1-$2-mp-0 generated"
-              while [ $(kubectl get machinepool -n $CLUSTER_NAME $CLUSTER_NAME-$TKS_NODE_NAME-mp-0 --ignore-not-found | wc -l) == 0 ]
+              while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 --ignore-not-found | wc -l) == 0 ]
               do
                 echo "Wait for machinepools deployed (1s)"
                 sleep 1
               done
 
-              desired_replicas=$(kubectl get machinepool -n $CLUSTER_NAME $CLUSTER_NAME-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.spec.replicas}' )
-              while [ $(kubectl get machinepool -n $CLUSTER_NAME $CLUSTER_NAME-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.status.nodeRefs}' | jq '.[].uid' | wc -l) != $desired_replicas ]
+              desired_replicas=$(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.spec.replicas}' )
+              while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.status.nodeRefs}' | jq '.[].uid' | wc -l) != $desired_replicas ]
               do
                 echo "Wait for instance is ready (1s)"
                 sleep 1
               done
 
-              for node in $(kubectl get machinepool -n $CLUSTER_NAME $CLUSTER_NAME-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.status.nodeRefs}'| jq -r '.[].name')
+              for node in $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.status.nodeRefs}'| jq -r '.[].name')
               do
                 kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
               done
               ;;
 
             byoh)
-              ### XXX: workaroud for "etcdserver: leader changed" failure
-              kubectl wait --for=condition=Ready --timeout=600s kcp -n $CLUSTER_NAME $CLUSTER_NAME-control-plane
-
-              for node in $(kubectl get machine -n $CLUSTER_NAME -l cluster.x-k8s.io/cluster-name=$CLUSTER_NAME,cluster.x-k8s.io/deployment-name=$CLUSTER_NAME-md-$TKS_NODE_NAME -o=jsonpath='{.items[*].status.nodeRef.name}')
-              do
-                kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
-              done
+              echo "BYOH"
               ;;
 
             *)
@@ -306,18 +298,17 @@ spec:
         - '-exc'
         - |
           cp /kube/value kubeconfig
-          USER_CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
 
           CLUSTER=$(kubectl --kubeconfig kubeconfig get cl -ojsonpath='{.items[0].metadata.name}' -n default)
           ADMIN_USER=${CLUSTER}-admin
-          TOKEN=$(kubectl --kubeconfig kubeconfig get secrets -n $USER_CLUSTER_NAME "$(kubectl --kubeconfig kubeconfig get sa cluster-autoscaler -n $USER_CLUSTER_NAME -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
+          TOKEN=$(kubectl --kubeconfig kubeconfig get secrets -n {{workflow.parameters.cluster_id}} "$(kubectl --kubeconfig kubeconfig get sa cluster-autoscaler -n {{workflow.parameters.cluster_id}} -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
           kubectl --kubeconfig kubeconfig config set-credentials cluster-autoscaler --token=$TOKEN
           kubectl --kubeconfig kubeconfig config set-context cluster-autoscaler --cluster=$CLUSTER --user=cluster-autoscaler
           kubectl --kubeconfig kubeconfig config use-context cluster-autoscaler
           kubectl --kubeconfig kubeconfig config delete-context "$ADMIN_USER@$CLUSTER"
           kubectl --kubeconfig kubeconfig config delete-user "$ADMIN_USER"
 
-          KUBECONFIG_WORKLOAD=$(kubectl get secret -n $USER_CLUSTER_NAME $USER_CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_WORKLOAD=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig_workload:\n$KUBECONFIG_WORKLOAD" | head -n 5
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
 
@@ -334,8 +325,7 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
-          KUBECONFIG=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
           cat <<< "$KUBECONFIG" > kubeconfig_temp
 
