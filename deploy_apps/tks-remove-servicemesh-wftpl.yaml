@@ -15,13 +15,13 @@ spec:
     - name: tks_info_host
       value: "127.0.0.1"
     - name: cluster_id
-      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+      value: "Cabbead61"
     - name: app_group_id
-      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+      value: "Aabbead61"
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+      value: "{{workflow.parameters.cluster_id)}}"
     - name: filter
-      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
+      value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group}}"
   volumes:
   - name: tks-proto-vol
     configMap:
@@ -71,8 +71,7 @@ spec:
 
           kube_params=""
           if [[ -n "{{workflow.parameters.cluster_id}}" ]]; then
-            CLUSTER_NAME={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}
-            kube_secret=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             echo -e "kube_secret:\n$kube_secret" | head -n 5
             cat <<< "$kube_secret" > /etc/kubeconfig
             kube_params+="--kubeconfig=/etc/kubeconfig"

@@ -8,7 +8,7 @@ spec:
   arguments:
     parameters:
     - name: cluster_id
-      value: "93460371-6dbe-4a10-a574-97e35c049e10"
+      value: "C93460371"
   templates:
   - name: main
     steps:
@@ -35,8 +35,7 @@ spec:
         - /bin/bash
         - -c
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, inputs.parameters.cluster_id)}}
-          KUBECONFIG_=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 
@@ -83,8 +82,7 @@ spec:
         - /bin/bash
         - -c
         - |
-          CLUSTER_NAME={{=sprig.substr(0, 8, inputs.parameters.cluster_id)}}
-          KUBECONFIG_=$(kubectl get secret -n $CLUSTER_NAME $CLUSTER_NAME-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 

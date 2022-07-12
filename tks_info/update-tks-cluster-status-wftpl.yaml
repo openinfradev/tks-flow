@@ -10,7 +10,7 @@ spec:
     - name: tks_info_host
       value: "tks-info.tks.svc"
     - name: cluster_id
-      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+      value: "Cabbead61"
     - name: cluster_status
       value: UNSPECIFIED
 

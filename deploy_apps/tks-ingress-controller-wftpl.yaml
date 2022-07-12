@@ -9,13 +9,13 @@ spec:
     parameters:
     # Use cluster_id here
     - name: site_name
-      value: "011b88fa-4d53-439f-9336-67845f994051"
+      value: "C011b88fa"
     - name: manifest_repo_url
       value: ""
     - name: revision
       value: main
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
+      value: "{{workflow.parameters.site_name}}"
 
   volumes:
   - name: config
