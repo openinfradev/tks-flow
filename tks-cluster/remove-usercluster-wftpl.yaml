@@ -16,9 +16,9 @@ spec:
     - name: infra_provider
       value: "aws"
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+      value: "{{workflow.parameters.cluster_id}}"
     - name: filter
-      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group_prefix}}-{{workflow.parameters.infra_provider}}"
+      value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group_prefix}}-{{workflow.parameters.infra_provider}}"
   volumes:
   - name: tks-proto-vol
     configMap:

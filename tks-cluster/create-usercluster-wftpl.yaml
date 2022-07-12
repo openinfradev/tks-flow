@@ -24,7 +24,7 @@ spec:
     - name: revision
       value: "main"
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+      value: "{{workflow.parameters.cluster_id}}"
     - name: tks_info_host
       value: "tks-info.tks.svc"
 

@@ -15,7 +15,7 @@ spec:
     - name: revision
       value: main
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.site_name)}}"
+      value: "{{workflow.parameters.site_name}}"
 
   volumes:
   - name: config

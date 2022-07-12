@@ -21,9 +21,9 @@ spec:
     # For removeLMA task #
     ##########################
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+      value: "{{workflow.parameters.cluster_id}}"
     - name: filter
-      value: "app={{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}-{{workflow.parameters.app_group}}"
+      value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group}}"
   volumes:
   - name: tks-proto-vol
     configMap:

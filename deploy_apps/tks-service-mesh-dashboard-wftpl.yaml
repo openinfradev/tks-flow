@@ -10,7 +10,7 @@ spec:
     - name: cluster_id
       value: "5b2220b0-39c5-4752-8ecd-d8269c88a3c7"
     - name: app_prefix
-      value: "{{=sprig.substr(0, 8, workflow.parameters.cluster_id)}}"
+      value: "{{workflow.parameters.cluster_id}}"
     - name: aws_load_balancer
       value: "ac11209ffe23043339efa1d0ad7c763a-4743f43cd92ad9c0.elb.ap-northeast-2.amazonaws.com"
     - name: zone_id
