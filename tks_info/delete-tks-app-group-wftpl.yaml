@@ -10,7 +10,7 @@ spec:
     - name: tks_info_host
       value: "127.0.0.1"
     - name: app_group_id
-      value: "abbead61-ff2a-4af4-8f41-d2c44c745de7"
+      value: "Aabbead61"
   volumes:
   - name: tks-proto-vol
     configMap:

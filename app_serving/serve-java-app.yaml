@@ -8,7 +8,7 @@ spec:
   arguments:
     parameters:
     - name: cluster_id
-      value: "011b88fa-4d53-439f-9336-67845f994051"
+      value: "C011b88fa"
     - name: app_name
       value: "sample-petclinic"
     - name: app_repo

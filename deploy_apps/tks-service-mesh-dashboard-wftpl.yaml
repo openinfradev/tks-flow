@@ -8,7 +8,7 @@ spec:
   arguments:
     parameters:
     - name: cluster_id
-      value: "5b2220b0-39c5-4752-8ecd-d8269c88a3c7"
+      value: "C5b2220b0"
     - name: app_prefix
       value: "{{workflow.parameters.cluster_id}}"
     - name: aws_load_balancer

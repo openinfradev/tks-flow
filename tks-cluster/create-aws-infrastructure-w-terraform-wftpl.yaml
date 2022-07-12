@@ -8,7 +8,7 @@ spec:
   arguments:
     parameters:
     - name: cluster_id
-      value: "d0e77f68-d3ef-47d8-9f5a-535d7015530f"
+      value: "Cd0e77f68"
 
   volumes:
   - name: config
