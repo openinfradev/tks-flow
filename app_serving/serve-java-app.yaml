@@ -7,6 +7,10 @@ spec:
   entrypoint: main
   arguments:
     parameters:
+    # Param "task_type"
+    # options: build/deploy/all
+    - name: task_type
+      value: "all"
     - name: cluster_id
       value: "C011b88fa"
     - name: app_name
@@ -15,19 +19,43 @@ spec:
       value: "http://github.com/robertchoi80/sample-petclinic"
     - name: app_path
       value: "spring-petclinic-2.7.0-SNAPSHOT.jar"
-    - name: app_version
-      value: "v1.0"
+    - name: image_url
+      value: "REGISTRY/IMAGE:TAG"
     - name: port
       value: "8080"
+    #######################
+    # Deploy-only params? #
+    #######################
+    # executable path in the image
+    - name: executable_path
+      value: "JAR_PATH_IN_THE_IMAGE"
     - name: profile
       value: "default"
     # Possible values: tiny, medium, large
     - name: resource_spec
       value: "medium"
-    - name: container_registry
-      value: "docker.io/robertchoi80"
+
   templates:
   - name: main
+    steps:
+    - - name: build-image
+        template: build-image
+        arguments:
+          parameters:
+          - name: aaa
+            value: bbb
+    - - name: deploy-app
+        template: deploy-app
+        arguments:
+          parameters:
+          - name: aaa
+            value: bbb
+
+  #######################
+  # Template Definition #
+  #######################
+  - name: build-image
+    when: "{{workflow.parameters.task_type}} != 'deploy'"
     volumes:
     - name: varrun
       emptyDir: {}
@@ -40,6 +68,7 @@ spec:
       securityContext:
         privileged: true
     container:
+      #TODO: split worker image
       image: 'sktcloud/appserving-worker:latest'
       volumeMounts:
       - mountPath: /var/run
@@ -63,7 +92,7 @@ spec:
         # fetch Dockerfile & manifests from git
         git clone https://github.com/openinfradev/app-serve-template.git
 
-        cp -r ./app-serve-template/* ./app_root/
+        cp -r ./app-serve-template/Dockerfile ./app_root/
         ls -l ./app_root/
 
         ###############
@@ -73,19 +102,15 @@ spec:
         cd /apps/app_root
 
         # Replace port number in Dockerfile
-        sed -i "s/JARFILENAME/{{workflow.parameters.app_path}}/g" ./Dockerfile ./base/*.yaml
-        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile ./base/*.yaml
+        sed -i "s/JARFILENAME/{{workflow.parameters.app_path}}/g" ./Dockerfile
+        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile
 
-        image_name="{{workflow.parameters.container_registry}}/{{workflow.parameters.app_name}}:{{workflow.parameters.app_version}}"
+        # Debug
+        cat Dockerfile
 
         # Build docker image
+        image_name="{{workflow.parameters.image_url}}"
         docker build -t $image_name .
-
-        # TODO: dynamically create repository in dockerhub
-        # Not urgent task since it's likely to use another registry for real service.
-
-
-
 
         # Login to dockerhub
         docker login -u robertchoi80 -p $DOCKERHUB_TOKEN
@@ -93,20 +118,43 @@ spec:
         # Push image
         docker push $image_name
 
-        ##############
-        # Deployment #
-        ##############
+  - name: deploy-apps
+    when: "{{workflow.parameters.task_type}} != 'build'"
+    container:
+      image: 'sktcloud/appserving-worker:latest'
+      env:
+      - name: DOCKERHUB_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: dockerhub-robert-token
+            key: TOKEN
+      command:
+      - /bin/sh
+      - '-exc'
+      - |
+        app_repo="{{workflow.parameters.app_repo}}"
+        mkdir -p /apps && cd /apps/
+
+        # fetch manifests from git
+        git clone https://github.com/openinfradev/app-serve-template.git
+
+        cp -r ./app-serve-template/* ./app_root/
+        ls -l ./app_root/
+
+        cd /apps/app_root
 
         # Build manifest using kustomize
         kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
 
         # replace variable for the app
+        image_name="{{workflow.parameters.image_url}}"
+        sed -i "s/EXECUTABLE_PATH/{{workflow.parameters.executable_path}}/g" ./manifest.yaml
+        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./manifest.yaml
         sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
         sed -i "s#IMAGEURL#${image_name}#g" ./manifest.yaml
         sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./manifest.yaml
 
         # Debug
-        cat Dockerfile
         cat manifest.yaml
 
         # Prepare kubeconfig
