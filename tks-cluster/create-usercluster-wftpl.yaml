@@ -193,6 +193,24 @@ spec:
           template: deploy
         when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
 
+    - - name: install-addons-byoh
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                {
+                  "app_group": "tks-cluster-byoh",
+                  "path": "local-path-provisioner",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
+                }
+              ]
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
   #######################
   # Template Definition #
   #######################
