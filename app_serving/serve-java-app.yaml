@@ -39,12 +39,14 @@ spec:
   - name: main
     steps:
     - - name: build-image
+        when: "{{workflow.parameters.task_type}} != 'deploy'"
         template: build-image
         arguments:
           parameters:
           - name: aaa
             value: bbb
     - - name: deploy-app
+        when: "{{workflow.parameters.task_type}} != 'build'"
         template: deploy-app
         arguments:
           parameters:
@@ -55,7 +57,6 @@ spec:
   # Template Definition #
   #######################
   - name: build-image
-    when: "{{workflow.parameters.task_type}} != 'deploy'"
     volumes:
     - name: varrun
       emptyDir: {}
@@ -118,8 +119,7 @@ spec:
         # Push image
         docker push $image_name
 
-  - name: deploy-apps
-    when: "{{workflow.parameters.task_type}} != 'build'"
+  - name: deploy-app
     container:
       image: 'sktcloud/appserving-worker:latest'
       env:
@@ -133,22 +133,22 @@ spec:
       - '-exc'
       - |
         app_repo="{{workflow.parameters.app_repo}}"
-        mkdir -p /apps && cd /apps/
+        mkdir -p /apps/app_root
 
         # fetch manifests from git
+        cd /apps
         git clone https://github.com/openinfradev/app-serve-template.git
 
         cp -r ./app-serve-template/* ./app_root/
         ls -l ./app_root/
 
-        cd /apps/app_root
-
         # Build manifest using kustomize
+        cd ./app_root
         kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
 
         # replace variable for the app
         image_name="{{workflow.parameters.image_url}}"
-        sed -i "s/EXECUTABLE_PATH/{{workflow.parameters.executable_path}}/g" ./manifest.yaml
+        sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./manifest.yaml
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./manifest.yaml
         sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
         sed -i "s#IMAGEURL#${image_name}#g" ./manifest.yaml
@@ -159,6 +159,11 @@ spec:
 
         # Prepare kubeconfig
         KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        if [[ -z "$KUBECONFIG_" ]]; then
+          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.cluster_id}}"
+          exit 1
+        fi
+
         echo "$KUBECONFIG_" > /etc/kubeconfig_temp
         export KUBECONFIG='/etc/kubeconfig_temp'
 
