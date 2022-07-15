@@ -51,7 +51,7 @@ spec:
         rm -rf aws-reference/openstack aws-reference/decapod-controller aws-reference/admin-tools
         rm -rf byoh-reference/openstack byoh-reference/decapod-controller byoh-reference/admin-tools
 
-        sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" .github/workflows/render-cd.sh
+        sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" _github/workflows/render-cd.sh
 
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
