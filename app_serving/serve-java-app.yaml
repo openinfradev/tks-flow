@@ -41,17 +41,9 @@ spec:
     - - name: build-image
         when: "{{workflow.parameters.task_type}} != 'deploy'"
         template: build-image
-        arguments:
-          parameters:
-          - name: aaa
-            value: bbb
     - - name: deploy-app
         when: "{{workflow.parameters.task_type}} != 'build'"
         template: deploy-app
-        arguments:
-          parameters:
-          - name: aaa
-            value: bbb
 
   #######################
   # Template Definition #
@@ -132,7 +124,6 @@ spec:
       - /bin/sh
       - '-exc'
       - |
-        app_repo="{{workflow.parameters.app_repo}}"
         mkdir -p /apps/app_root
 
         # fetch manifests from git
