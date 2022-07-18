@@ -101,9 +101,9 @@ spec:
           fi
         }
 
-        GRAFANA_HOST=grafana-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
-        KIBANA_HOST=kibana-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
-        KIALI_HOST=kiali-$(echo "${SITE_NAME:0:8}").taco-cat.xyz
+        GRAFANA_HOST=grafana-${SITE_NAME}.taco-cat.xyz
+        KIBANA_HOST=kibana-${SITE_NAME}.taco-cat.xyz
+        KIALI_HOST=kiali-${SITE_NAME}.taco-cat.xyz
 
         cat <<< "$KUBE_CONFIG" > /etc/kubeconfig
 

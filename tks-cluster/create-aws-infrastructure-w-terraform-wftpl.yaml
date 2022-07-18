@@ -237,7 +237,7 @@ spec:
               sensitive: false
               environmentVariable: false
             - key: name
-              value: taco-elb-${cluster_id:0:8}
+              value: taco-elb-${cluster_id}
               sensitive: false
               environmentVariable: false
             - key: security_groups
@@ -319,7 +319,7 @@ spec:
             version: "3.0.0"
           variables:
             - key: elb
-              value: taco-elb-${cluster_id:0:8}
+              value: taco-elb-${cluster_id}
               sensitive: false
               environmentVariable: false
             - key: number_of_instances
@@ -403,7 +403,7 @@ spec:
                 sensitive: false
                 environmentVariable: false
               - key: records
-                value: "[{name = \"$application-${cluster_id:0:8}\" \ntype=\"CNAME\"\nttl=\"3600\"\nrecords=[\"$elburl\"]}]"
+                value: "[{name = \"$application-${cluster_id}\" \ntype=\"CNAME\"\nttl=\"3600\"\nrecords=[\"$elburl\"]}]"
                 hcl: true
                 sensitive: false
                 environmentVariable: false
