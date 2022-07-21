@@ -38,8 +38,7 @@ spec:
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
         # Get cluster-api infra provider in the template
-        infra_provider_group="$(ls ${CONTRACT_ID}/$TEMPLATE_NAME | grep -v tks-cluster-common | grep tks-cluster)"
-        INFRA_PROVIDER=${infra_provider_group#tks-cluster-}
+        INFRA_PROVIDER="$(cat ${CONTRACT_ID}/$TEMPLATE_NAME/tks-cluster/kustomization.yaml | grep /infra/ | awk -F \/ '{print $3}')"
         echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
 
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
@@ -48,7 +47,7 @@ spec:
         echo $CLUSTER_INFO
 
         ## Replace site-values with fetched params ##
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-common/site-values.yaml
+        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
         case $INFRA_PROVIDER in
           aws)
             ## Fetch cluster params from cluster_info file ##
@@ -61,17 +60,17 @@ spec:
             val_max_size=$(echo $CLUSTER_INFO | sed 's/.*\(max_size_per_az:\ \S*\).*/\1/' | cut -d ':' -f2 | xargs)
             echo "max_size_per_az: $val_max_size"
 
-            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
-            sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
-            sed -i "s/clusterRegion:\ CHANGEME/clusterRegion: $val_region/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
-            sed -i "s/mdNumOfAz:\ CHANGEME/mdNumOfAz: $val_num_of_az/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
-            sed -i "s/mdMinSizePerAz:\ CHANGEME/mdMinSizePerAz: $val_min_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
-            sed -i "s/mdMaxSizePerAz:\ CHANGEME/mdMaxSizePerAz: $val_max_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
-            sed -i "s/mdMachineType:\ CHANGEME/mdMachineType: $val_machine_type/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-aws/site-values.yaml
+            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/clusterRegion:\ CHANGEME/clusterRegion: $val_region/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/mdNumOfAz:\ CHANGEME/mdNumOfAz: $val_num_of_az/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/mdMinSizePerAz:\ CHANGEME/mdMinSizePerAz: $val_min_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/mdMaxSizePerAz:\ CHANGEME/mdMaxSizePerAz: $val_max_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/mdMachineType:\ CHANGEME/mdMachineType: $val_machine_type/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             ;;
 
           byoh)
-            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster-byoh/site-values.yaml
+            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             echo "BYOH"
             ;;
 

@@ -70,7 +70,7 @@ spec:
             value: |
               [
                 { 
-                  "app_group": "tks-cluster-aws",
+                  "app_group": "tks-cluster",
                   "path": "cluster-api-aws",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
@@ -88,7 +88,7 @@ spec:
             value: |
               [
                 {
-                  "app_group": "tks-cluster-byoh",
+                  "app_group": "tks-cluster",
                   "path": "cluster-api-byoh",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
@@ -115,7 +115,7 @@ spec:
             value: |
               [
                 {
-                  "app_group": "tks-cluster-common",
+                  "app_group": "tks-cluster",
                   "path": "cluster-autoscaler-rbac",
                   "namespace": "argo",
                   "target_cluster": "tks-admin"
@@ -138,31 +138,31 @@ spec:
             value: |
               [
                 { 
-                  "app_group": "tks-cluster-common",
+                  "app_group": "tks-cluster",
                   "path": "kubernetes-addons",
                   "namespace": "taco-system",
                   "target_cluster": ""
                 },
                 {
-                  "app_group": "tks-cluster-common",
+                  "app_group": "tks-cluster",
                   "path": "ingress-nginx",
                   "namespace": "taco-system",
                   "target_cluster": ""
                 },
                 {
-                  "app_group": "tks-cluster-common",
+                  "app_group": "tks-cluster",
                   "path": "metrics-server",
                   "namespace": "kube-system",
                   "target_cluster": ""
                 },
                 {
-                  "app_group": "tks-cluster-common",
+                  "app_group": "tks-cluster",
                   "path": "cluster-autoscaler",
                   "namespace": "kube-system",
                   "target_cluster": ""
                 },
                 {
-                  "app_group": "tks-cluster-common",
+                  "app_group": "tks-cluster",
                   "path": "kubed",
                   "namespace": "taco-system",
                   "target_cluster": ""
@@ -179,7 +179,7 @@ spec:
             value: |
               [
                 {
-                  "app_group": "tks-cluster-aws",
+                  "app_group": "tks-cluster",
                   "path": "aws-ebs-csi-driver",
                   "namespace": "kube-system",
                   "target_cluster": ""

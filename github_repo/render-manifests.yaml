@@ -138,10 +138,10 @@ spec:
 
           if [[ ${SITE_NAME} != *"decapod"* ]]; then
             log 0 "INFO" "Almost finished: changing namespace for aws-cluster-resouces from argo to cluster-name.."
-            sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/*
-            sed -i "s/ - argo/ - ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/*
+            sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
+            sed -i "s/- argo/- ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
             # It's possible besides of two above but very tricky!!
-            # sed -i "s/ argo$/ ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/*
+            # sed -i "s/ argo$/ ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
             echo "---
         apiVersion: v1
         kind: Namespace
@@ -152,7 +152,7 @@ spec:
             # It bring the secret 'dacapod-argocd-config' using kubed
             decapod-argocd-config: enabled
         " > Namespace_aws_rc.yaml
-            mv Namespace_aws_rc.yaml $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster-aws/cluster-api-aws/
+            mv Namespace_aws_rc.yaml $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/
           fi
 
         done
