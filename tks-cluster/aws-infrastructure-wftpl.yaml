@@ -36,7 +36,7 @@ spec:
           sleep 2
         done
         vpc_id=$(kubectl get awscluster -n argo $cluster_id -o jsonpath="{.spec.network.vpc.id}")
-        lbname=${cluster_id:0:8}-lb
+        lbname=${cluster_id}-lb
 
         cat <<EOF >/$cluster_id.yaml
         ## securitygroup.yaml
@@ -176,7 +176,7 @@ spec:
       - |
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
-        lbname=${cluster_id:0:8}-lb
+        lbname=${cluster_id}-lb
         kubectl delete ResourceRecordSet --selector=lb=$lbname
         kubectl delete ELBAttachment --selector=lb=$lbname
         kubectl delete ELB --selector=lb=$lbname
@@ -201,7 +201,7 @@ spec:
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
 
-        lbname=${cluster_id:0:8}-lb
+        lbname=${cluster_id}-lb
         elbdns=$(kubectl get elb $lbname -o jsonpath="{.status.atProvider.dnsName}")
 
         for application in kibana grafana kiali
@@ -211,8 +211,8 @@ spec:
           kind: ResourceRecordSet
           metadata:
             annotations:
-              crossplane.io/external-name: $application-${cluster_id:0:8}.taco-cat.xyz
-            name: $application-${cluster_id:0:8}
+              crossplane.io/external-name: $application-${cluster_id}.taco-cat.xyz
+            name: $application-${cluster_id}
             labels:
               lb: $lbname
           spec:
