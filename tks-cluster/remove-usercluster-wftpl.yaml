@@ -18,7 +18,7 @@ spec:
     - name: app_prefix
       value: "{{workflow.parameters.cluster_id}}"
     - name: filter
-      value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group_prefix}}-{{workflow.parameters.infra_provider}}"
+      value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group_prefix}}"
   volumes:
   - name: tks-proto-vol
     configMap:
