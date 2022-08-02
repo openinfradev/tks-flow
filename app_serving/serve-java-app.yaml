@@ -32,6 +32,8 @@ spec:
     # Possible values: tiny, medium, large
     - name: resource_spec
       value: "medium"
+    - name: tks_info_host
+      value: ""
 
   templates:
   - name: main
