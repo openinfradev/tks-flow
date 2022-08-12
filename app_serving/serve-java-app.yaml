@@ -5,6 +5,7 @@ metadata:
   namespace: argo
 spec:
   entrypoint: main
+  onExit: exit-handler
   arguments:
     parameters:
     # Param "task_type"
@@ -33,33 +34,68 @@ spec:
     - name: resource_spec
       value: "medium"
     - name: tks_info_host
-      value: ""
+      value: "tks-info.tks"
 
   templates:
+  - name: exit-handler
+    steps:
+    - - name: parse-failed-step
+        template: parse-failed-step
+        when: "{{workflow.status}} != Succeeded"
+# This expression syntax doesn't work at all as mentioned in the doc as always. Go to hell!
+#    - - name: notify-failure
+#        templateRef:
+#          name: update-asa-status
+#          template: updateAsaStatus
+#        arguments:
+#          parameters:
+#          - name: status
+#            valueFrom:
+#              expression: "steps['parse-failed-step'].outputs.parameters.step_name == build-image ? BUILD_FAILED : DEPLOY_FAILED"
+#        when: "{{workflow.status}} != Succeeded"
+    - - name: notify-build-failure
+        templateRef:
+          name: update-asa-status
+          template: updateAsaStatus
+        arguments:
+          parameters:
+          - name: status
+            value: "BUILD_FAILED"
+        when: "{{workflow.status}} != Succeeded && {{steps.parse-failed-step.outputs.parameters.step_name}} == build-image"
+    - - name: notify-deploy-failure
+        templateRef:
+          name: update-asa-status
+          template: updateAsaStatus
+        arguments:
+          parameters:
+          - name: status
+            value: "DEPLOY_FAILED"
+        when: "{{workflow.status}} != Succeeded && {{steps.parse-failed-step.outputs.parameters.step_name}} == deploy-app"
+
   - name: main
     steps:
     - - name: build-image
         when: "{{workflow.parameters.task_type}} != 'deploy'"
         template: build-image
-#    - - name: updateAsaStatusToTksInfo
-#        templateRef:
-#          name: update-asa-status
-#          template: updateAsaStatus
-#        arguments:
-#          parameters:
-#          - name: status
-#            value: "BUILD_SUCCESS"
+    - - name: notify-build-success
+        templateRef:
+          name: update-asa-status
+          template: updateAsaStatus
+        arguments:
+          parameters:
+          - name: status
+            value: "BUILD_SUCCESS"
     - - name: deploy-app
         when: "{{workflow.parameters.task_type}} != 'build'"
         template: deploy-app
-#    - - name: updateAsaStatusToTksInfo
-#        templateRef:
-#          name: update-asa-status
-#          template: updateAsaStatus
-#        arguments:
-#          parameters:
-#          - name: status
-#            value: "DEPLOY_SUCCESS"
+    - - name: notify-deploy-success
+        templateRef:
+          name: update-asa-status
+          template: updateAsaStatus
+        arguments:
+          parameters:
+          - name: status
+            value: "DEPLOY_SUCCESS"
 
   #######################
   # Template Definition #
@@ -193,3 +229,45 @@ spec:
         # For demo purpose only
         echo "Fetching app endpoint..."
         kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /apps/endpoint
+
+  - name: parse-failed-step
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: step_name
+        valueFrom:
+          path: /mnt/out/failed_step_name.txt
+    script:
+      image: python:alpine3.8
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      command: [python]
+      source: |
+        import time
+        import json
+
+        wf_failures = {{workflow.failures}}
+
+        # convert string to list
+        wf_failure_list = json.loads(wf_failures)
+        print(type(wf_failure_list))
+
+        failed_step=''
+        for step in wf_failure_list:
+          print("Processing str: {}".format(step))
+          # step is 'dict' type now.
+          if step["templateName"] == 'build-image' or step["templateName"] == 'deploy-app':
+            print("found failed step {}".format(step["templateName"]))
+            failed_step = step["templateName"]
+            break
+
+        if failed_step:
+          print("Writing failed step name '{}' to file...".format(failed_step))
+          with open('/mnt/out/failed_step_name.txt', 'w') as f:
+            f.write(failed_step)
+        else:
+          print("Couldn't find failed step name!")
+          exit(1)

@@ -18,8 +18,8 @@ spec:
   - name: updateTksAsaStatus
     inputs:
       parameters:
-			- name: app_serve_app_id
-			- name: status
+      - name: app_serve_app_id
+      - name: status
     script:
       image: sktdev/python-centos-wf-worker:v1.0
       command: ["python"]
