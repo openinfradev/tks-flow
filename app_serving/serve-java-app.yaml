@@ -6,6 +6,10 @@ metadata:
 spec:
   entrypoint: main
   onExit: exit-handler
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
   arguments:
     parameters:
     # Param "task_type"
@@ -16,6 +20,8 @@ spec:
       value: "C011b88fa"
     - name: app_name
       value: "sample-petclinic"
+    - name: app_id
+      value: ""
     - name: artifact_url
       value: "http://github.com/robertchoi80/sample-petclinic/spring-petclinic-2.7.0-SNAPSHOT.jar"
     - name: image_url
@@ -45,8 +51,8 @@ spec:
 # This expression syntax doesn't work at all as mentioned in the doc as always. Go to hell!
 #    - - name: notify-failure
 #        templateRef:
-#          name: update-asa-status
-#          template: updateAsaStatus
+#          name: update-tks-asa-status
+#          template: updateTksAsaStatus
 #        arguments:
 #          parameters:
 #          - name: status
@@ -55,22 +61,30 @@ spec:
 #        when: "{{workflow.status}} != Succeeded"
     - - name: notify-build-failure
         templateRef:
-          name: update-asa-status
-          template: updateAsaStatus
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: asa_id
+            value: "{{workflow.parameters.app_id}}"
           - name: status
             value: "BUILD_FAILED"
-        when: "{{workflow.status}} != Succeeded && {{steps.parse-failed-step.outputs.parameters.step_name}} == build-image"
+          - name: output
+            value: "{{workflow.outputs.parameters.build_output_global}}"
+        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'build-image'"
     - - name: notify-deploy-failure
         templateRef:
-          name: update-asa-status
-          template: updateAsaStatus
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: asa_id
+            value: "{{workflow.parameters.app_id}}"
           - name: status
             value: "DEPLOY_FAILED"
-        when: "{{workflow.status}} != Succeeded && {{steps.parse-failed-step.outputs.parameters.step_name}} == deploy-app"
+          - name: output
+            value: "{{workflow.outputs.parameters.deploy_output_global}}"
+        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app'"
 
   - name: main
     steps:
@@ -79,23 +93,41 @@ spec:
         template: build-image
     - - name: notify-build-success
         templateRef:
-          name: update-asa-status
-          template: updateAsaStatus
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: asa_id
+            value: "{{workflow.parameters.app_id}}"
           - name: status
             value: "BUILD_SUCCESS"
+          - name: output
+            value: "{{steps.build-image.outputs.parameters.build_output}}"
     - - name: deploy-app
         when: "{{workflow.parameters.task_type}} != 'build'"
         template: deploy-app
     - - name: notify-deploy-success
         templateRef:
-          name: update-asa-status
-          template: updateAsaStatus
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: asa_id
+            value: "{{workflow.parameters.app_id}}"
           - name: status
             value: "DEPLOY_SUCCESS"
+          - name: output
+            value: "{{steps.deploy-app.outputs.parameters.deploy_output}}"
+    - - name: update-endpoint-url
+        templateRef:
+          name: update-tks-asa-endpoint
+          template: updateTksAsaEndpoint
+        arguments:
+          parameters:
+          - name: asa_id
+            value: "{{workflow.parameters.app_id}}"
+          - name: endpoint
+            value: "{{steps.deploy-app.outputs.parameters.endpoint}}"
 
   #######################
   # Template Definition #
@@ -103,6 +135,8 @@ spec:
   - name: build-image
     volumes:
     - name: varrun
+      emptyDir: {}
+    - name: out
       emptyDir: {}
     sidecars:
     - name: dind
@@ -112,12 +146,20 @@ spec:
         name: varrun
       securityContext:
         privileged: true
+    outputs:
+      parameters:
+      - name: build_output
+        valueFrom:
+          path: /mnt/out/build_output.txt
+        globalName: build_output_global
     container:
       #TODO: split worker image
       image: 'sktcloud/appserving-worker:latest'
       volumeMounts:
-      - mountPath: /var/run
-        name: varrun
+      - name: varrun
+        mountPath: /var/run
+      - name: out
+        mountPath: /mnt/out
       env:
       - name: DOCKERHUB_TOKEN
         valueFrom:
@@ -129,6 +171,8 @@ spec:
       - '-exc'
       - |
         mkdir -p /apps && cd /apps/
+
+        echo "Fetching app artifact.." | tee -a /mnt/out/build_output.txt
 
         # TODO: How to pass auth info here?
         curl -L -o {{workflow.parameters.app_name}}.jar {{workflow.parameters.artifact_url}}
@@ -143,13 +187,20 @@ spec:
         # Build Image #
         ###############
 
+        echo "Composing Dockerfile..." | tee -a /mnt/out/build_output.txt
+
         # Replace port number in Dockerfile
         sed -i "s/JARFILENAME/{{workflow.parameters.app_name}}.jar/g" ./Dockerfile
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile
 
         # Debug
-        cat Dockerfile
+        cat Dockerfile | tee -a /mnt/out/build_output.txt
+        echo "=== End of Dockerfile ===" | tee -a /mnt/out/build_output.txt
 
+        # Give time for the docker daemon to start in sidecar
+        sleep 5
+
+        echo "Building container image..." | tee -a /mnt/out/build_output.txt
         # Build docker image
         image_name="{{workflow.parameters.image_url}}"
         docker build -t $image_name .
@@ -158,16 +209,27 @@ spec:
         docker login -u robertchoi80 -p $DOCKERHUB_TOKEN
 
         # Push image
-        docker push $image_name
+        echo "Pushing container image..." | tee -a /mnt/out/build_output.txt
+        docker push $image_name 2>&1
 
   - name: deploy-app
-    #    outputs:
-    #      parameters:
-    #      - name: endpoint_url
-    #        valueFrom:
-    #          path: /apps/endpoint
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: deploy_output
+        valueFrom:
+          path: /mnt/out/deploy_output.txt
+        globalName: deploy_output_global
+      - name: endpoint
+        valueFrom:
+          path: /mnt/out/endpoint
     container:
       image: 'sktcloud/appserving-worker:latest'
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
       env:
       - name: DOCKERHUB_TOKEN
         valueFrom:
@@ -188,9 +250,11 @@ spec:
         ls -l .
 
         # Build manifest using kustomize
+        echo "Building kustomize manifest..." | tee -a /mnt/out/deploy_output.txt
         kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
 
         # replace variable for the app
+        echo "Replacing variables in the manifest..." | tee -a /mnt/out/deploy_output.txt
         image_name="{{workflow.parameters.image_url}}"
         sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./manifest.yaml
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./manifest.yaml
@@ -202,9 +266,10 @@ spec:
         cat manifest.yaml
 
         # Prepare kubeconfig
+        echo "Preparing kubeconfig for target cluster..." | tee -a /mnt/out/deploy_output.txt
         KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster}} {{workflow.parameters.target_cluster}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         if [[ -z "$KUBECONFIG_" ]]; then
-          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster}}"
+          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster}}" | tee -a /mnt/out/deploy_output.txt
           exit 1
         fi
 
@@ -212,23 +277,23 @@ spec:
         export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
-        kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}}
+        echo "Starting deployment..." | tee -a /mnt/out/deploy_output.txt
+        kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}} | tee -a /mnt/out/deploy_output.txt
 
         # Wait for pod to be ready
-        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}}
+        echo "Waiting for the deployment to be finished..." | tee -a /mnt/out/deploy_output.txt
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}} | tee -a /mnt/out/deploy_output.txt
 
         # Temporary output until app-serving service is implemented
         # This msg will be sent to CLI by app-serviing service.
-        echo "The app <{{workflow.parameters.app_name}}> has been deployed successfully. Check the app endpoint as follows.
+        echo "The app <{{workflow.parameters.app_name}}> has been deployed."
 
-        # Endpoint
-        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-        # Port number
-        $ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.spec.ports[0].port}'"
+        # Get port number
+        #$ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.spec.ports[0].port}'"
 
-        # For demo purpose only
-        echo "Fetching app endpoint..."
-        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /apps/endpoint
+        # Writing endpoint to file
+        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
+        echo ":{{workflow.parameters.port}}" >> /mnt/out/endpoint
 
   - name: parse-failed-step
     volumes:
