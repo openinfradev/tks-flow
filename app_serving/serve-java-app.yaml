@@ -128,6 +128,8 @@ spec:
             value: "{{workflow.parameters.app_id}}"
           - name: endpoint
             value: "{{steps.deploy-app.outputs.parameters.endpoint}}"
+          - name: helm_revision
+            value: "{{steps.deploy-app.outputs.parameters.revision}}"
 
   #######################
   # Template Definition #
@@ -225,6 +227,9 @@ spec:
       - name: endpoint
         valueFrom:
           path: /mnt/out/endpoint
+      - name: revision
+        valueFrom:
+          path: /mnt/out/revision
     container:
       image: 'sktcloud/appserving-worker:latest'
       volumeMounts:
@@ -246,24 +251,20 @@ spec:
         cd /apps
         git clone https://github.com/openinfradev/app-serve-template.git
 
-        cp -r ./app-serve-template/* .
-        ls -l .
-
-        # Build manifest using kustomize
-        echo "Building kustomize manifest..." | tee -a /mnt/out/deploy_output.txt
-        kustomize build overlays/{{workflow.parameters.resource_spec}} > manifest.yaml
+        # new logic for helm chart
+        cd /apps/app-serve-template/chart
 
         # replace variable for the app
-        echo "Replacing variables in the manifest..." | tee -a /mnt/out/deploy_output.txt
+        echo "Replacing variables in helm chart..." | tee -a /mnt/out/deploy_output.txt
         image_name="{{workflow.parameters.image_url}}"
-        sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./manifest.yaml
-        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./manifest.yaml
-        sed -i "s/APPNAME/{{workflow.parameters.app_name}}/g" ./manifest.yaml
-        sed -i "s#IMAGEURL#${image_name}#g" ./manifest.yaml
-        sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./manifest.yaml
+        sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./values.yaml
+        sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./values.yaml
+        sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./values.yaml
+        sed -i "s#IMAGE_URL#${image_name}#g" ./values.yaml
+        sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./values.yaml
 
         # Debug
-        cat manifest.yaml
+        cat values.yaml
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a /mnt/out/deploy_output.txt
@@ -274,22 +275,54 @@ spec:
         fi
 
         echo "$KUBECONFIG_" > /etc/kubeconfig_temp
-        export KUBECONFIG='/etc/kubeconfig_temp'
+        #export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
         echo "Starting deployment..." | tee -a /mnt/out/deploy_output.txt
-        kubectl apply -f ./manifest.yaml -n {{workflow.parameters.app_name}} | tee -a /mnt/out/deploy_output.txt
+        # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
+        helm install -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . | tee -a /mnt/out/deploy_output.txt
 
-        # Wait for pod to be ready
+        # Just make sure helm release is deployed before status cmd
+        sleep 1
+
+        # Writing helm release info to file
+        revision=$(helm status {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2)
+
+        # Debug revision number
+        echo "Deployed revision number: $revision"
+        echo $revision > /mnt/out/revision
+
+        # Wait for deployment to be ready
         echo "Waiting for the deployment to be finished..." | tee -a /mnt/out/deploy_output.txt
+
         kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}} | tee -a /mnt/out/deploy_output.txt
+
+
+        # Check num of replicas
+        ready=false
+        SLEEP_INTERVAL=5
+        for i in {1..12}
+        do
+          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.items[*].status.replicas}')
+          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.items[*].status.availableReplicas}')
+
+          # check if replicas == availableReplicas
+          if [ "$replicas" == "$available_repls" ]; then
+            echo "All replicas are available. Deployment was successful!" | tee -a /mnt/out/deploy_output.txt
+            ready=true
+          fi
+          sleep $SLEEP_INTERVAL
+        done
+        # End of for loop #
+
+        if [ "$ready" = false ], then
+          echo "Timed out waiting for deployment to be done.."
+          exit 1
+        fi
 
         # Temporary output until app-serving service is implemented
         # This msg will be sent to CLI by app-serviing service.
         echo "The app <{{workflow.parameters.app_name}}> has been deployed."
-
-        # Get port number
-        #$ kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.spec.ports[0].port}'"
 
         # Writing endpoint to file
         kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
