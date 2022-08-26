@@ -262,9 +262,11 @@ spec:
         image_name="{{workflow.parameters.image_url}}"
         sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./values.yaml
         sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./values.yaml
-        sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./values.yaml
+        sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./values.yaml ./Chart.yaml
         sed -i "s#IMAGE_URL#${image_name}#g" ./values.yaml
         sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./values.yaml
+        # TODO: parse image tag and use it as APP_VERSION in Chart.yaml?
+
 
         # Debug
         cat values.yaml
