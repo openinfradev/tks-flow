@@ -152,7 +152,7 @@ spec:
       parameters:
       - name: build_output
         valueFrom:
-          path: /mnt/out/build_output.txt
+          path: /mnt/out/build_output.log
         globalName: build_output_global
     container:
       #TODO: split worker image
@@ -172,12 +172,13 @@ spec:
       - /bin/sh
       - '-exc'
       - |
+        BUILD_LOG='/mnt/out/build_output.log'
         mkdir -p /apps && cd /apps/
 
-        echo "Fetching app artifact.." | tee -a /mnt/out/build_output.txt
+        echo "Fetching app artifact.." | tee -a $BUILD_LOG
 
         # TODO: How to pass auth info here?
-        curl -L -o {{workflow.parameters.app_name}}.jar {{workflow.parameters.artifact_url}}
+        curl -L -o {{workflow.parameters.app_name}}.jar {{workflow.parameters.artifact_url}} 2> >(tee -a $BUILD_LOG >&2)
 
         # fetch Dockerfile & manifests from git
         git clone https://github.com/openinfradev/app-serve-template.git
@@ -189,30 +190,30 @@ spec:
         # Build Image #
         ###############
 
-        echo "Composing Dockerfile..." | tee -a /mnt/out/build_output.txt
+        echo "Composing Dockerfile..." | tee -a $BUILD_LOG
 
         # Replace port number in Dockerfile
         sed -i "s/JARFILENAME/{{workflow.parameters.app_name}}.jar/g" ./Dockerfile
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile
 
         # Debug
-        cat Dockerfile | tee -a /mnt/out/build_output.txt
-        echo "=== End of Dockerfile ===" | tee -a /mnt/out/build_output.txt
+        cat Dockerfile | tee -a $BUILD_LOG
+        echo "=== End of Dockerfile ===" | tee -a $BUILD_LOG
 
         # Give time for the docker daemon to start in sidecar
         sleep 5
 
-        echo "Building container image..." | tee -a /mnt/out/build_output.txt
+        echo "Building container image..." | tee -a $BUILD_LOG
         # Build docker image
         image_name="{{workflow.parameters.image_url}}"
-        docker build -t $image_name .
+        docker build -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
         # Login to dockerhub
         docker login -u robertchoi80 -p $DOCKERHUB_TOKEN
 
         # Push image
-        echo "Pushing container image..." | tee -a /mnt/out/build_output.txt
-        docker push $image_name 2>&1
+        echo "Pushing container image..." | tee -a $BUILD_LOG
+        docker push $image_name 2> >(tee -a $BUILD_LOG >&2)
 
   - name: deploy-app
     volumes:
@@ -222,7 +223,7 @@ spec:
       parameters:
       - name: deploy_output
         valueFrom:
-          path: /mnt/out/deploy_output.txt
+          path: /mnt/out/deploy_output.log
         globalName: deploy_output_global
       - name: endpoint
         valueFrom:
@@ -245,6 +246,7 @@ spec:
       - /bin/sh
       - '-exc'
       - |
+        DEPLOY_LOG='/mnt/out/deploy_output.log'
         mkdir -p /apps/
 
         # fetch manifests from git
@@ -255,7 +257,7 @@ spec:
         cd /apps/app-serve-template/chart
 
         # replace variable for the app
-        echo "Replacing variables in helm chart..." | tee -a /mnt/out/deploy_output.txt
+        echo "Replacing variables in helm chart..." | tee -a $DEPLOY_LOG
         image_name="{{workflow.parameters.image_url}}"
         sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./values.yaml
         sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./values.yaml
@@ -267,35 +269,39 @@ spec:
         cat values.yaml
 
         # Prepare kubeconfig
-        echo "Preparing kubeconfig for target cluster..." | tee -a /mnt/out/deploy_output.txt
+        echo "Preparing kubeconfig for target cluster..." | tee -a $DEPLOY_LOG
         KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster}} {{workflow.parameters.target_cluster}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         if [[ -z "$KUBECONFIG_" ]]; then
-          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster}}" | tee -a /mnt/out/deploy_output.txt
+          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster}}" | tee -a $DEPLOY_LOG
           exit 1
         fi
 
         echo "$KUBECONFIG_" > /etc/kubeconfig_temp
-        #export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
-        echo "Starting deployment..." | tee -a /mnt/out/deploy_output.txt
+        echo "Starting deployment..." | tee -a $DEPLOY_LOG
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
-        helm install -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . | tee -a /mnt/out/deploy_output.txt
+        helm install -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Just make sure helm release is deployed before status cmd
         sleep 1
 
-        # Writing helm release info to file
-        revision=$(helm status {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2)
+        # Writing helm release info to file.
+        revision=$((helm status {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2))
+        
+        # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
+        if [ -z "$revision" ]; then
+          echo "Failed to get helm release revision. Exiting workflow.." | tee -a $DEPLOY_LOG
+        fi
 
         # Debug revision number
         echo "Deployed revision number: $revision"
         echo $revision > /mnt/out/revision
 
         # Wait for deployment to be ready
-        echo "Waiting for the deployment to be finished..." | tee -a /mnt/out/deploy_output.txt
+        echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
 
-        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}} | tee -a /mnt/out/deploy_output.txt
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
 
 
         # Check num of replicas
@@ -308,7 +314,7 @@ spec:
 
           # check if replicas == availableReplicas
           if [ "$replicas" == "$available_repls" ]; then
-            echo "All replicas are available. Deployment was successful!" | tee -a /mnt/out/deploy_output.txt
+            echo "All replicas are available. Deployment is successful!" | tee -a $DEPLOY_LOG
             ready=true
           fi
           sleep $SLEEP_INTERVAL
@@ -316,7 +322,7 @@ spec:
         # End of for loop #
 
         if [ "$ready" = false ], then
-          echo "Timed out waiting for deployment to be done.."
+          echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
           exit 1
         fi
 
