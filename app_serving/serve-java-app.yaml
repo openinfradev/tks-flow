@@ -201,7 +201,8 @@ spec:
         echo "=== End of Dockerfile ===" | tee -a $BUILD_LOG
 
         # Give time for the docker daemon to start in sidecar
-        sleep 5
+        # TODO: It's better to check docker.sock file with while loop
+        sleep 10
 
         echo "Building container image..." | tee -a $BUILD_LOG
         # Build docker image
