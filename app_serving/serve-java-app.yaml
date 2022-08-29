@@ -292,7 +292,7 @@ spec:
         sleep 1
 
         # Writing helm release info to file.
-        revision=$((helm status {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2))
+        revision=$( (helm status {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2) )
         
         # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
         if [ -z "$revision" ]; then
