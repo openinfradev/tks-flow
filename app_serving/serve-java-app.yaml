@@ -297,6 +297,7 @@ spec:
         # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
         if [ -z "$revision" ]; then
           echo "Failed to get helm release revision. Exiting workflow.." | tee -a $DEPLOY_LOG
+          exit 1
         fi
 
         # Debug revision number
@@ -314,8 +315,13 @@ spec:
         SLEEP_INTERVAL=5
         for i in {1..12}
         do
-          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.items[*].status.replicas}')
-          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.items[*].status.availableReplicas}')
+          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.replicas}')
+          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.availableReplicas}')
+
+          if [ -z "$replicas" ]; then
+            echo "Failed to get number of replicas. Exiting workflow.." | tee -a $DEPLOY_LOG
+            exit 1
+          fi
 
           # check if replicas == availableReplicas
           if [ "$replicas" == "$available_repls" ]; then
@@ -326,7 +332,7 @@ spec:
         done
         # End of for loop #
 
-        if [ "$ready" = false ], then
+        if [ "$ready" = false ]; then
           echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
           exit 1
         fi
