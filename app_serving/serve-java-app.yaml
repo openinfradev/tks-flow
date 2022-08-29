@@ -285,6 +285,7 @@ spec:
         # Deploy
         echo "Starting deployment..." | tee -a $DEPLOY_LOG
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
+        kubectl create ns {{workflow.parameters.app_name}} || true
         helm install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Just make sure helm release is deployed before status cmd
