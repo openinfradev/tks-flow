@@ -280,17 +280,18 @@ spec:
         fi
 
         echo "$KUBECONFIG_" > /etc/kubeconfig_temp
+        export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
         echo "Starting deployment..." | tee -a $DEPLOY_LOG
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
-        helm install -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+        helm install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Just make sure helm release is deployed before status cmd
         sleep 1
 
         # Writing helm release info to file.
-        revision=$((helm status {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2))
+        revision=$((helm status {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2))
         
         # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
         if [ -z "$revision" ]; then
