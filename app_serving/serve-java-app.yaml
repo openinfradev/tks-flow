@@ -16,10 +16,12 @@ spec:
     # options: build/deploy/all
     - name: task_type
       value: "all"
-    - name: target_cluster
+    - name: target_cluster_id
       value: "C011b88fa"
     - name: app_name
       value: "sample-petclinic"
+    - name: namespace
+      value: "{{workflow.parameters.app_name}}"
     - name: app_id
       value: ""
     - name: artifact_url
@@ -33,7 +35,7 @@ spec:
     #######################
     # executable path in the image
     - name: executable_path
-      value: "JAR_PATH_IN_THE_IMAGE"
+      value: "FILE_PATH_IN_THE_IMAGE"
     - name: profile
       value: "default"
     # Possible values: tiny, medium, large
@@ -178,7 +180,8 @@ spec:
         echo "Fetching app artifact.." | tee -a $BUILD_LOG
 
         # TODO: How to pass auth info here?
-        curl -L -o {{workflow.parameters.app_name}}.jar {{workflow.parameters.artifact_url}} 2> >(tee -a $BUILD_LOG >&2)
+        artifact_url="{{workflow.parameters.artifact_url}}"
+        curl -L -O $artifact_url 2> >(tee -a $BUILD_LOG >&2)
 
         # fetch Dockerfile & manifests from git
         git clone https://github.com/openinfradev/app-serve-template.git
@@ -193,7 +196,8 @@ spec:
         echo "Composing Dockerfile..." | tee -a $BUILD_LOG
 
         # Replace port number in Dockerfile
-        sed -i "s/JARFILENAME/{{workflow.parameters.app_name}}.jar/g" ./Dockerfile
+        artifact=${artifact_url##*\/}
+        sed -i "s/FILENAME/$artifact/g" ./Dockerfile
         sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile
 
         # Debug
@@ -273,9 +277,9 @@ spec:
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $DEPLOY_LOG
-        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster}} {{workflow.parameters.target_cluster}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         if [[ -z "$KUBECONFIG_" ]]; then
-          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster}}" | tee -a $DEPLOY_LOG
+          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster_id}}" | tee -a $DEPLOY_LOG
           exit 1
         fi
 
@@ -285,14 +289,14 @@ spec:
         # Deploy
         echo "Starting deployment..." | tee -a $DEPLOY_LOG
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
-        kubectl create ns {{workflow.parameters.app_name}} || true
-        helm install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.app_name}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+        kubectl create ns {{workflow.parameters.namespace}} || true
+        helm install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Just make sure helm release is deployed before status cmd
         sleep 1
 
         # Writing helm release info to file.
-        revision=$( (helm status {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.app_name}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2) )
+        revision=$( (helm status {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2) )
         
         # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
         if [ -z "$revision" ]; then
@@ -307,7 +311,7 @@ spec:
         # Wait for deployment to be ready
         echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
 
-        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.app_name}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
 
 
         # Check num of replicas
@@ -315,8 +319,8 @@ spec:
         SLEEP_INTERVAL=5
         for i in {1..12}
         do
-          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.replicas}')
-          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.availableReplicas}')
+          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
+          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
 
           if [ -z "$replicas" ]; then
             echo "Failed to get number of replicas. Exiting workflow.." | tee -a $DEPLOY_LOG
@@ -342,7 +346,7 @@ spec:
         echo "The app <{{workflow.parameters.app_name}}> has been deployed."
 
         # Writing endpoint to file
-        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.app_name}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
+        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
         echo ":{{workflow.parameters.port}}" >> /mnt/out/endpoint
 
   - name: parse-failed-step
