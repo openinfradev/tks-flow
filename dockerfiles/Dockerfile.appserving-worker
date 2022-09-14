@@ -2,6 +2,8 @@ FROM docker:20.10.16-git
 
 MAINTAINER Cloud Co, SK Telecom
 
+ENV HELM_VER v3.9.4
+
 USER root
 
 RUN apk add --no-cache curl bash
@@ -10,8 +12,10 @@ RUN apk add --no-cache curl bash
 RUN curl -Lo /usr/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 RUN chmod +x /usr/bin/kubectl
 
-# Install kustomize
-RUN curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-RUN mv kustomize /usr/bin/
+# Install helm
+RUN curl -Lo helm.tar.gz https://get.helm.sh/helm-$HELM_VER-linux-amd64.tar.gz
+RUN tar xf helm.tar.gz && chmod 0755 ./linux-amd64/helm \
+  && mv ./linux-amd64/helm /usr/bin/ \
+  && rm -rf ./helm.tar.gz ./linux-amd64
 
 CMD ["sh"]

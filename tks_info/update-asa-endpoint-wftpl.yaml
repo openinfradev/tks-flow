@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  # what about UpdateApp? 
+  name: update-tks-asa-endpoint
+  namespace: argo
+spec:
+  entrypoint: updateTksAsaEndpoint
+  arguments:
+    parameters:
+    - name: tks_info_host
+      value: "127.0.0.1"
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+  templates:
+  - name: updateTksAsaEndpoint
+    inputs:
+      parameters:
+      - name: asa_id
+      - name: endpoint
+    script:
+      image: sktdev/python-centos-wf-worker:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      volumeMounts:
+      - name: tks-proto-vol
+        mountPath: "/opt/protobuf"
+        readOnly: true
+      source: |
+        import sys
+        import google.protobuf
+        import grpc
+        import info_pb2
+        import info_pb2_grpc
+        import common_pb2
+        import common_pb2_grpc
+
+        ip = "{{workflow.parameters.tks_info_host}}"
+        port = 9110 # if not specified
+        addr = "%s:%d" % (ip, port)
+
+        print("Updating endpoint for AppServeApp with ID '%s'" % "{{inputs.parameters.asa_id}}")
+
+        with grpc.insecure_channel(addr) as channel:
+            asa_stub = info_pb2_grpc.AppServeAppServiceStub(channel)
+
+            res = asa_stub.UpdateAppServeAppEndpoint(info_pb2.UpdateAppServeAppEndpointRequest(app_serve_app_id="{{inputs.parameters.asa_id}}", endpoint="{{inputs.parameters.endpoint}}"))
+            print("Response code from UpdateAppServeAppEndpoint: %d" % res.code)
