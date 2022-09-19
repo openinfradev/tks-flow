@@ -92,7 +92,7 @@ spec:
           kubectl get ns | grep istio-system | grep -v NAME
           if [[ $? != 0 ]]; then
              echo "ERROR - no namespace 'istio-system'"
-             exit 1
+             #exit 1
           fi
 
           kubectl get po -n istio-system | grep -Ev "Running|Completed|NAME"
@@ -106,7 +106,7 @@ spec:
             status=$(kubectl run --quiet -i --tty --rm -n default --image=curlimages/curl --restart=Never curltest-$RANDOM -- -o /dev/null --write-out %{http_code} --silent --max-time 5 $1)
             if [[ $status != 200 ]]; then
                echo "ERROR - STATUS:$status, URL:$1"
-               exit 1
+               #exit 1
             else
                echo "GOOD - STATUS:$status, URL:$1"
             fi
