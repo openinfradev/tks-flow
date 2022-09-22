@@ -238,7 +238,7 @@ spec:
         echo "=== End of Dockerfile ===" | tee -a $BUILD_LOG
 
         # Give time for the docker daemon to start in sidecar
-        # TODO: It's better to check docker.sock file with while loop
+        # TODO: It's better to check docker.sock file with busy-wait loop
         sleep 10
 
         echo "Building container image..." | tee -a $BUILD_LOG
@@ -350,7 +350,7 @@ spec:
         # Check num of replicas
         ready=false
         SLEEP_INTERVAL=5
-        for i in {1..12}
+        for i in `seq 1 15`
         do
           replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
           available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
@@ -364,6 +364,7 @@ spec:
           if [ "$replicas" == "$available_repls" ]; then
             echo "All replicas are available. Deployment is successful!" | tee -a $DEPLOY_LOG
             ready=true
+            break
           fi
           sleep $SLEEP_INTERVAL
         done
@@ -377,6 +378,9 @@ spec:
         # Temporary output until app-serving service is implemented
         # This msg will be sent to CLI by app-serviing service.
         echo "The app <{{workflow.parameters.app_name}}> has been deployed."
+
+        # TODO: fix this temp sleep cmd to busy-wait loop
+        sleep 5
 
         # Writing endpoint to file
         kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
