@@ -317,6 +317,7 @@ spec:
         fi
 
         echo "$KUBECONFIG_" > /etc/kubeconfig_temp
+        chmod 0600 /etc/kubeconfig_temp
         export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
