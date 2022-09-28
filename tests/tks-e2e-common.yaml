@@ -1,11 +1,9 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-e2e-test
+  name: tks-e2e-test-common
   namespace: argo
 spec:
-  entrypoint: main
-  onExit: notify-slack
   arguments:
     parameters:
     - name: tks_info_url
@@ -16,164 +14,10 @@ spec:
       value: "tks-cluster_lcm.tks.com:9110"
 
   templates:
-  - name: main
-    steps:
-    - - name: call-create-tks-client-conf
-        template: create-tks-client-conf
-    - - name: call-create-usercluster
-        template: create-usercluster
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-    - - name: call-validate-cluster
-        templateRef:
-          name: tks-validate-usercluster
-          template: run-sonobuoy
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: sonobuoy_mode
-            value: "quick"
-    - - name: call-create-service-for-LMA-1st
-        template: create-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "LMA"
-    - - name: call-validate-lma-1st
-        templateRef:
-          name: tks-validate-service
-          template: validate-lma
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    - - name: call-create-service-for-SERVICEMESH-1st
-        template: create-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "SERVICE_MESH"
-    - - name: call-validate-servicemesh-1st
-        templateRef:
-          name: tks-validate-service
-          template: validate-servicemesh
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    - - name: call-delete-service-for-SERVICEMESH-1st
-        template: delete-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "SERVICE_MESH"
-          - name: svc_id
-            value: "{{steps.call-create-service-for-SERVICEMESH-1st.outputs.parameters.svc_id}}"
-    - - name: call-delete-service-for-LMA-1st
-        template: delete-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "LMA"
-          - name: svc_id
-            value: "{{steps.call-create-service-for-LMA-1st.outputs.parameters.svc_id}}"
-    - - name: call-create-service-for-LMA-2nd
-        template: create-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "LMA"
-    - - name: call-validate-lma-2nd
-        templateRef:
-          name: tks-validate-service
-          template: validate-lma
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    - - name: call-create-service-for-SERVICEMESH-2nd
-        template: create-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "SERVICE_MESH"
-    - - name: call-validate-servicemesh-2nd
-        templateRef:
-          name: tks-validate-service
-          template: validate-servicemesh
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    - - name: call-delete-service-for-SERVICEMESH-2nd
-        template: delete-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "SERVICE_MESH"
-          - name: svc_id
-            value: "{{steps.call-create-service-for-SERVICEMESH-2nd.outputs.parameters.svc_id}}"
-    - - name: call-delete-service-for-LMA-2nd
-        template: delete-service
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "LMA"
-          - name: svc_id
-            value: "{{steps.call-create-service-for-LMA-2nd.outputs.parameters.svc_id}}"
-    - - name: call-delete-usercluster
-        template: delete-usercluster
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    # TODO: cleaup remaining AWS resources
-
-  #######################
-  # Template Definition #
-  #######################
-
   - name: create-tks-client-conf
     container:
       name: create-tks-client-conf
-      image: 'sktcloud/tks-e2e-test:v2.0.0'
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
       command:
         - /bin/bash
         - '-exc'
@@ -204,9 +48,10 @@ spec:
     inputs:
       parameters:
       - name: tks_client_conf
+      - name: template_name
     container:
       name: create-usercluster
-      image: 'sktcloud/tks-e2e-test:v2.0.0'
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
       command:
         - /bin/bash
         - '-exc'
@@ -215,7 +60,7 @@ spec:
 
           CL_NAME="e2e-test-$(date "+%Y-%m%d-%H%M")"
           echo "* Create $CL_NAME cluster"
-          tks cluster create ${CL_NAME}
+          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}"
 
           threshold=30
           for i in $(seq 1 $threshold)
@@ -255,7 +100,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: 'sktcloud/tks-e2e-test:v2.0.0'
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
       command:
         - /bin/bash
         - '-exc'
@@ -294,7 +139,7 @@ spec:
       - name: service_name
     container:
       name: create-service
-      image: 'sktcloud/tks-e2e-test:v2.0.0'
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
       command:
         - /bin/bash
         - '-exc'
@@ -343,7 +188,7 @@ spec:
       - name: svc_id
     container:
       name: create-service
-      image: 'sktcloud/tks-e2e-test:v2.0.0'
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
       command:
         - /bin/bash
         - '-exc'
