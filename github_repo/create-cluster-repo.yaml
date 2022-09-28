@@ -35,6 +35,10 @@ spec:
 
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
 
+        cd ${CONTRACT_ID}
+        CONTRACT_COMMIT_ID=$(git rev-parse HEAD)
+        cd ..
+
         # Get cluster-api infra provider in the template
         INFRA_PROVIDER="$(cat ${CONTRACT_ID}/$TEMPLATE_NAME/tks-cluster/kustomization.yaml | grep /infra/ | awk -F \/ '{print $3}')"
         echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
@@ -79,6 +83,7 @@ spec:
         esac
 
         echo "Contract ID: "${CONTRACT_ID} > ${CLUSTER_ID}/META
+        echo "Contract Repo Commit: "${CONTRACT_COMMIT_ID} >> ${CLUSTER_ID}/META
         echo "Template Name: "${TEMPLATE_NAME} >> ${CLUSTER_ID}/META
 
         git config --global user.email "taco_support@sk.com"
