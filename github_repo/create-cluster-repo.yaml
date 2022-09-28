@@ -12,8 +12,6 @@ spec:
     - name: cluster_id
       value: "cluster_uuid"
     - name: template_name
-      value: "template-std"
-    - name: test_template_name
       value: "aws-reference"
 
   templates:
@@ -123,7 +121,7 @@ spec:
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
       - name: TEMPLATE_NAME
-        value: "{{workflow.parameters.test_template_name}}"
+        value: "{{workflow.parameters.template_name}}"
       - name: CLUSTER_INFO
         value: "{{inputs.parameters.cluster_info}}"
       volumeMounts:
