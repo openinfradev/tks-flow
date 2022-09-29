@@ -12,8 +12,6 @@ spec:
     - name: cluster_id
       value: "cluster_uuid"
     - name: template_name
-      value: "template-std"
-    - name: test_template_name
       value: "aws-reference"
 
   templates:
@@ -36,6 +34,10 @@ spec:
         gh repo create ${USERNAME}/${CLUSTER_ID}-manifests --public --confirm
 
         git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
+
+        cd ${CONTRACT_ID}
+        CONTRACT_COMMIT_ID=$(git rev-parse HEAD)
+        cd ..
 
         # Get cluster-api infra provider in the template
         INFRA_PROVIDER="$(cat ${CONTRACT_ID}/$TEMPLATE_NAME/tks-cluster/kustomization.yaml | grep /infra/ | awk -F \/ '{print $3}')"
@@ -81,6 +83,7 @@ spec:
         esac
 
         echo "Contract ID: "${CONTRACT_ID} > ${CLUSTER_ID}/META
+        echo "Contract Repo Commit: "${CONTRACT_COMMIT_ID} >> ${CLUSTER_ID}/META
         echo "Template Name: "${TEMPLATE_NAME} >> ${CLUSTER_ID}/META
 
         git config --global user.email "taco_support@sk.com"
@@ -123,7 +126,7 @@ spec:
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
       - name: TEMPLATE_NAME
-        value: "{{workflow.parameters.test_template_name}}"
+        value: "{{workflow.parameters.template_name}}"
       - name: CLUSTER_INFO
         value: "{{inputs.parameters.cluster_info}}"
       volumeMounts:

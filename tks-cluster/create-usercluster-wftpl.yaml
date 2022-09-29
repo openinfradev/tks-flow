@@ -14,8 +14,6 @@ spec:
     - name: site_name
       value: "{{ workflow.parameters.cluster_id }}"
     - name: template_name
-      value: "template-std"
-    - name: test_template_name
       value: "aws-reference"
     - name: git_account
       value: "tks-management"

@@ -37,6 +37,8 @@ spec:
         git clone -b ${REVISION} https://github.com/openinfradev/decapod-site
 
         cd decapod-site
+        echo "Decapod Site Repo Revision: "${REVISION} > META
+        echo "Decapod Site Repo Commit: "$(git rev-parse HEAD) >> META
 
         mv .github _github
 
