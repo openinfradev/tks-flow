@@ -1,0 +1,130 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-e2e-test-aws
+  namespace: argo
+spec:
+  entrypoint: main
+  onExit: notify-slack
+  arguments:
+    parameters:
+    - name: tks_info_url
+      value: "tks-info.tks.com:9110"
+    - name: tks_contract_url
+      value: "tks-contract.tks.com:9110"
+    - name: tks_cluster_lcm_url
+      value: "tks-cluster_lcm.tks.com:9110"
+
+  templates:
+  - name: main
+    steps:
+    - - name: call-create-tks-client-conf
+        templateRef:
+          name: tks-e2e-test-common
+          template: create-tks-client-conf
+    - - name: call-create-usercluster
+        templateRef:
+          name: tks-e2e-test-common
+          template: create-usercluster
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: template_name
+            value: "aws-reference"
+    - - name: call-validate-cluster
+        templateRef:
+          name: tks-validate-usercluster
+          template: run-sonobuoy
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: sonobuoy_mode
+            value: "quick"
+    - - name: call-create-service-for-LMA-1st
+        templateRef:
+          name: tks-e2e-test-common
+          template: create-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: service_name
+            value: "LMA"
+    - - name: call-validate-lma-1st
+        templateRef:
+          name: tks-validate-service
+          template: validate-lma
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+    - - name: call-delete-service-for-LMA-1st
+        templateRef:
+          name: tks-e2e-test-common
+          template: delete-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: service_name
+            value: "LMA"
+          - name: svc_id
+            value: "{{steps.call-create-service-for-LMA-1st.outputs.parameters.svc_id}}"
+    - - name: call-create-service-for-LMA-2nd
+        templateRef:
+          name: tks-e2e-test-common
+          template: create-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: service_name
+            value: "LMA"
+    - - name: call-validate-lma-2nd
+        templateRef:
+          name: tks-validate-service
+          template: validate-lma
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+    - - name: call-delete-service-for-LMA-2nd
+        templateRef:
+          name: tks-e2e-test-common
+          template: delete-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: service_name
+            value: "LMA"
+          - name: svc_id
+            value: "{{steps.call-create-service-for-LMA-2nd.outputs.parameters.svc_id}}"
+    - - name: call-delete-usercluster
+        templateRef:
+          name: tks-e2e-test-common
+          template: delete-usercluster
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+    # TODO: cleaup remaining AWS resources
+
+  - name: notify-slack
+    steps:
+    - - name: notify-slack
+        templateRef:
+          name: tks-e2e-test-common
+          template: notify-slack
