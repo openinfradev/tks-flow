@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-stack-create-aws-msa
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: tks_info_url
+      value: "tks-info.tks.com:9110"
+    - name: tks_contract_url
+      value: "tks-contract.tks.com:9110"
+    - name: tks_cluster_lcm_url
+      value: "tks-cluster_lcm.tks.com:9110"
+    - name: cluster_name
+      value: "cluster-foo"
+
+  templates:
+  - name: main
+    steps:
+    - - name: call-create-tks-client-conf
+        templateRef:
+          name: tks-cli
+          template: create-tks-client-conf
+    - - name: call-create-usercluster
+        templateRef:
+          name: tks-cli
+          template: create-usercluster
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_name
+            value: "{{workflow.parameters.cluster_name}}"
+          - name: template_name
+            value: "aws-msa-reference"
+    - - name: call-create-service-for-LMA
+        templateRef:
+          name: tks-cli
+          template: create-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: service_name
+            value: "LMA"
+    - - name: call-create-service-for-SERVICEMESH
+        templateRef:
+          name: tks-cli
+          template: create-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: service_name
+            value: "SERVICE_MESH"

@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-stack-delete-aws-msa
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: tks_info_url
+      value: "tks-info.tks.com:9110"
+    - name: tks_contract_url
+      value: "tks-contract.tks.com:9110"
+    - name: tks_cluster_lcm_url
+      value: "tks-cluster_lcm.tks.com:9110"
+    - name: cluster_id
+      value: "c011b88fa"
+
+  templates:
+  - name: main
+    steps:
+    - - name: call-create-tks-client-conf
+        templateRef:
+          name: tks-cli
+          template: create-tks-client-conf
+    - - name: call-get-service-id-of-SERVICEMESH
+        templateRef:
+          name: tks-cli
+          template: get-service-id
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
+          - name: service_name
+            value: "SERVICE_MESH"
+    - - name: call-delete-service-for-SERVICEMESH-1st
+        templateRef:
+          name: tks-cli
+          template: delete-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
+          - name: service_name
+            value: "SERVICE_MESH"
+          - name: svc_id
+            value: "{{steps.call-get-service-id-of-SERVICEMESH.outputs.parameters.svc_id}}"
+    - - name: call-get-service-id-of-LMA
+        templateRef:
+          name: tks-cli
+          template: get-service-id
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
+          - name: service_name
+            value: "LMA"
+    - - name: call-delete-service-for-LMA
+        templateRef:
+          name: tks-cli
+          template: delete-service
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
+          - name: service_name
+            value: "LMA"
+          - name: svc_id
+            value: "{{steps.call-get-service-id-of-LMA.outputs.parameters.svc_id}}"
+    - - name: call-delete-usercluster
+        templateRef:
+          name: tks-cli
+          template: delete-usercluster
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
