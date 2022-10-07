@@ -1,0 +1,250 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-cli
+  namespace: argo
+spec:
+  arguments:
+    parameters:
+    - name: tks_info_url
+      value: "tks-info.tks.com:9110"
+    - name: tks_contract_url
+      value: "tks-contract.tks.com:9110"
+    - name: tks_cluster_lcm_url
+      value: "tks-cluster_lcm.tks.com:9110"
+
+  templates:
+  - name: create-tks-client-conf
+    container:
+      name: create-tks-client-conf
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          cat > /mnt/out/tks-client.yaml <<EOF
+          tksInfoUrl: "{{workflow.parameters.tks_info_url}}"
+          tksContractUrl: "{{workflow.parameters.tks_contract_url}}"
+          tksClusterLcmUrl: "{{workflow.parameters.tks_cluster_lcm_url}}"
+          EOF
+
+          cat /mnt/out/tks-client.yaml
+
+          tks --config /mnt/out/tks-client.yaml cluster list
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: tks_client_conf
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/tks-client.yaml
+
+  - name: create-usercluster
+    inputs:
+      parameters:
+      - name: tks_client_conf
+      - name: cluster_name
+      - name: template_name
+    container:
+      name: create-usercluster
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+
+          CL_NAME="{{inputs.parameters.cluster_name}}"
+          echo "* Create $CL_NAME cluster"
+          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}"
+
+          threshold=30
+          for i in $(seq 1 $threshold)
+          do
+            CL_STATUS=$(tks cluster list  | grep $CL_NAME | awk '{ print $3 }')
+            if [ "$CL_STATUS" = "RUNNING" ]; then
+              break
+            elif [ "$CL_STATUS" = "ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for user-cluster to be ready."
+              exit 1
+            fi
+            sleep 1m
+          done
+
+          tks cluster list | grep $CL_NAME | awk '{print $2}' | tee /mnt/out/cluster_id.txt
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: cluster-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/cluster_id.txt
+
+  - name: delete-usercluster
+    inputs:
+      parameters:
+      - name: tks_client_conf
+      - name: cluster_id
+    container:
+      name: delete-usercluster
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+
+          tks cluster delete {{inputs.parameters.cluster_id}}
+
+          threshold=30
+          for i in $(seq 1 $threshold)
+          do
+            CL_EXIST=$(tks cluster list | grep {{inputs.parameters.cluster_id}} | wc -l)
+            if [ "$CL_EXIST" = "0" ]; then
+              break
+            fi
+
+            CL_STATUS=$(tks cluster list  | grep {{inputs.parameters.cluster_id}} | awk '{ print $3 }')
+            if [ "$CL_STATUS" = "DELETED" ]; then
+              break
+            elif [ "$CL_STATUS" = "ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for user-cluster to be deleted."
+              exit 1
+            fi
+            sleep 1m
+          done
+
+  - name: create-service
+    inputs:
+      parameters:
+      - name: tks_client_conf
+      - name: cluster_id
+      - name: service_name
+    container:
+      name: create-service
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+
+          tks service create --cluster-id {{inputs.parameters.cluster_id}} --service-name {{inputs.parameters.service_name}}
+
+          threshold=30
+          for i in $(seq 1 $threshold)
+          do
+            SVC_STATUS=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $3}')
+            if [ "$SVC_STATUS" = "APP_GROUP_RUNNING" ]; then
+              break
+            elif [ "$SVC_STATUS" = "APP_GROUP_ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for {{inputs.parameters.service_name}} to be ready."
+              exit 1
+            fi
+            sleep 1m
+          done
+
+          echo $(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $2}') | tee /mnt/out/svc_id.txt
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: svc_id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/svc_id.txt
+
+  - name: delete-service
+    inputs:
+      parameters:
+      - name: tks_client_conf
+      - name: cluster_id
+      - name: service_name
+      - name: svc_id
+    container:
+      name: create-service
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+
+          tks service delete {{inputs.parameters.svc_id}}
+
+          threshold=30
+          for i in $(seq 1 $threshold)
+          do
+            SVC_EXIST=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.svc_id}} | wc -l)
+            if [ "$SVC_EXIST" = "0" ]; then
+              break
+            fi
+
+            SVC_STATUS=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $3}')
+            if [ "$SVC_STATUS" = "APP_GROUP_DELETED" ]; then
+              break
+            elif [ "$SVC_STATUS" = "APP_GROUP_ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for {{inputs.parameters.service_name}} to be deleted."
+              exit 1
+            fi
+            sleep 1m
+          done
+
+  - name: get-service-id
+    inputs:
+      parameters:
+      - name: tks_client_conf
+      - name: cluster_id
+      - name: service_name
+    container:
+      name: get-service-id
+      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+
+          echo $(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $2}') | tee /mnt/out/svc_id.txt
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: svc_id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/svc_id.txt

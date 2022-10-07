@@ -20,16 +20,26 @@ spec:
     steps:
     - - name: call-create-tks-client-conf
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: create-tks-client-conf
-    - - name: call-create-usercluster
+    - - name: call-get-cluster-name
         templateRef:
           name: tks-e2e-test-common
+          template: get-cluster-name
+        arguments:
+          parameters:
+          - name: postfix
+            value: "aws-msa"
+    - - name: call-create-usercluster
+        templateRef:
+          name: tks-cli
           template: create-usercluster
         arguments:
           parameters:
           - name: tks_client_conf
             value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: cluster_name
+            value: "{{steps.call-get-cluster-name.outputs.parameters.cluster-name}}"
           - name: template_name
             value: "aws-msa-reference"
     - - name: call-validate-cluster
@@ -44,7 +54,7 @@ spec:
             value: "quick"
     - - name: call-create-service-for-LMA-1st
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: create-service
         arguments:
           parameters:
@@ -64,7 +74,7 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     - - name: call-create-service-for-SERVICEMESH-1st
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: create-service
         arguments:
           parameters:
@@ -84,7 +94,7 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     - - name: call-delete-service-for-SERVICEMESH-1st
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: delete-service
         arguments:
           parameters:
@@ -98,7 +108,7 @@ spec:
             value: "{{steps.call-create-service-for-SERVICEMESH-1st.outputs.parameters.svc_id}}"
     - - name: call-delete-service-for-LMA-1st
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: delete-service
         arguments:
           parameters:
@@ -112,7 +122,7 @@ spec:
             value: "{{steps.call-create-service-for-LMA-1st.outputs.parameters.svc_id}}"
     - - name: call-create-service-for-LMA-2nd
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: create-service
         arguments:
           parameters:
@@ -132,7 +142,7 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     - - name: call-create-service-for-SERVICEMESH-2nd
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: create-service
         arguments:
           parameters:
@@ -152,7 +162,7 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
     - - name: call-delete-service-for-SERVICEMESH-2nd
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: delete-service
         arguments:
           parameters:
@@ -166,7 +176,7 @@ spec:
             value: "{{steps.call-create-service-for-SERVICEMESH-2nd.outputs.parameters.svc_id}}"
     - - name: call-delete-service-for-LMA-2nd
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: delete-service
         arguments:
           parameters:
@@ -180,7 +190,7 @@ spec:
             value: "{{steps.call-create-service-for-LMA-2nd.outputs.parameters.svc_id}}"
     - - name: call-delete-usercluster
         templateRef:
-          name: tks-e2e-test-common
+          name: tks-cli
           template: delete-usercluster
         arguments:
           parameters:
