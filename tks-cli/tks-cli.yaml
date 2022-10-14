@@ -50,6 +50,8 @@ spec:
       - name: tks_client_conf
       - name: cluster_name
       - name: template_name
+      - name: contract_id
+      - name: csp_id
     container:
       name: create-usercluster
       image: 'sktcloud/tks-e2e-test:v2.0.1'
@@ -61,12 +63,12 @@ spec:
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
           echo "* Create $CL_NAME cluster"
-          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}"
+          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}"
 
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            CL_STATUS=$(tks cluster list  | grep $CL_NAME | awk '{ print $3 }')
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.contract_id}}" | grep $CL_NAME | awk '{ print $3 }')
             if [ "$CL_STATUS" = "RUNNING" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
@@ -80,7 +82,7 @@ spec:
             sleep 1m
           done
 
-          tks cluster list | grep $CL_NAME | awk '{print $2}' | tee /mnt/out/cluster_id.txt
+          tks cluster list "{{inputs.parameters.contract_id}}" | grep $CL_NAME | awk '{print $2}' | tee /mnt/out/cluster_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -98,6 +100,7 @@ spec:
     inputs:
       parameters:
       - name: tks_client_conf
+      - name: contract_id
       - name: cluster_id
     container:
       name: delete-usercluster
@@ -113,12 +116,12 @@ spec:
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            CL_EXIST=$(tks cluster list | grep {{inputs.parameters.cluster_id}} | wc -l)
+            CL_EXIST=$(tks cluster list "{{inputs.parameters.contract_id}}" | grep {{inputs.parameters.cluster_id}} | wc -l)
             if [ "$CL_EXIST" = "0" ]; then
               break
             fi
 
-            CL_STATUS=$(tks cluster list  | grep {{inputs.parameters.cluster_id}} | awk '{ print $3 }')
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.contract_id}}" | grep {{inputs.parameters.cluster_id}} | awk '{ print $3 }')
             if [ "$CL_STATUS" = "DELETED" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then

@@ -15,6 +15,10 @@ spec:
       value: "tks-cluster_lcm.tks.com:9110"
     - name: cluster_name
       value: "cluster-foo"
+    - name: contract_id
+      value: ""
+    - name: csp_id
+      value: ""
 
   templates:
   - name: main
@@ -35,6 +39,10 @@ spec:
             value: "{{workflow.parameters.cluster_name}}"
           - name: template_name
             value: "aws-reference"
+          - name: contract_id
+            value: "{{workflow.parameters.contract_id}}"
+          - name: csp_id
+            value: "{{workflow.parameters.csp_id}}"
     - - name: call-create-service-for-LMA
         templateRef:
           name: tks-cli

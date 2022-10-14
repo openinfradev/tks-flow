@@ -15,6 +15,8 @@ spec:
       value: "tks-cluster_lcm.tks.com:9110"
     - name: cluster_id
       value: "c011b88fa"
+    - name: contract_id
+      value: ""
 
   templates:
   - name: main
@@ -59,3 +61,5 @@ spec:
             value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{ workflow.parameters.cluster_id }}"
+          - name: contract_id
+            value: "{{ workflow.parameters.contract_id }}"
