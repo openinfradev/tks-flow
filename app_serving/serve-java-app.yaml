@@ -22,7 +22,9 @@ spec:
       value: "sample-petclinic"
     - name: namespace
       value: "{{workflow.parameters.app_name}}"
-    - name: app_id
+    - name: asa_id
+      value: ""
+    - name: asa_task_id
       value: ""
     - name: artifact_url
       value: "http://github.com/robertchoi80/sample-petclinic/spring-petclinic-2.7.0-SNAPSHOT.jar"
@@ -67,8 +69,8 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
-          - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "BUILD_FAILED"
           - name: output
@@ -80,8 +82,8 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
-          - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "DEPLOY_FAILED"
           - name: output
@@ -97,8 +99,8 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
-          - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "BUILDING"
           - name: output
@@ -113,8 +115,8 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
-          - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "BUILD_SUCCESS"
           - name: output
@@ -126,8 +128,8 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
-          - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "DEPLOYING"
           - name: output
@@ -142,8 +144,8 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
-          - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "DEPLOY_SUCCESS"
           - name: output
@@ -156,7 +158,9 @@ spec:
         arguments:
           parameters:
           - name: asa_id
-            value: "{{workflow.parameters.app_id}}"
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
           - name: endpoint
             value: "{{steps.deploy-app.outputs.parameters.endpoint}}"
           - name: helm_revision
@@ -234,7 +238,7 @@ spec:
         echo "=== End of Dockerfile ===" | tee -a $BUILD_LOG
 
         # Give time for the docker daemon to start in sidecar
-        # TODO: It's better to check docker.sock file with while loop
+        # TODO: It's better to check docker.sock file with busy-wait loop
         sleep 10
 
         echo "Building container image..." | tee -a $BUILD_LOG
@@ -313,13 +317,14 @@ spec:
         fi
 
         echo "$KUBECONFIG_" > /etc/kubeconfig_temp
+        chmod 0600 /etc/kubeconfig_temp
         export KUBECONFIG='/etc/kubeconfig_temp'
 
         # Deploy
         echo "Starting deployment..." | tee -a $DEPLOY_LOG
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
         kubectl create ns {{workflow.parameters.namespace}} || true
-        helm install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+        helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Just make sure helm release is deployed before status cmd
         sleep 1
@@ -342,11 +347,10 @@ spec:
 
         kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
 
-
         # Check num of replicas
         ready=false
         SLEEP_INTERVAL=5
-        for i in {1..12}
+        for i in `seq 1 15`
         do
           replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
           available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
@@ -360,6 +364,7 @@ spec:
           if [ "$replicas" == "$available_repls" ]; then
             echo "All replicas are available. Deployment is successful!" | tee -a $DEPLOY_LOG
             ready=true
+            break
           fi
           sleep $SLEEP_INTERVAL
         done
@@ -373,6 +378,9 @@ spec:
         # Temporary output until app-serving service is implemented
         # This msg will be sent to CLI by app-serviing service.
         echo "The app <{{workflow.parameters.app_name}}> has been deployed."
+
+        # TODO: fix this temp sleep cmd to busy-wait loop
+        sleep 5
 
         # Writing endpoint to file
         kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
