@@ -19,6 +19,10 @@ spec:
       value: ""
     - name: csp_id
       value: ""
+    - name: creator
+      value: "user-uid"
+    - name: description
+      value: ""
 
   templates:
   - name: main
@@ -43,6 +47,11 @@ spec:
             value: "{{workflow.parameters.contract_id}}"
           - name: csp_id
             value: "{{workflow.parameters.csp_id}}"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+
     - - name: call-create-service-for-LMA
         templateRef:
           name: tks-cli
@@ -55,3 +64,8 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: service_name
             value: "LMA"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+

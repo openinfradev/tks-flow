@@ -52,6 +52,8 @@ spec:
       - name: template_name
       - name: contract_id
       - name: csp_id
+      - name: description
+      - name: creator
     container:
       name: create-usercluster
       image: 'sktcloud/tks-e2e-test:v2.0.1'
@@ -63,7 +65,7 @@ spec:
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
           echo "* Create $CL_NAME cluster"
-          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}"
+          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
 
           threshold=30
           for i in $(seq 1 $threshold)
