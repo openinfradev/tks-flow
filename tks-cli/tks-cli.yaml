@@ -17,7 +17,7 @@ spec:
   - name: create-tks-client-conf
     container:
       name: create-tks-client-conf
-      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      image: 'sktcloud/tks-e2e-test:v2.0.2'
       command:
         - /bin/bash
         - '-exc'
@@ -52,11 +52,11 @@ spec:
       - name: template_name
       - name: contract_id
       - name: csp_id
-      - name: description
       - name: creator
+      - name: description
     container:
       name: create-usercluster
-      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      image: 'sktcloud/tks-e2e-test:v2.0.2'
       command:
         - /bin/bash
         - '-exc'
@@ -106,7 +106,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      image: 'sktcloud/tks-e2e-test:v2.0.2'
       command:
         - /bin/bash
         - '-exc'
@@ -145,14 +145,14 @@ spec:
       - name: service_name
     container:
       name: create-service
-      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      image: 'sktcloud/tks-e2e-test:v2.0.2'
       command:
         - /bin/bash
         - '-exc'
         - |
           echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
 
-          tks service create --cluster-id {{inputs.parameters.cluster_id}} --service-name {{inputs.parameters.service_name}}
+          tks service create --cluster-id {{inputs.parameters.cluster_id}} --service-name {{inputs.parameters.service_name}} --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
 
           threshold=30
           for i in $(seq 1 $threshold)
@@ -194,7 +194,7 @@ spec:
       - name: svc_id
     container:
       name: create-service
-      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      image: 'sktcloud/tks-e2e-test:v2.0.2'
       command:
         - /bin/bash
         - '-exc'
@@ -233,7 +233,7 @@ spec:
       - name: service_name
     container:
       name: get-service-id
-      image: 'sktcloud/tks-e2e-test:v2.0.1'
+      image: 'sktcloud/tks-e2e-test:v2.0.2'
       command:
         - /bin/bash
         - '-exc'

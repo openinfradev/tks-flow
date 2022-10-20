@@ -15,6 +15,8 @@ spec:
       value: "tks-cluster_lcm.tks.com:9110"
     - name: cluster_id
       value: "c011b88fa"
+    - name: contract_id
+      value: ""
 
   templates:
   - name: main
