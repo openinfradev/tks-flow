@@ -143,6 +143,8 @@ spec:
       - name: tks_client_conf
       - name: cluster_id
       - name: service_name
+      - name: creator
+      - name: description
     container:
       name: create-service
       image: 'sktcloud/tks-e2e-test:v2.0.2'
