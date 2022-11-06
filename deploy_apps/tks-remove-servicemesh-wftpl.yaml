@@ -53,7 +53,7 @@ spec:
       - name: site_name
     container:
       name: delete-ingress-temporary
-      image: 'gcr.io/google-containers/hyperkube:v1.18.6'
+      image: gcr.io/google-containers/hyperkube:v1.18.6
       command:
       - /bin/bash
       - '-c'

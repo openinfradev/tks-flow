@@ -31,7 +31,7 @@ spec:
           value: "quick"
     container:
       name: sonobuoy
-      image: 'sktcloud/sonobuoy-worker'
+      image: sktcloud/sonobuoy-worker
       command:
         - /bin/bash
         - '-exc'

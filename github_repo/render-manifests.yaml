@@ -62,7 +62,7 @@ spec:
       - name: manifest_repo_branch
     container:
       name: render-manifests-template
-      image: 'sktcloud/decapod-render:v2.0.0'
+      image: sktcloud/decapod-render:v2.0.0
       command:
       - /bin/bash
       - '-exc'

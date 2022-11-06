@@ -219,7 +219,7 @@ spec:
         - name: infra_provider
     container:
       name: cluster-init
-      image: 'ghcr.io/openinfradev/python_kubectl_argo:v1.1.0'
+      image: ghcr.io/openinfradev/python_kubectl_argo:v1.1.0
       command:
         - /bin/bash
         - '-exc'
@@ -308,7 +308,7 @@ spec:
   - name: prepare-cluster-autoscaler
     container:
       name: prepare-cluster-autoscaler
-      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      image: portainer/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-exc'
@@ -336,7 +336,7 @@ spec:
   - name: install-volumesnapshot-crds
     container:
       name: install-volumesnapshot-crds
-      image: 'portainer/kubectl-shell:latest-v1.21.1-amd64'
+      image: portainer/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-exc'
