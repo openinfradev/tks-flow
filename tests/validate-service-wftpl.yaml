@@ -30,7 +30,7 @@ spec:
         - name: cluster_id
     container:
       name: checker-lma
-      image: 'sktcloud/sonobuoy-worker'
+      image: sktcloud/sonobuoy-worker
       command:
         - /bin/bash
         - -c
@@ -77,7 +77,7 @@ spec:
         - name: cluster_id
     container:
       name: checker-servicemesh
-      image: 'sktcloud/sonobuoy-worker'
+      image: sktcloud/sonobuoy-worker
       command:
         - /bin/bash
         - -c

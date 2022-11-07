@@ -85,7 +85,7 @@ spec:
           path: /mnt/out/delete_output.log
         globalName: delete_output_global
     container:
-      image: 'sktcloud/appserving-worker:latest'
+      image: sktcloud/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out

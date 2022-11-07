@@ -177,7 +177,7 @@ spec:
       emptyDir: {}
     sidecars:
     - name: dind
-      image: 'docker:20.10.16-dind'
+      image: docker:20.10.16-dind
       volumeMounts:
       - mountPath: /var/run
         name: varrun
@@ -191,7 +191,7 @@ spec:
         globalName: build_output_global
     container:
       #TODO: split worker image
-      image: 'sktcloud/appserving-worker:latest'
+      image: sktcloud/appserving-worker:latest
       volumeMounts:
       - name: varrun
         mountPath: /var/run
@@ -270,7 +270,7 @@ spec:
         valueFrom:
           path: /mnt/out/revision
     container:
-      image: 'sktcloud/appserving-worker:latest'
+      image: sktcloud/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out
