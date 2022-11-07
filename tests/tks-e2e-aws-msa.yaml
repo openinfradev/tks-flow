@@ -42,6 +42,14 @@ spec:
             value: "{{steps.call-get-cluster-name.outputs.parameters.cluster-name}}"
           - name: template_name
             value: "aws-msa-reference"
+          - name: contract_id
+            value: "{{workflow.parameters.contract_id}}"
+          - name: csp_id
+            value: "{{workflow.parameters.csp_id}}"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"            
     - - name: call-validate-cluster
         templateRef:
           name: tks-validate-usercluster
@@ -64,6 +72,10 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: service_name
             value: "LMA"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"            
     - - name: call-validate-lma-1st
         templateRef:
           name: tks-validate-service
@@ -84,6 +96,10 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: service_name
             value: "SERVICE_MESH"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"            
     - - name: call-validate-servicemesh-1st
         templateRef:
           name: tks-validate-service
@@ -132,6 +148,10 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: service_name
             value: "LMA"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"            
     - - name: call-validate-lma-2nd
         templateRef:
           name: tks-validate-service
@@ -152,6 +172,10 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: service_name
             value: "SERVICE_MESH"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"            
     - - name: call-validate-servicemesh-2nd
         templateRef:
           name: tks-validate-service
@@ -198,6 +222,8 @@ spec:
             value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+          - name: contract_id
+            value: "{{workflow.parameters.contract_id}}"            
     # TODO: cleaup remaining AWS resources
 
   - name: notify-slack
