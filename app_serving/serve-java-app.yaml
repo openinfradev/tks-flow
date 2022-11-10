@@ -27,7 +27,7 @@ spec:
     - name: asa_task_id
       value: ""
     - name: artifact_url
-      value: "http://github.com/robertchoi80/sample-petclinic/spring-petclinic-2.7.0-SNAPSHOT.jar"
+      value: "http://ab846aadb5b974536a0463a29ed866f5-200924269.ap-northeast-2.elb.amazonaws.com:8081/repository/my-release-repo/default/petclinic/1.0/petclinic-1.0.jar"
     - name: image_url
       value: "REGISTRY/IMAGE:TAG"
     - name: port
@@ -256,10 +256,11 @@ spec:
         echo "Building container image..." | tee -a $BUILD_LOG
         # Build docker image
         image_name="{{workflow.parameters.image_url}}"
-        docker build -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
+        docker build --network host -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
-        # Login to dockerhub
-        docker login -u robertchoi80 -p $DOCKERHUB_TOKEN
+        # Login to harbor registry
+        # TODO: fix this hard-coded password
+        docker login -u admin -p Harbor12345 harbor-dev.taco-cat.xyz
 
         # Push image
         echo "Pushing container image..." | tee -a $BUILD_LOG
