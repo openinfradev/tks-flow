@@ -201,6 +201,9 @@ spec:
         valueFrom:
           path: /mnt/out/build_output.log
         globalName: build_output_global
+    hostAliases:
+    - hostnames: ['harbor-dev.taco-cat.xyz']
+      ip: '15.165.166.208'
     container:
       #TODO: split worker image
       image: sktcloud/appserving-worker:latest
@@ -282,6 +285,9 @@ spec:
       - name: revision
         valueFrom:
           path: /mnt/out/revision
+    hostAliases:
+    - hostnames: ['harbor-dev.taco-cat.xyz']
+      ip: '15.165.166.208'
     container:
       image: sktcloud/appserving-worker:latest
       volumeMounts:
