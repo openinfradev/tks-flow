@@ -23,6 +23,8 @@ spec:
       value: "user-uid"
     - name: description
       value: ""
+    - name: infra_spec
+      value: "TINY" # TINY, SMALL, MEDIUM, LARGE
 
   templates:
   - name: main
@@ -51,6 +53,8 @@ spec:
             value: "{{workflow.parameters.creator}}"
           - name: description
             value: "{{workflow.parameters.description}}"
+          - name: infra_spec
+            value: "{{workflow.parameters.infra_spec}}"
 
     - - name: call-create-service-for-LMA
         templateRef:
