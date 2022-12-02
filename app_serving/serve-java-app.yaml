@@ -201,9 +201,6 @@ spec:
         valueFrom:
           path: /mnt/out/build_output.log
         globalName: build_output_global
-    hostAliases:
-    - hostnames: ['harbor-dev.taco-cat.xyz']
-      ip: '15.165.166.208'
     container:
       #TODO: split worker image
       image: sktcloud/appserving-worker:latest
@@ -212,12 +209,6 @@ spec:
         mountPath: /var/run
       - name: out
         mountPath: /mnt/out
-      env:
-      - name: DOCKERHUB_TOKEN
-        valueFrom:
-          secretKeyRef:
-            name: dockerhub-robert-token
-            key: TOKEN
       command:
       - /bin/sh
       - '-exc'
@@ -261,9 +252,14 @@ spec:
         image_name="{{workflow.parameters.image_url}}"
         docker build --network host -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
+        # Get harbor admin password from secret
+        harbor_password=$(kubectl get secret -n harbor harbor-core -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d
+
+        # Extract registry URL from image URL
+        registry_url=$(echo $image_name | awk -F/ '{ print $1 }')
+
         # Login to harbor registry
-        # TODO: fix this hard-coded password
-        docker login -u admin -p Harbor12345 harbor-dev.taco-cat.xyz
+        docker login -u admin -p $harbor_password $registry_url
 
         # Push image
         echo "Pushing container image..." | tee -a $BUILD_LOG
@@ -285,20 +281,11 @@ spec:
       - name: revision
         valueFrom:
           path: /mnt/out/revision
-    hostAliases:
-    - hostnames: ['harbor-dev.taco-cat.xyz']
-      ip: '15.165.166.208'
     container:
       image: sktcloud/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out
-      env:
-      - name: DOCKERHUB_TOKEN
-        valueFrom:
-          secretKeyRef:
-            name: dockerhub-robert-token
-            key: TOKEN
       command:
       - /bin/sh
       - '-exc'
