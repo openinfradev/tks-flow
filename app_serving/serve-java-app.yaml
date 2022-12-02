@@ -253,7 +253,7 @@ spec:
         docker build --network host -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
         # Get harbor admin password from secret
-        harbor_password=$(kubectl get secret -n harbor harbor-core -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d
+        harbor_password=$(kubectl get secret -n harbor harbor-core -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
 
         # Extract registry URL from image URL
         registry_url=$(echo $image_name | awk -F/ '{ print $1 }')
