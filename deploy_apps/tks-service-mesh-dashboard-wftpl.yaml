@@ -1197,6 +1197,8 @@ spec:
             --set application.keycloak.resource="${CLIENT_ID}" \
             --set application.keycloak.credentials.secret=${CLIENT_SECRET} \
             --set application.keycloak.auth-server-url=https://${KEYCLOAK_URL}/auth \
+            --set application.keycloak.ssl-required=none \
+            --set application.keycloak.confidential-port=443 \
             openinfradev/servicemesh-portal
 
           kubectl --kubeconfig ~/.kube/config_user rollout restart deployment servicemesh-${CLIENT_NAME} -n ${APP_NAMESPACE}
