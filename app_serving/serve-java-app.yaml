@@ -12,9 +12,9 @@ spec:
       name: tks-proto
   arguments:
     parameters:
-    # Param "task_type"
+    # Param "type"
     # options: build/deploy/all
-    - name: task_type
+    - name: type
       value: "all"
     - name: target_cluster_id
       value: "C011b88fa"
@@ -105,7 +105,7 @@ spec:
   - name: main
     steps:
     - - name: notify-build-start
-        when: "{{workflow.parameters.task_type}} != 'deploy'"
+        when: "{{workflow.parameters.type}} != 'deploy'"
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -118,10 +118,10 @@ spec:
           - name: output
             value: ""
     - - name: build-image
-        when: "{{workflow.parameters.task_type}} != 'deploy'"
+        when: "{{workflow.parameters.type}} != 'deploy'"
         template: build-image
     - - name: notify-build-success
-        when: "{{workflow.parameters.task_type}} != 'deploy'"
+        when: "{{workflow.parameters.type}} != 'deploy'"
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -134,7 +134,7 @@ spec:
           - name: output
             value: "{{steps.build-image.outputs.parameters.build_output}}"
     - - name: notify-deploy-start
-        when: "{{workflow.parameters.task_type}} != 'build'"
+        when: "{{workflow.parameters.type}} != 'build'"
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -147,10 +147,10 @@ spec:
           - name: output
             value: ""
     - - name: deploy-app
-        when: "{{workflow.parameters.task_type}} != 'build'"
+        when: "{{workflow.parameters.type}} != 'build'"
         template: deploy-app
     - - name: notify-deploy-success
-        when: "{{workflow.parameters.task_type}} != 'build'"
+        when: "{{workflow.parameters.type}} != 'build'"
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -163,7 +163,7 @@ spec:
           - name: output
             value: "{{steps.deploy-app.outputs.parameters.deploy_output}}"
     - - name: update-endpoint-url
-        when: "{{workflow.parameters.task_type}} != 'build'"
+        when: "{{workflow.parameters.type}} != 'build'"
         templateRef:
           name: update-tks-asa-endpoint
           template: updateTksAsaEndpoint
