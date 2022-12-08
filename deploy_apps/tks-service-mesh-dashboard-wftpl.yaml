@@ -862,7 +862,8 @@ spec:
           --set config.client-id="${CLIENT_ID}" \
           --set config.client-secret="${CLIENT_SECRET}" \
           --set config.upstream-url="${UPSTREAM_URL}" \
-          --set config.base-uri="/${CLIENT_NAME}"
+          --set config.base-uri="/${CLIENT_NAME}" \
+          --set nodeSelector.servicemesh=enabled
 
           log "INFO" "gatekeeper: gatekeeper-${CLIENT_NAME}-${REALMS} successfully created."
     activeDeadlineSeconds: 900
@@ -1199,6 +1200,7 @@ spec:
             --set application.keycloak.auth-server-url=https://${KEYCLOAK_URL}/auth \
             --set application.keycloak.ssl-required=none \
             --set application.keycloak.confidential-port=443 \
+            --set nodeSelector.servicemesh=enabled \
             openinfradev/servicemesh-portal
 
           kubectl --kubeconfig ~/.kube/config_user rollout restart deployment servicemesh-${CLIENT_NAME} -n ${APP_NAMESPACE}
