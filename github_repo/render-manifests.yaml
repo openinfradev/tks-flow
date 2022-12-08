@@ -7,8 +7,8 @@ spec:
   entrypoint: main
   arguments:
     parameters:
-    - name: site_name
-      value: decapod-reference
+    - name: cluster_id
+      value: "c011b88fa"
     - name: base_repo_url
       value: 'github.com/openinfradev/decapod-base-yaml'
     - name: base_repo_branch
@@ -21,6 +21,8 @@ spec:
       value: 'github.com/openinfradev/decapod-manifests'
     - name: manifest_repo_branch
       value: main
+    - name: git_repo_type
+      value: github
 
   templates:
   #=========================================================
@@ -32,8 +34,8 @@ spec:
         template: render-manifests-template
         arguments:
           parameters:
-          - name: site_name
-            value: "{{workflow.parameters.site_name}}"
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
           - name: base_repo_url
             value: "{{workflow.parameters.base_repo_url}}"
           - name: base_repo_branch
@@ -46,6 +48,8 @@ spec:
             value: "{{workflow.parameters.manifest_repo_url}}"
           - name: manifest_repo_branch
             value: "{{workflow.parameters.manifest_repo_branch}}"
+          - name: git_repo_type
+            value: "{{workflow.parameters.git_repo_type}}"
 
   #=========================================================
   # Template Definition
@@ -53,16 +57,17 @@ spec:
   - name: render-manifests-template
     inputs:
       parameters:
-      - name: site_name
+      - name: cluster_id
       - name: base_repo_url
       - name: base_repo_branch
       - name: site_repo_url
       - name: site_repo_branch
       - name: manifest_repo_url
       - name: manifest_repo_branch
+      - name: git_repo_type
     container:
       name: render-manifests-template
-      image: sktcloud/decapod-render:v2.0.0
+      image: sktcloud/decapod-render:v2.1.0
       command:
       - /bin/bash
       - '-exc'
@@ -82,31 +87,35 @@ spec:
           fi
         }
 
-        SITE_NAME={{inputs.parameters.site_name}}
+        GIT_TOKEN=${TOKEN//[$'\t\r\n ']}
+
+        CLUSTER_ID={{inputs.parameters.cluster_id}}
         BASE_REPO_URL={{inputs.parameters.base_repo_url}}
         BASE_REPO_BRANCH={{inputs.parameters.base_repo_branch}}
         SITE_REPO_URL={{inputs.parameters.site_repo_url}}
         SITE_REPO_BRANCH={{inputs.parameters.site_repo_branch}}
         MANIFEST_REPO_URL={{inputs.parameters.manifest_repo_url}}
         MANIFEST_REPO_BRANCH={{inputs.parameters.manifest_repo_branch}}
+        GIT_REPO_TYPE={{inputs.parameters.git_repo_type}}
         SITE_DIR="tks-site-yaml"
         BASE_DIR="decapod-base-yaml"
         DOCKER_IMAGE_REPO="docker.io"
         OUTPUT_DIR="output"
 
         # download site-yaml
-        git clone -b ${SITE_REPO_BRANCH} https://$(echo -n ${TOKEN})@${SITE_REPO_URL} ${SITE_DIR}
+        git clone -b ${SITE_REPO_BRANCH} https://$(echo -n ${GIT_TOKEN})@${SITE_REPO_URL} ${SITE_DIR}
         log $? "INFO" "Fetching ${SITE_REPO_URL} with ${SITE_REPO_BRANCH} branch/tag........."
         cd ${SITE_DIR}
-        site_commit_msg=$(git show -s --format="%h %s" HEAD)
+        site_commit_msg=$(git show -s --format="[%h] %s" HEAD)
+        site_commit_id=$(git show -s --format="%h" HEAD)
 
         # extract directory for rendering
         site_list=$(ls -d */ | sed 's/\///g' | egrep -v "docs|^template|^deprecated|output|offline")
 
         # download base-yaml
-        git clone -b ${BASE_REPO_BRANCH} https://$(echo -n ${TOKEN})@${BASE_REPO_URL} ${BASE_DIR}
+        git clone -b ${BASE_REPO_BRANCH} https://$(echo -n ${GIT_TOKEN})@${BASE_REPO_URL} ${BASE_DIR}
         log $? "INFO" "Fetching ${BASE_REPO_URL} with ${BASE_REPO_BRANCH} branch/tag........."
-        base_commit_msg=$(cd ${BASE_DIR}; git show -s --format="%h %s" HEAD)
+        base_commit_msg=$(cd ${BASE_DIR}; git show -s --format="[%h] %s" HEAD)
 
         mkdir -p ${OUTPUT_DIR}
 
@@ -136,7 +145,7 @@ spec:
 
           done
 
-          if [[ ${SITE_NAME} != *"decapod"* ]]; then
+          if [[ ${CLUSTER_ID} != *"decapod"* ]]; then
             log 0 "INFO" "Almost finished: changing namespace for aws-cluster-resouces from argo to cluster-name.."
             sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
             sed -i "s/- argo/- ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
@@ -160,9 +169,12 @@ spec:
         #-----------------------------------------------
         # push manifests files
         #-----------------------------------------------
-        git clone https://$(echo -n ${TOKEN})@${MANIFEST_REPO_URL} origin-manifests
+        git clone https://$(echo -n ${GIT_TOKEN})@${MANIFEST_REPO_URL} origin-manifests
         log 0 "INFO" "git clone ${MANIFEST_REPO_URL}"
         cd origin-manifests
+        if [ -z "${MANIFEST_REPO_BRANCH}" ]; then
+                MANIFEST_REPO_BRANCH="decapod-${site_commit_id}"
+        fi
         check_branch=$(git ls-remote --heads origin ${MANIFEST_REPO_BRANCH})
         if [[ -z ${check_branch} ]]; then
           git checkout -b ${MANIFEST_REPO_BRANCH}
@@ -178,8 +190,13 @@ spec:
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
         git add -A
-        git commit -m "base_commit_msg: ${base_commit_msg}\n site_commit_msg: ${site_commit_msg}"
+        git commit -m "base: ${base_commit_msg}, site: ${site_commit_msg}"
         git push origin ${MANIFEST_REPO_BRANCH}
+
+        if [ "${MANIFEST_REPO_BRANCH}" != "main" ] && [ "${GIT_REPO_TYPE}" == "gitea" ]; then
+          curl -X POST -H "content-type: application/json" -H "Authorization: token ${GIT_TOKEN}" --data "{ \"base\": \"main\", \"body\": \"rendered from\n - base: ${base_commit_msg}\n - site: ${site_commit_msg}\", \"head\": \"${MANIFEST_REPO_BRANCH}\", \"title\": \"rendered from site: ${site_commit_msg}\"}" https://${MANIFEST_REPO_URL%%/*}/api/v1/repos/${MANIFEST_REPO_URL#*/}/pulls
+        fi
+
         log 0 "INFO" "pushed all manifests files"
 
       envFrom:
