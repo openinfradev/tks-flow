@@ -230,7 +230,7 @@ spec:
 
         echo "Composing Dockerfile..." | tee -a $BUILD_LOG
         app_type={{workflow.parameters.app_type}}
-        if [[ "$app_type" == "SPRING" ]]; then
+        if [[ "$app_type" == "spring" ]]; then
           cp ./app-serve-template/Dockerfile.spring ./Dockerfile
           sed -i "s/FILENAME/$artifact/g" ./Dockerfile
         else
@@ -300,7 +300,7 @@ spec:
 
         app_type={{workflow.parameters.app_type}}
         ## For legacy spring app case ##
-        if [[ "$app_type" == "SPRING" ]]; then
+        if [[ "$app_type" == "spring" ]]; then
           cd /apps/app-serve-template
           # replace variable for the tomcat value-override file
           echo "Replacing variables in tomcat chart..." | tee -a $DEPLOY_LOG
@@ -370,7 +370,7 @@ spec:
         kubectl create ns {{workflow.parameters.namespace}} || true
 
         ## For legacy spring app case ##
-        if [[ "$app_type" == "SPRING" ]]; then
+        if [[ "$app_type" == "spring" ]]; then
           helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f tomcat-vo.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
         else
           helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
