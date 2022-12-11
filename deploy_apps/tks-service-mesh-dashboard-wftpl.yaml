@@ -8,21 +8,19 @@ spec:
   arguments:
     parameters:
     - name: cluster_id
-      value: "C5b2220b0"
+      value: "cixnd55an"
     - name: app_prefix
       value: "{{workflow.parameters.cluster_id}}"
-    - name: aws_load_balancer
-      value: "ac11209ffe23043339efa1d0ad7c763a-4743f43cd92ad9c0.elb.ap-northeast-2.amazonaws.com"
     - name: zone_id
       value: "Z104697219C1N0592X9B3"
     - name: service_domain
       value: "taco-cat.xyz"
     - name: keycloak_namespace
-      value: "eom-keycloak"
+      value: "keycloak"
     - name: keycloak_instance_name
       value: "tks-keycloak"
     - name: keycloak_url
-      value: "keycloak-eom.taco-cat.xyz"
+      value: "keycloak-ft.taco-cat.xyz"
     - name: cluster_domain
       value: "cluster.local"
     - name: service_cert_secret_name
@@ -32,6 +30,9 @@ spec:
   - name: kubeconfig-adm
     secret:
       secretName: tks-admin-kubeconfig-secret
+  - name: awsconfig-route53
+    secret:
+      secretName: awsconfig-route53-secret
 
   templates:
   #=========================================================
@@ -50,18 +51,23 @@ spec:
           - name: keycloak_instance_name
             value: "{{workflow.parameters.keycloak_instance_name}}"
 
-    - - name: configure-route53-dashboard
-        template: configure-route53
+    - - name: create-route53-dashboard
+        template: create-route53
         arguments:
           parameters:
           - name: realms
             value: "{{workflow.parameters.app_prefix}}"
-          - name: aws_load_balancer
-            value: "{{workflow.parameters.aws_load_balancer}}"
           - name: zone_id
             value: "{{workflow.parameters.zone_id}}"
           - name: service_domain
             value: "{{workflow.parameters.service_domain}}"
+
+    - - name: create-secret-tls
+        template: create-secret-tls
+        arguments:
+          parameters:
+          - name: service_cert_secret_name
+            value: "{{workflow.parameters.service_cert_secret_name}}"
 
     - - name: create-admins-users-group
         template: create-group
@@ -331,61 +337,78 @@ spec:
   #=========================================================
   # Template Definition
   #=========================================================
-  - name: configure-route53
+
+  - name: create-route53
+    activeDeadlineSeconds: 1800
     inputs:
       parameters:
       - name: realms
-      - name: aws_load_balancer
       - name: zone_id
       - name: service_domain
     container:
-      name: configure-route53
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
       command:
-        - /bin/bash
-        - '-c'
-        - |
-          function log() {
-            level=$1
-            msg=$2
-            date=$(date '+%F %H:%M:%S')
-            echo "[$date] $level     $msg"
-          }
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.aws
+        cp /aws/* ~/.aws/
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
 
-          REALMS={{inputs.parameters.realms}}
-          AWS_LOAD_BALANCER={{inputs.parameters.aws_load_balancer}}
-          ZONE_ID={{inputs.parameters.zone_id}}
-          SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+        KUBECONFIG_USERCLUSTER=$(kubectl get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d)
+        echo -e "kubeconfig_workload:\n$KUBECONFIG_USERCLUSTER" | head -n 5
+        cat <<< "$KUBECONFIG_USERCLUSTER" > ~/.kube/config_user
 
-          kube_params=""
-          kube_secret=$(kubectl get secret -n argo tks-admin-kubeconfig-secret -o jsonpath="{.data.value}" | base64 -d)
-          echo -e "kube_secret:\n$kube_secret" | head -n 5
-          cat <<< "$kube_secret" > /tmp/kubeconfig
-          kube_params+="--kubeconfig=/tmp/kubeconfig"
+        INGRESS_LOAD_BALANCER=$(kubectl --kubeconfig ~/.kube/config_user get svc -n taco-system ingress-nginx-controller -o=jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+        echo $INGRESS_LOAD_BALANCER
 
-          cat <<EOF | kubectl $kube_params apply -f -
-          apiVersion: route53.aws.crossplane.io/v1alpha1
-          kind: ResourceRecordSet
-          metadata:
-            annotations:
-              crossplane.io/external-name: dashboard-${REALMS}.${SERVICE_DOMAIN}
-            name: dashboard-${REALMS}
-          spec:
-            forProvider:
-              resourceRecords:
-              - value: ${AWS_LOAD_BALANCER}
-              ttl: 300
-              type: CNAME
-              zoneId: ${ZONE_ID}
-            providerConfigRef:
-              name: awsconfig
-          EOF
+        REALMS={{inputs.parameters.realms}}
+        ZONE_ID={{inputs.parameters.zone_id}}
+        SERVICE_DOMAIN={{inputs.parameters.service_domain}}
+        RECORD=dashboard-${REALMS}.${SERVICE_DOMAIN}
 
-          log "INFO" "ResourceRecordSet dashboard-${REALMS} successfully created."
-    activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
+        aws route53 change-resource-record-sets --hosted-zone ${ZONE_ID} --change-batch '{"Comment": "","Changes": [{"Action": "CREATE", "ResourceRecordSet": { "Name": "'${RECORD}'", "Type": "CNAME", "TTL": 300, "ResourceRecords": [{ "Value": "'${INGRESS_LOAD_BALANCER}'"}]}}]}'
 
+      env:
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.cluster_id}}"
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      - name: awsconfig-route53
+        mountPath: "/aws"
+
+  - name: create-secret-tls
+    activeDeadlineSeconds: 1800
+    inputs:
+      parameters:
+      - name: service_cert_secret_name
+    container:
+      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.kube
+        cp /kube/value ~/.kube/config
+
+        KUBECONFIG_USERCLUSTER=$(kubectl get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d)
+        echo -e "kubeconfig_workload:\n$KUBECONFIG_USERCLUSTER" | head -n 5
+        cat <<< "$KUBECONFIG_USERCLUSTER" > ~/.kube/config_user
+
+        TLS_NAME={{inputs.parameters.service_cert_secret_name}}
+        kubectl get secret -n istio-system ${TLS_NAME} -o yaml | sed 's/namespace: .*/namespace: istio-system/' > /tmp/tls.yaml
+        kubectl --kubeconfig ~/.kube/config_user apply -f /tmp/tls.yaml
+        kubectl get secret -n istio-system ${TLS_NAME} -o yaml | sed 's/namespace: .*/namespace: taco-system/' > /tmp/tls.yaml
+        kubectl --kubeconfig ~/.kube/config_user apply -f /tmp/tls.yaml
+
+      env:
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.cluster_id}}"
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
 
   - name: create-realm
     inputs:
@@ -967,6 +990,8 @@ spec:
               - ${HOST}
               secretName: ${SERVICE_CERT_SECRET_NAME}
           EOF
+
+
 
           log "INFO" "ingress: ${INGRESS_NAME} successfully created."
     activeDeadlineSeconds: 900
