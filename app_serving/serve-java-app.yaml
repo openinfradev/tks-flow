@@ -301,6 +301,9 @@ spec:
         app_type={{workflow.parameters.app_type}}
         ## For legacy spring app case ##
         if [[ "$app_type" == "spring" ]]; then
+          # Clone tomcat chart
+          git clone https://github.com/openinfradev/helm-charts.git
+
           cd /apps/app-serve-template
           # replace variable for the tomcat value-override file
           echo "Replacing variables in tomcat chart..." | tee -a $DEPLOY_LOG
@@ -371,8 +374,12 @@ spec:
 
         ## For legacy spring app case ##
         if [[ "$app_type" == "spring" ]]; then
-          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f tomcat-vo.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+          cd /apps/helm-charts/tomcat
+          ## TODO: this might be temporary. Once everything is confirmed,
+          ## the helm chart can be pulled from internal helm repo.
+          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
         else
+          cd /apps/app-serve-template/chart
           helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
         fi
 
