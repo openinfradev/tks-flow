@@ -16,6 +16,9 @@ spec:
     # options: build/deploy/all
     - name: type
       value: "all"
+    # options: spring/springboot
+    - name: app_type
+      value: "spring"
     - name: target_cluster_id
       value: "C011b88fa"
     - name: app_name
@@ -57,6 +60,8 @@ spec:
     # tks_info service URL
     - name: tks_info_host
       value: "tks-info.tks"
+    - name: git_repo_url
+      value: "github.com/openinfradev"
 
   templates:
   - name: exit-handler
@@ -218,26 +223,24 @@ spec:
 
         echo "Fetching app artifact.." | tee -a $BUILD_LOG
 
-        # TODO: How to pass auth info here?
         artifact_url="{{workflow.parameters.artifact_url}}"
         curl -L -O $artifact_url 2> >(tee -a $BUILD_LOG >&2)
+        artifact=${artifact_url##*\/}
 
         # fetch Dockerfile & manifests from git
-        git clone https://github.com/openinfradev/app-serve-template.git
-
-        cp -r ./app-serve-template/Dockerfile .
-        ls -l .
-
-        ###############
-        # Build Image #
-        ###############
+        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
         echo "Composing Dockerfile..." | tee -a $BUILD_LOG
-
-        # Replace port number in Dockerfile
-        artifact=${artifact_url##*\/}
-        sed -i "s/FILENAME/$artifact/g" ./Dockerfile
-        sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile
+        app_type={{workflow.parameters.app_type}}
+        if [[ "$app_type" == "spring" ]]; then
+          cp ./app-serve-template/Dockerfile.spring ./Dockerfile
+          sed -i "s/FILENAME/$artifact/g" ./Dockerfile
+        else
+          cp ./app-serve-template/Dockerfile.springboot ./Dockerfile
+          sed -i "s/FILENAME/$artifact/g" ./Dockerfile
+          sed -i "s/PORTNUM/{{workflow.parameters.port}}/g" ./Dockerfile
+        fi
+        ls -l .
 
         # Debug
         cat Dockerfile | tee -a $BUILD_LOG
@@ -295,30 +298,64 @@ spec:
 
         # fetch manifests from git
         cd /apps
-        git clone https://github.com/openinfradev/app-serve-template.git
+        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
-        # new logic for helm chart
-        cd /apps/app-serve-template/chart
+        app_type={{workflow.parameters.app_type}}
+        ## For legacy spring app case ##
+        if [[ "$app_type" == "spring" ]]; then
+          # Clone tomcat chart
+          git clone https://{{workflow.parameters.git_repo_url}}/helm-charts.git
 
-        # replace variable for the app
-        echo "Replacing variables in helm chart..." | tee -a $DEPLOY_LOG
-        image_name="{{workflow.parameters.image_url}}"
-        sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./values.yaml
-        sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./values.yaml
-        sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./values.yaml ./Chart.yaml
-        sed -i "s#IMAGE_URL#${image_name}#g" ./values.yaml
-        sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./values.yaml
-        sed -i "s/PV_ENABLED/{{workflow.parameters.pv_enabled}}/g" ./values.yaml
-        sed -i "s/PV_STORAGE_CLASS/{{workflow.parameters.pv_storage_class}}/g" ./values.yaml
-        sed -i "s/PV_ACCESS_MODE/{{workflow.parameters.pv_access_mode}}/g" ./values.yaml
-        sed -i "s/PV_SIZE/{{workflow.parameters.pv_size}}/g" ./values.yaml
-        sed -i "s#PV_MOUNT_PATH#{{workflow.parameters.pv_mount_path}}#g" ./values.yaml
+          cd /apps/app-serve-template
+          # replace variable for the tomcat value-override file
+          echo "Replacing variables in tomcat chart..." | tee -a $DEPLOY_LOG
+          image_name="{{workflow.parameters.image_url}}"
+          registry=$(echo $image_name | awk -F/ '{ print $1 }')
+          image_tag=$(echo $image_name | awk -F: '{ print $2 }')
 
-        # TODO: parse image tag and use it as APP_VERSION in Chart.yaml?
-        #
+          # extract repository part using param expansion
+          temp1="${image_name%:*}"
+          repository="${temp1#*/}"
 
-        # Debug
-        cat values.yaml
+          sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./tomcat-vo.yaml
+          sed -i "s#REGISTRY#${registry}#g" ./tomcat-vo.yaml
+          sed -i "s#REPOSITORY#${repository}#g" ./tomcat-vo.yaml
+          sed -i "s/TAG/${image_tag}/g" ./tomcat-vo.yaml
+          sed -i "s/PV_ENABLED/{{workflow.parameters.pv_enabled}}/g" ./tomcat-vo.yaml
+          sed -i "s/PV_STORAGE_CLASS/{{workflow.parameters.pv_storage_class}}/g" ./tomcat-vo.yaml
+          sed -i "s/PV_ACCESS_MODE/{{workflow.parameters.pv_access_mode}}/g" ./tomcat-vo.yaml
+          sed -i "s/PV_SIZE/{{workflow.parameters.pv_size}}/g" ./tomcat-vo.yaml
+          ## Currently, tomcat chart doesn't allow mount path override of default PVC.
+          ## To override the path, extra PVC needs to be created.
+          #sed -i "s#PV_MOUNT_PATH#{{workflow.parameters.pv_mount_path}}#g" ./tomcat-vo.yaml
+          # Debug
+          cat tomcat-vo.yaml
+
+        ## For springboot app case ##
+        else
+          # new logic for helm chart
+          cd /apps/app-serve-template/chart
+
+          # replace variable for the app
+          echo "Replacing variables in helm chart..." | tee -a $DEPLOY_LOG
+          image_name="{{workflow.parameters.image_url}}"
+          sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./values.yaml
+          sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./values.yaml
+          sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./values.yaml ./Chart.yaml
+          sed -i "s#IMAGE_URL#${image_name}#g" ./values.yaml
+          sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./values.yaml
+          sed -i "s/PV_ENABLED/{{workflow.parameters.pv_enabled}}/g" ./values.yaml
+          sed -i "s/PV_STORAGE_CLASS/{{workflow.parameters.pv_storage_class}}/g" ./values.yaml
+          sed -i "s/PV_ACCESS_MODE/{{workflow.parameters.pv_access_mode}}/g" ./values.yaml
+          sed -i "s/PV_SIZE/{{workflow.parameters.pv_size}}/g" ./values.yaml
+          sed -i "s#PV_MOUNT_PATH#{{workflow.parameters.pv_mount_path}}#g" ./values.yaml
+
+          # TODO: parse image tag and use it as APP_VERSION in Chart.yaml?
+          #
+
+          # Debug
+          cat values.yaml
+        fi
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $DEPLOY_LOG
@@ -336,7 +373,17 @@ spec:
         echo "Starting deployment..." | tee -a $DEPLOY_LOG
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
         kubectl create ns {{workflow.parameters.namespace}} || true
-        helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+
+        ## For legacy spring app case ##
+        if [[ "$app_type" == "spring" ]]; then
+          cd /apps/helm-charts/tomcat
+          ## TODO: this might be temporary. Once everything is confirmed,
+          ## the helm chart can be pulled from internal helm repo.
+          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+        else
+          cd /apps/app-serve-template/chart
+          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+        fi
 
         # Just make sure helm release is deployed before status cmd
         sleep 1
@@ -358,6 +405,8 @@ spec:
         echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
 
         kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
+
+        echo "Deployment status has changed to 'Available'. Checking replicas.." | tee -a $DEPLOY_LOG
 
         # Check num of replicas
         ready=false
@@ -396,7 +445,6 @@ spec:
 
         # Writing endpoint to file
         kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
-        echo ":{{workflow.parameters.port}}" >> /mnt/out/endpoint
 
   - name: parse-failed-step
     volumes:
