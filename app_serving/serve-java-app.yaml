@@ -60,6 +60,8 @@ spec:
     # tks_info service URL
     - name: tks_info_host
       value: "tks-info.tks"
+    - name: git_repo_url
+      value: "github.com/openinfradev"
 
   templates:
   - name: exit-handler
@@ -226,7 +228,7 @@ spec:
         artifact=${artifact_url##*\/}
 
         # fetch Dockerfile & manifests from git
-        git clone https://github.com/openinfradev/app-serve-template.git
+        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
         echo "Composing Dockerfile..." | tee -a $BUILD_LOG
         app_type={{workflow.parameters.app_type}}
@@ -296,13 +298,13 @@ spec:
 
         # fetch manifests from git
         cd /apps
-        git clone https://github.com/openinfradev/app-serve-template.git
+        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
         app_type={{workflow.parameters.app_type}}
         ## For legacy spring app case ##
         if [[ "$app_type" == "spring" ]]; then
           # Clone tomcat chart
-          git clone https://github.com/openinfradev/helm-charts.git
+          git clone https://{{workflow.parameters.git_repo_url}}/helm-charts.git
 
           cd /apps/app-serve-template
           # replace variable for the tomcat value-override file
