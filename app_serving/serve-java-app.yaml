@@ -223,7 +223,8 @@ spec:
         curl -L -O $artifact_url 2> >(tee -a $BUILD_LOG >&2)
 
         # fetch Dockerfile & manifests from git
-        git clone https://github.com/openinfradev/app-serve-template.git
+        # NOTE: this is temporary hotfix for tks FT (diverged from main)
+        git clone -b ft --single-branch https://github.com/openinfradev/app-serve-template.git
 
         cp -r ./app-serve-template/Dockerfile .
         ls -l .
@@ -295,7 +296,8 @@ spec:
 
         # fetch manifests from git
         cd /apps
-        git clone https://github.com/openinfradev/app-serve-template.git
+        # NOTE: this is temporary hotfix for tks FT (diverged from main)
+        git clone -b ft --single-branch https://github.com/openinfradev/app-serve-template.git
 
         # new logic for helm chart
         cd /apps/app-serve-template/chart
