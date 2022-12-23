@@ -43,6 +43,10 @@ spec:
       value: "FILE_PATH_IN_THE_IMAGE"
     - name: profile
       value: "default"
+    - name: app_config
+      value: ""
+    - name: app_secret
+      value: ""
     # resource_spec: possible values are tiny, medium, large
     - name: resource_spec
       value: "medium"
@@ -296,6 +300,11 @@ spec:
         DEPLOY_LOG='/mnt/out/deploy_output.log'
         mkdir -p /apps/
 
+        # temporary debug
+        echo "===== Application Config =====\n"
+        echo "{{workflow.parameters.app_config}}"
+        echo "==============================\n"
+
         # fetch manifests from git
         cd /apps
         git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
@@ -350,10 +359,32 @@ spec:
           sed -i "s/PV_SIZE/{{workflow.parameters.pv_size}}/g" ./values.yaml
           sed -i "s#PV_MOUNT_PATH#{{workflow.parameters.pv_mount_path}}#g" ./values.yaml
 
+          # write app_config to file that is embedded into configmap by helm chart later
+          # the filename must be same as the one in the configmap.
+          if [[ -n "{{workflow.parameters.app_config}}" ]]; then
+            app_conf="{{workflow.parameters.app_config}}"
+            echo "$app_conf" > config_content.yaml
+
+            sed -i "s/CONFIGMAP_ENABLED/true/g" ./values.yaml
+          else
+            sed -i "s/CONFIGMAP_ENABLED/false/g" ./values.yaml
+          fi
+
+          # write secret content to file that is embedded into secret by helm chart later
+          if [[ -n "{{workflow.parameters.app_secret}}" ]]; then
+            app_secret="{{workflow.parameters.app_secret}}"
+            echo "$app_secret" > secret_content
+
+            sed -i "s/SECRET_ENABLED/true/g" ./values.yaml
+          else
+            sed -i "s/SECRET_ENABLED/false/g" ./values.yaml
+          fi
+
           # TODO: parse image tag and use it as APP_VERSION in Chart.yaml?
           #
 
           # Debug
+          echo "===== values ====="
           cat values.yaml
         fi
 
@@ -382,6 +413,7 @@ spec:
           helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
         else
           cd /apps/app-serve-template/chart
+          helm template test . --debug
           helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
         fi
 
