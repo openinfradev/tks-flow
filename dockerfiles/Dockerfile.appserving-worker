@@ -2,7 +2,7 @@ FROM docker:20.10.16-git
 
 MAINTAINER Cloud Co, SK Telecom
 
-ENV HELM_VER v3.9.4
+ENV HELM_VER v3.10.1
 
 USER root
 
