@@ -159,13 +159,6 @@ spec:
                   "namespace": "kube-system",
                   "target_cluster": ""
                 }
-                # 23.01.03. temporary fix
-                #{
-                #  "app_group": "tks-cluster",
-                #  "path": "kubed",
-                #  "namespace": "taco-system",
-                #  "target_cluster": ""
-                #}
               ]
 
     - - name: install-addons-aws
