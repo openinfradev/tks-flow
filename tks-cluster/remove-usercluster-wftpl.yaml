@@ -79,14 +79,14 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-metrics-server"
 
-    - - name: deleteKubedApp
-        templateRef:
-          name: delete-apps
-          template: DeleteAppsByName
-        arguments:
-          parameters:
-            - name: app_name
-              value: "{{workflow.parameters.app_prefix}}-kubed"
+    #- - name: deleteKubedApp
+    #    templateRef:
+    #      name: delete-apps
+    #    template: DeleteAppsByName
+    #    arguments:
+    #      parameters:
+    #        - name: app_name
+    #          value: "{{workflow.parameters.app_prefix}}-kubed"
 
     - - name: cleanupPVCs
         template: cleanupPVCs
