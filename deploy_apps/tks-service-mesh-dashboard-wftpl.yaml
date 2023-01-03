@@ -32,7 +32,7 @@ spec:
       secretName: tks-admin-kubeconfig-secret
   - name: awsconfig-route53
     secret:
-      secretName: awsconfig-route53-secret
+      secretName: awsconfig-secret
 
   templates:
   #=========================================================
