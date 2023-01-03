@@ -69,7 +69,7 @@ spec:
 
           INFRA_SPEC="{{inputs.parameters.infra_spec}}"
           if [ "$INFRA_SPEC" = "TINY" ]; then
-            tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" --machine-replicas 2 --num-of-az 1 --machine-type t3.large
+            tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" --machine-replicas 1 --num-of-az 1 --machine-type t3.large
           else
             tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
           fi
