@@ -23,7 +23,7 @@ spec:
       - name: endpoint
       - name: helm_revision
     script:
-      image: sktdev/python-centos-wf-worker:v1.0
+      image: sktcloud/python-centos-wf-worker:v2.0
       command: ["python"]
       env:
       - name: PYTHONPATH
