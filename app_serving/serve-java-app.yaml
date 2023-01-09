@@ -68,6 +68,8 @@ spec:
       value: "tks-info.tks"
     - name: git_repo_url
       value: "github.com/openinfradev"
+    - name: harbor_pw_secret
+      value: "harbor-core"
 
   templates:
   - name: exit-handler
@@ -262,7 +264,7 @@ spec:
         docker build --network host -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
         # Get harbor admin password from secret
-        harbor_password=$(kubectl get secret -n harbor harbor-core -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
+        harbor_password=$(kubectl get secret -n harbor {{workflow.parameters.harbor_pw_secret}} -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
 
         # Extract registry URL from image URL
         registry_url=$(echo $image_name | awk -F/ '{ print $1 }')
@@ -372,10 +374,10 @@ spec:
             sed -i "s/CONFIGMAP_ENABLED/false/g" ./values.yaml
           fi
 
-          # write secret content to file that is embedded into secret by helm chart later
+          # write secret data to file that is embedded into secret by helm chart later
           if [[ -n "{{workflow.parameters.app_secret}}" ]]; then
             app_secret="{{workflow.parameters.app_secret}}"
-            echo "$app_secret" > secret_content
+            echo "$app_secret" > secret_data
 
             sed -i "s/SECRET_ENABLED/true/g" ./values.yaml
           else
