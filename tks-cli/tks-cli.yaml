@@ -44,6 +44,54 @@ spec:
           default: "Something wrong"
           path: /mnt/out/tks-client.yaml
 
+  - name: create-contract
+    inputs:
+      parameters:
+      - name: tks_client_conf
+      - name: contract_name
+      - name: creator
+      - name: description
+    container:
+      name: create-contract
+      image: sktcloud/tks-e2e-test:v2.0.2
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+
+          CT_NAME="{{inputs.parameters.contract_name}}"
+          echo "* Create $CT_NAME contract"
+
+          OUTPUT=$(tksadmin contract create ${CT_NAME} --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" | grep csp_id)
+          if [ "$OUTPUT" = "" ]; then
+            exit 1
+          fi
+
+          CSP_ID=$(echo $OUTPUT | cut -d'"' -f2)
+          CT_ID=$(echo $OUTPUT | cut -d'"' -f4)
+
+          sleep 1m
+
+          echo $CSP_ID | tee /mnt/out/csp_id.txt
+          echo $CT_ID | tee /mnt/out/contract_id.txt
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: csp-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/csp_id.txt
+      - name: contract-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/contract_id.txt
+
   - name: create-usercluster
     inputs:
       parameters:
