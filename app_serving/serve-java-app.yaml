@@ -12,10 +12,18 @@ spec:
       name: tks-proto
   arguments:
     parameters:
+    ##############
     # Param "type"
     # options: build/deploy/all
     - name: type
       value: "all"
+    ##################
+    # Param "strategy"
+    # options: rolling-update/blue-green/canary
+    - name: strategy
+      value: "rolling-update"
+    ##################
+    # Param "app_type"
     # options: spring/springboot
     - name: app_type
       value: "spring"
@@ -289,6 +297,9 @@ spec:
       - name: endpoint
         valueFrom:
           path: /mnt/out/endpoint
+      - name: preview_endpoint
+        valueFrom:
+          path: /mnt/out/preview_endpoint
       - name: revision
         valueFrom:
           path: /mnt/out/revision
@@ -313,6 +324,9 @@ spec:
         cd /apps
         git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
+        ##################
+        # Replace values #
+        ##################
         app_type={{workflow.parameters.app_type}}
         ## For legacy spring app case ##
         if [[ "$app_type" == "spring" ]]; then
@@ -346,7 +360,6 @@ spec:
 
         ## For springboot app case ##
         else
-          # new logic for helm chart
           cd /apps/app-serve-template/chart
 
           # replace variable for the app
@@ -409,9 +422,46 @@ spec:
         chmod 0600 /etc/kubeconfig_temp
         export KUBECONFIG='/etc/kubeconfig_temp'
 
-        # Deploy
+        ###############
+        # Deploy apps #
+        ###############
         echo "Starting deployment..." | tee -a $DEPLOY_LOG
-        # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
+
+        strategy={{workflow.parameters.strategy}}
+        # For blue-green case, deploy rollout and preview service #
+        if [[ "$strategy" == "blue-green" ]]; then
+          echo "Deploying rollout resources..." | tee -a $DEPLOY_LOG
+
+          cd /apps/app-serve-template/canary-manifests
+          sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./rollout.yaml
+          sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./rollout.yaml
+          kubectl apply -f ./rollout.yaml -n {{workflow.parameters.namespace}}
+
+          # check if rollout is ready
+          app_name={{workflow.parameters.app_name}}
+          rollout_ready=false
+          for i in `seq 1 10`
+          do
+            phase=$(kubectl get rollout rollout-${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
+            ro_stat=$(kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s || true)
+
+            if [ "$phase" == "Healthy" ] && [ "$ro_stat" == "Healthy" ]; then
+              echo "Rollout is ready." | tee -a $DEPLOY_LOG
+              rollout_ready=true
+              break
+            else
+              echo "Waiting for rollout to be ready.. sleeping 3 secs.."
+              sleep 3
+            fi
+          done
+
+          if [ "$rollout_ready" = false ]; then
+            echo "Timed out waiting for rollout to be ready.." | tee -a $DEPLOY_LOG
+            exit 1
+          fi
+        fi  # End of blue-green block
+
+        # To make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
         kubectl create ns {{workflow.parameters.namespace}} || true
 
         ## For legacy spring app case ##
@@ -470,18 +520,46 @@ spec:
             break
           fi
           sleep $SLEEP_INTERVAL
-        done
-        # End of for loop #
+        done  # End of FOR loop #
 
         if [ "$ready" = false ]; then
           echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
           exit 1
         fi
 
-        # Temporary output until app-serving service is implemented
-        # This msg will be sent to CLI by app-serviing service.
-        echo "The app <{{workflow.parameters.app_name}}> has been deployed."
+        ## For blue-green case, check if rollout is completed ##
+        if [[ "$strategy" == "blue-green" ]]; then
+          rollout_finished=false
+          for i in `seq 1 10`
+          do
+            # Check if rollout is completed
+            if (kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | grep Paused); then
+              echo "Rollout is completed. Waiting for user's approval.." | tee -a $DEPLOY_LOG
+              rollout_finished=true
+              break
+            else
+              echo "Waiting for rollout to be finished.. sleeping 3 secs.."
+              sleep 3
+            fi
+          done
 
+          if [ "$rollout_finished" = false ]; then
+            echo "Timed out waiting for rollout to be completed.." | tee -a $DEPLOY_LOG
+            exit 1
+          fi
+
+          # Wait 5 secs for the endpoint to be ready
+          sleep 5
+
+          # Writing preview-svc endpoint to file
+          kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
+        else
+          ## For rolling-update ##
+          # Prevent output param from being null
+          echo "N/A" > /mnt/out/preview_endpoint
+        fi
+
+        # Wait 5 secs for the endpoint to be ready
         # TODO: fix this temp sleep cmd to busy-wait loop
         sleep 5
 
