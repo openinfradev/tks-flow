@@ -196,6 +196,8 @@ spec:
             value: "{{workflow.parameters.asa_task_id}}"
           - name: endpoint
             value: "{{steps.deploy-app.outputs.parameters.endpoint}}"
+          - name: preview_endpoint
+            value: "{{steps.deploy-app.outputs.parameters.preview_endpoint}}"
           - name: helm_revision
             value: "{{steps.deploy-app.outputs.parameters.revision}}"
 
