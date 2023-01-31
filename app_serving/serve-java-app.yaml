@@ -180,7 +180,7 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "DEPLOY_SUCCESS"
+            value: "{{steps.deploy-app.outputs.parameters.status}}"
           - name: output
             value: "{{steps.deploy-app.outputs.parameters.deploy_output}}"
     - - name: update-endpoint-url
@@ -305,6 +305,9 @@ spec:
       - name: revision
         valueFrom:
           path: /mnt/out/revision
+      - name: status
+        valueFrom:
+          path: /mnt/out/deploy_status
     container:
       image: sktcloud/appserving-worker:latest
       volumeMounts:
@@ -555,10 +558,16 @@ spec:
 
           # Writing preview-svc endpoint to file
           kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
+
+          # Write deployment status to file for next step
+          echo "WAIT_FOR_PROMOTE" > /mnt/out/deploy_status
         else
           ## For rolling-update ##
           # Prevent output param from being null
           echo "N/A" > /mnt/out/preview_endpoint
+
+          # Write deployment status to file for next step
+          echo "DEPLOY_SUCCESS" > /mnt/out/deploy_status
         fi
 
         # Wait 5 secs for the endpoint to be ready
