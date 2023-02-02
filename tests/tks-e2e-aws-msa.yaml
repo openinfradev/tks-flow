@@ -22,14 +22,28 @@ spec:
         templateRef:
           name: tks-cli
           template: create-tks-client-conf
-    - - name: call-get-cluster-name
+    - - name: call-generate-names
         templateRef:
           name: tks-e2e-test-common
-          template: get-cluster-name
+          template: generate-names
         arguments:
           parameters:
           - name: postfix
-            value: "aws-msa"
+            value: "aws"          
+    - - name: call-create-contract
+        templateRef:
+          name: tks-cli
+          template: create-contract
+        arguments:
+          parameters:
+          - name: tks_client_conf
+            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+          - name: contract_name
+            value: "{{steps.call-generate-names.outputs.parameters.contract-name}}"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"
     - - name: call-create-usercluster
         templateRef:
           name: tks-cli
@@ -39,13 +53,13 @@ spec:
           - name: tks_client_conf
             value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_name
-            value: "{{steps.call-get-cluster-name.outputs.parameters.cluster-name}}"
+            value: "{{steps.call-generate-names.outputs.parameters.cluster-name}}"
           - name: template_name
             value: "aws-msa-reference"
-          - name: contract_id
-            value: "{{workflow.parameters.contract_id}}"
+          - name: contract_id 
+            value: "{{steps.call-create-contract.outputs.parameters.contract-id}}"
           - name: csp_id
-            value: "{{workflow.parameters.csp_id}}"
+            value: "{{steps.call-create-contract.outputs.parameters.csp-id}}"
           - name: creator
             value: ""
           - name: description
@@ -223,7 +237,7 @@ spec:
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: contract_id
-            value: "{{workflow.parameters.contract_id}}"            
+            value: "{{steps.call-create-contract.outputs.parameters.contract-id}}"
     # TODO: cleaup remaining AWS resources
 
   - name: notify-slack
