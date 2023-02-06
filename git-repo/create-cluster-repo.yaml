@@ -120,7 +120,7 @@ spec:
 
       envFrom:
         - secretRef:
-            name: "github-tks-mgmt-token"
+            name: "git-svc-token"
       env:
       - name: CONTRACT_ID
         value: "{{workflow.parameters.contract_id}}"
@@ -161,7 +161,7 @@ spec:
         ./argocd repo add https://github.com/${USERNAME}/${CLUSTER_ID}-manifests --username ${USERNAME} --password ${TOKEN}
       envFrom:
         - secretRef:
-            name: "github-tks-mgmt-token"
+            name: "git-svc-token"
         - secretRef:
             name: "decapod-argocd-config"
       env:
