@@ -201,7 +201,7 @@ spec:
 
       envFrom:
       - secretRef:
-          name: "github-tks-mgmt-token"
+          name: "git-svc-token"
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2

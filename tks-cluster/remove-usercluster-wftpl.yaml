@@ -164,7 +164,7 @@ spec:
         echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
       envFrom:
         - secretRef:
-            name: "github-tks-mgmt-token"
+            name: "git-svc-token"
       env:
       - name: CLUSTER_ID
         value: "{{inputs.parameters.cluster_id}}"

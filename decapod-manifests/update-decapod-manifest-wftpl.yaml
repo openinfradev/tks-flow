@@ -32,7 +32,7 @@ spec:
       command: ["python"]
       envFrom:
         - secretRef:
-            name: "github-tks-mgmt-token"
+            name: "git-svc-token"
       source: |
         import sys
         import argparse
