@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-gitea-sync-mirror
+  namespace: argo
+spec:
+  entrypoint: sync-mirror
+  arguments:
+    parameters:
+    - name: gitea_url
+      value: "http://gitea-http.gitea.svc:3000"
+    - name: target_repos
+      value: "decapod-base-yaml decapod-site"
+
+  templates:
+  - name: sync-mirror
+    activeDeadlineSeconds: 300
+    container:
+      name: 'curl'
+      image: curlimages/curl:latest
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/sh
+      - -ecx
+      - |
+
+        for repo in $TARGET_REPOS;do
+        echo "===== $repo"
+        curl -X 'POST' \
+        $GITEA_URL'/api/v1/repos/'$USER'/'$repo'/mirror-sync?token='$TOKEN \
+        -H 'accept: application/json' \
+        -d ''
+        done
+
+      envFrom:
+        - secretRef:
+            name: "git-svc-token"
+      env:
+      - name: GITEA_URL
+        value: "{{workflow.parameters.gitea_url}}"
+      - name: TARGET_REPOS
+        value: "{{workflow.parameters.target_repos}}"
