@@ -228,21 +228,21 @@ spec:
 
           case $INFRA_PROVIDER in
             aws)
-              echo "Wait for machinepoool $1-$2-mp-0 generated"
-              while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 --ignore-not-found | wc -l) == 0 ]
+              echo "Wait for machinepool $CLUSTER_ID-mp-$TKS_NODE_NAME generated"
+              while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME --ignore-not-found | wc -l) == 0 ]
               do
                 echo "Wait for machinepools deployed (1s)"
                 sleep 1
               done
 
-              desired_replicas=$(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.spec.replicas}' )
-              while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.status.nodeRefs}' | jq '.[].uid' | wc -l) != $desired_replicas ]
+              desired_replicas=$(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.spec.replicas}' )
+              while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.status.nodeRefs}' | jq '.[].uid' | wc -l) != $desired_replicas ]
               do
                 echo "Wait for instance is ready (1s)"
                 sleep 1
               done
 
-              for node in $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-$TKS_NODE_NAME-mp-0 -o=jsonpath='{.status.nodeRefs}'| jq -r '.[].name')
+              for node in $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.status.nodeRefs}'| jq -r '.[].name')
               do
                 kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
               done
