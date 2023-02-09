@@ -1,0 +1,197 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: abort-java-app
+  namespace: argo
+spec:
+  entrypoint: main
+  onExit: exit-handler
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+  arguments:
+    parameters:
+    - name: target_cluster_id
+      value: "C011b88fa"
+    - name: app_name
+      value: "sample-petclinic"
+    - name: namespace
+      value: "{{workflow.parameters.app_name}}"
+    - name: asa_id
+      value: ""
+    - name: asa_task_id
+      value: ""
+    # tks_info service URL
+    - name: tks_info_host
+      value: "tks-info.tks"
+
+  templates:
+  - name: exit-handler
+    steps:
+    - - name: notify-abort-failure
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "ABORT_FAILED"
+          - name: output
+            value: "{{workflow.outputs.parameters.abort_output_global}}"
+        when: "{{workflow.status}} != Succeeded"
+
+  - name: main
+    steps:
+    - - name: abort-app
+        template: abort-app
+    - - name: notify-abort-success
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "{{steps.abort-app.outputs.parameters.status}}"
+          - name: output
+            value: "{{steps.abort-app.outputs.parameters.abort_output}}"
+
+  #######################
+  # Template Definition #
+  #######################
+
+  - name: abort-app
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: abort_output
+        valueFrom:
+          path: /mnt/out/abort_output.log
+        globalName: abort_output_global
+      - name: endpoint
+        valueFrom:
+          path: /mnt/out/endpoint
+      - name: status
+        valueFrom:
+          path: /mnt/out/abort_status
+    container:
+      image: sktcloud/appserving-worker:latest
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      command:
+      - /bin/sh
+      - '-exc'
+      - |
+        ABORT_LOG='/mnt/out/abort_output.log'
+        #####mkdir -p /apps/
+
+        app_name={{workflow.parameters.app_name}}
+
+        # Prepare kubeconfig
+        echo "Preparing kubeconfig for target cluster..." | tee -a $ABORT_LOG
+        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        if [[ -z "$KUBECONFIG_" ]]; then
+          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster_id}}" | tee -a $ABORT_LOG
+          exit 1
+        fi
+
+        echo "$KUBECONFIG_" > /etc/kubeconfig_temp
+        chmod 0600 /etc/kubeconfig_temp
+        export KUBECONFIG='/etc/kubeconfig_temp'
+
+        ###################
+        # Abort(undo) app #
+        ###################
+        echo "Starting abort process..." | tee -a $ABORT_LOG
+
+        # Check if rollout is waiting for promotion
+        if (kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | grep Paused); then
+          echo "Rollout is in Paused state. Starting abort process.." | tee -a $ABORT_LOG
+        else
+          echo "Error: Rollout is NOT in Paused state. Exiting.." | tee -a $ABORT_LOG
+          exit 1
+        fi
+
+        # Perform abort(undo)
+        kubectl argo rollouts undo rollout-${app_name} -n {{workflow.parameters.namespace}}
+
+        # check if abort is completed
+        abort_done=false
+        for i in `seq 1 10`
+        do
+          phase=$(kubectl get rollout rollout-${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
+          ro_stat=$(kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s || true)
+
+          if [ "$phase" == "Healthy" ] && [ "$ro_stat" == "Healthy" ]; then
+            echo "'Abort' request completed successfully." | tee -a $ABORT_LOG
+            abort_done=true
+            break
+          else
+            echo "Waiting for 'abort' to be done.. sleeping 3 secs.."
+            sleep 3
+          fi
+        done
+
+        if [ "$abort_done" = false ]; then
+          echo "Timed out waiting for 'abort' to be done.." | tee -a $ABORT_LOG
+          exit 1
+        fi
+
+        # Cleanup rollout resources
+        kubectl delete rollout rollout-${app_name} -n {{workflow.parameters.namespace}}
+        kubectl delete svc ${app_name}-preview -n {{workflow.parameters.namespace}}
+
+        # Temporary debug
+        sleep 3
+        kubectl get all -n {{workflow.parameters.namespace}}
+
+        # Wait for deployment to be ready
+        echo "Waiting for the deployment to be finished..." | tee -a $ABORT_LOG
+
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $ABORT_LOG >&2)
+
+        echo "Deployment status is 'Available'. Checking replicas.." | tee -a $ABORT_LOG
+
+        # Check num of replicas
+        ready=false
+        SLEEP_INTERVAL=5
+        for i in `seq 1 15`
+        do
+          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
+          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
+
+          if [ -z "$replicas" ]; then
+            echo "Failed to get number of replicas. Exiting workflow.." | tee -a $ABORT_LOG
+            exit 1
+          fi
+
+          # check if replicas == availableReplicas
+          if [ "$replicas" == "$available_repls" ]; then
+            echo "All replicas are available. Deployment is successful!" | tee -a $ABORT_LOG
+            ready=true
+            break
+          fi
+          sleep $SLEEP_INTERVAL
+        done  # End of FOR loop #
+
+        if [ "$ready" = false ]; then
+          echo "Timed out waiting for deployment to be done.." | tee -a $ABORT_LOG
+          exit 1
+        fi
+
+        # Write deployment status to file for next step
+        echo "ABORT_SUCCESS" > /mnt/out/abort_status
+
+        # Wait 5 secs for the endpoint to be ready
+        # TODO: fix this temp sleep cmd to busy-wait loop
+        sleep 5
+
+        # Writing endpoint to file
+        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
