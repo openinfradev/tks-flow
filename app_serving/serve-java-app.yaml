@@ -120,10 +120,10 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "{{workflow.outputs.parameters.deploy_status_global}}"
+            value: "BLUEGREEN_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.deploy_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app' && '{{workflow.outputs.parameters.deploy_status_global}}' != ''"
+        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app' && '{{workflow.parameters.strategy}}' == 'blue-green'"
     - - name: notify-deploy-failure
         templateRef:
           name: update-tks-asa-status
@@ -136,7 +136,7 @@ spec:
             value: "DEPLOY_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.deploy_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app'"
+        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app' && '{{workflow.parameters.strategy}}' != 'blue-green'"
 
   - name: main
     steps:
@@ -323,7 +323,6 @@ spec:
       - name: status
         valueFrom:
           path: /mnt/out/deploy_status
-        globalName: deploy_status_global
     container:
       image: sktcloud/appserving-worker:latest
       volumeMounts:
@@ -545,7 +544,7 @@ spec:
 
         if [ "$ready" = false ]; then
           echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
-          echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
+          #echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
           exit 1
         fi
 
@@ -567,7 +566,7 @@ spec:
 
           if [ "$rollout_finished" = false ]; then
             echo "Timed out waiting for rollout to be completed.." | tee -a $DEPLOY_LOG
-            echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
+            #echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
             exit 1
           fi
 
