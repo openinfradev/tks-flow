@@ -76,6 +76,8 @@ spec:
       value: "tks-info.tks"
     - name: git_repo_url
       value: "github.com/openinfradev"
+    - name: app-serve-template_branch
+      value: "main"
     - name: harbor_pw_secret
       value: "harbor-core"
 
@@ -259,7 +261,7 @@ spec:
         artifact=${artifact_url##*\/}
 
         # fetch Dockerfile & manifests from git
-        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
+        git clone -b {{workflow.parameters.app-serve-template_branch}} --single-branch https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
         echo "Composing Dockerfile..." | tee -a $BUILD_LOG
         app_type={{workflow.parameters.app_type}}
@@ -341,7 +343,7 @@ spec:
 
         # fetch manifests from git
         cd /apps
-        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
+        git clone -b {{workflow.parameters.app-serve-template_branch}} --single-branch https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
         ##################
         # Replace values #
