@@ -90,8 +90,6 @@ spec:
       - '-exc'
       - |
         PROMOTE_LOG='/mnt/out/promote_output.log'
-        #####mkdir -p /apps/
-
         app_name={{workflow.parameters.app_name}}
 
         # Prepare kubeconfig
