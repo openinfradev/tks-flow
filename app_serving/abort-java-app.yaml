@@ -90,9 +90,8 @@ spec:
       - '-exc'
       - |
         ABORT_LOG='/mnt/out/abort_output.log'
-        #####mkdir -p /apps/
-
         app_name={{workflow.parameters.app_name}}
+        ns={{workflow.parameters.namespace}}
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $ABORT_LOG
@@ -112,7 +111,9 @@ spec:
         echo "Starting abort process..." | tee -a $ABORT_LOG
 
         # Check if rollout is waiting for promotion
-        if (kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | grep Paused); then
+        if (kubectl argo rollouts status rollout-${app_name} -n $ns --timeout 2s | grep Paused) ||
+          (kubectl argo rollouts status rollout-${app_name} -n $ns --timeout 2s | grep Degraded)
+        then
           echo "Rollout is in Paused state. Starting abort process.." | tee -a $ABORT_LOG
         else
           echo "Error: Rollout is NOT in Paused state. Exiting.." | tee -a $ABORT_LOG
@@ -120,14 +121,14 @@ spec:
         fi
 
         # Perform abort(undo)
-        kubectl argo rollouts undo rollout-${app_name} -n {{workflow.parameters.namespace}}
+        kubectl argo rollouts undo rollout-${app_name} -n $ns
 
         # check if abort is completed
         abort_done=false
         for i in `seq 1 10`
         do
-          phase=$(kubectl get rollout rollout-${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
-          ro_stat=$(kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s || true)
+          phase=$(kubectl get rollout rollout-${app_name} -n $ns -o jsonpath='{.status.phase}')
+          ro_stat=$(kubectl argo rollouts status rollout-${app_name} -n $ns --timeout 2s || true)
 
           if [ "$phase" == "Healthy" ] && [ "$ro_stat" == "Healthy" ]; then
             echo "'Abort' request completed successfully." | tee -a $ABORT_LOG
