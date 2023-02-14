@@ -103,6 +103,15 @@ spec:
             - name: infra_provider
               value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
 
+    - - name: create-aws-ebs-csi-iam
+        templateRef:
+          name: aws-ebs-csi-iam
+          template: createIAMRole
+        when: >-
+            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            )
+
     - - name: install-cluster-autoscaler-rbac
         templateRef:
           name: create-application

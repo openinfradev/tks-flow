@@ -97,6 +97,15 @@ spec:
           template: DeleteInternalCon
         when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws"
 
+    - - name: delete-aws-ebs-csi-iam
+        templateRef:
+          name: aws-ebs-csi-iam
+          template: deleteIAMRole
+        when: >-
+            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            )
+
     - - name: deleteCsiDriverApp
         templateRef:
           name: delete-apps
