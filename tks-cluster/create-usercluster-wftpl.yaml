@@ -103,6 +103,15 @@ spec:
             - name: infra_provider
               value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
 
+    - - name: create-aws-ebs-csi-iam
+        templateRef:
+          name: aws-ebs-csi-iam
+          template: createIAMRole
+        when: >-
+            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            )
+
     - - name: install-cluster-autoscaler-rbac
         templateRef:
           name: create-application
@@ -177,7 +186,10 @@ spec:
                   "target_cluster": ""
                 }
               ]
-        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
+        when: >-
+            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+            )
 
     - - name: create-internal-communication
         templateRef:
@@ -221,13 +233,27 @@ spec:
           cp /kube/value kubeconfig_adm
           export KUBECONFIG=kubeconfig_adm
 
-          kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID-control-plane
-
-          KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-          cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
-
           case $INFRA_PROVIDER in
             aws)
+              # check whether this workload cluster is managed or not
+              kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | wc -l)
+              awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | wc -l)
+
+              if [ $kcp_count = 1 ]; then
+                kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
+
+                KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+              elif [ $awsmcp_count = 1]; then
+                kubectl wait --for=condition=Available --timeout=600s awsmcp -n $CLUSTER_ID $CLUSTER_ID
+
+                KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+              else
+                echo "Wrong AWS Cluster type!"
+                exit 1
+              fi
+
+              cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
+
               echo "Wait for machinepool $CLUSTER_ID-mp-$TKS_NODE_NAME generated"
               while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME --ignore-not-found | wc -l) == 0 ]
               do
@@ -249,7 +275,10 @@ spec:
               ;;
 
             byoh)
-              echo "BYOH"
+              kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
+
+              KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+              cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
               ;;
 
             *)

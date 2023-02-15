@@ -43,6 +43,11 @@ spec:
         INFRA_PROVIDER="$(cat ${CONTRACT_ID}/$TEMPLATE_NAME/tks-cluster/kustomization.yaml | grep /infra/ | awk -F \/ '{print $3}')"
         echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
 
+        if [ "$INFRA_PROVIDER" = "aws" ]; then
+            eks_enabled=$(cat ${CONTRACT_ID}/$TEMPLATE_NAME/tks-cluster/site-values.yaml  | grep eksEnabled | awk '{print $2}')
+            echo $eks_enabled | tee /mnt/out/managed_cluster.txt
+        fi
+
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
         cp -r ${CONTRACT_ID}/_github ${CLUSTER_ID}/.github
 
@@ -65,6 +70,7 @@ spec:
             sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/clusterRegion:\ CHANGEME/clusterRegion: $val_region/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/awsAccountID:\ CHANGEME/awsAccountID: \"$AWS_ACCOUNT_ID\"/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdNumOfAz:\ CHANGEME/mdNumOfAz: $val_num_of_az/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdMinSizePerAz:\ CHANGEME/mdMinSizePerAz: $val_min_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdMaxSizePerAz:\ CHANGEME/mdMaxSizePerAz: $val_max_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
@@ -121,6 +127,8 @@ spec:
       envFrom:
         - secretRef:
             name: "git-svc-token"
+        - secretRef:
+            name: "aws-account-id"
       env:
       - name: CONTRACT_ID
         value: "{{workflow.parameters.contract_id}}"
@@ -142,6 +150,10 @@ spec:
         valueFrom:
           default: "Something wrong"
           path: /mnt/out/infra_provider.txt
+      - name: managed_cluster
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/managed_cluster.txt
 
   - name: createRepoCredential
     activeDeadlineSeconds: 120

@@ -97,6 +97,15 @@ spec:
           template: DeleteInternalCon
         when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws"
 
+    - - name: delete-aws-ebs-csi-iam
+        templateRef:
+          name: aws-ebs-csi-iam
+          template: deleteIAMRole
+        when: >-
+            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            )
+
     - - name: deleteCsiDriverApp
         templateRef:
           name: delete-apps
@@ -105,7 +114,10 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-aws-ebs-csi-driver"
-        when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws"
+        when: >-
+            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+            )
 
     - - name: deleteCalicoController
         template: deleteCalicoController
@@ -113,6 +125,7 @@ spec:
           parameters:
             - name: target_namespace
               value: "kube-system"
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
 
     - - name: deleteAddonsApp
         templateRef:
