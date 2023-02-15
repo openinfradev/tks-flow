@@ -18,7 +18,9 @@ spec:
     - name: git_base_url
       value: "github.com"
     - name: git_account
-      value: "tks-management"
+      value: "tks"
+    - name: git_org
+      value: "decapod10"
 
   volumes:
   - name: kubeconfig-adm
@@ -44,6 +46,8 @@ spec:
           parameters:
           - name: git_base_url
             value: "{{ workflow.parameters.git_base_url }}"
+          - name: git_org
+            value: "{{ workflow.parameters.git_org }}"
 
     - - name: import-cluster
         template: import-cluster
@@ -53,6 +57,29 @@ spec:
               value: "{{ workflow.parameters.cluster_id }}"
             - name: kubeconfig 
               value: "{{ workflow.parameters.kubeconfig }}"
+
+    - - name: render-manifests
+        templateRef:
+          name: render-manifests
+          template: render-manifests-template
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{ workflow.parameters.cluster_id }}"
+            - name: base_repo_url
+              value: '{{ workflow.parameters.git_base_url }}/{{ workflow.parameters.git_account }}/decapod-base-yaml'
+            - name: base_repo_branch
+              value: main
+            - name: site_repo_url
+              value: '{{ workflow.parameters.git_base_url }}/{{ workflow.parameters.git_org }}/{{ workflow.parameters.cluster_id }}'
+            - name: site_repo_branch
+              value: main
+            - name: manifest_repo_url
+              value: '{{ workflow.parameters.git_base_url }}/{{ workflow.parameters.git_org }}/{{ workflow.parameters.cluster_id }}-manifests'
+            - name: manifest_repo_branch
+              value: main
+            - name: git_repo_type
+              value: gitea
 
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
@@ -70,6 +97,7 @@ spec:
     inputs:
       parameters:
       - name: git_base_url
+      - name: git_org
     container:
       name: 'createClusterRepo'
       image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
@@ -78,13 +106,14 @@ spec:
       - /bin/bash
       - -ecx
       - |
+        echo ${GIT_ORG}
         TOKEN=$(echo -n $TOKEN)
-        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'"}' https://${GIT_BASE_URL}/api/v1/user/repos
-        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'$CLUSTER_ID'-manifests"}' https://${GIT_BASE_URL}/api/v1/user/repos
+        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'"}' https://${GIT_BASE_URL}/api/v1/orgs/${GIT_ORG}/repos
+        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'$CLUSTER_ID'-manifests"}' https://${GIT_BASE_URL}/api/v1/orgs/${GIT_ORG}/repos
 
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${USERNAME}/${CONTRACT_ID}.git
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${USERNAME}/${CLUSTER_ID}.git
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${USERNAME}/${CLUSTER_ID}-manifests.git
+        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CONTRACT_ID}.git
+        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CLUSTER_ID}.git
+        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CLUSTER_ID}-manifests.git
 
         cd ${CONTRACT_ID}
         CONTRACT_COMMIT_ID=$(git rev-parse HEAD)
@@ -124,7 +153,7 @@ spec:
 
       envFrom:
         - secretRef:
-            name: "github-tks-mgmt-token"
+            name: "git-svc-token"
       env:
       - name: CONTRACT_ID
         value: "{{workflow.parameters.contract_id}}"
@@ -134,6 +163,8 @@ spec:
         value: "{{workflow.parameters.template_name}}"
       - name: GIT_BASE_URL
         value: "{{inputs.parameters.git_base_url}}"
+      - name: GIT_ORG
+        value: "{{inputs.parameters.git_org}}"
 
   - name: import-cluster
     inputs:

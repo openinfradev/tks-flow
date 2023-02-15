@@ -172,7 +172,7 @@ spec:
       image: k8s.gcr.io/hyperkube:v1.18.6
       envFrom:
       - secretRef:
-          name: "github-tks-mgmt-token"
+          name: "git-svc-token"
       env:
         - name: TARGET_NAMESPACE
           value: '{{inputs.parameters.target_namespace}}'
@@ -224,7 +224,7 @@ spec:
       - python
       envFrom:
       - secretRef:
-          name: "github-tks-mgmt-token"
+          name: "git-svc-token"
       env:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"

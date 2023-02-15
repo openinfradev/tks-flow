@@ -26,7 +26,7 @@ spec:
         gh repo delete ${USERNAME}/${CLUSTER_ID}-manifests --confirm
       envFrom:
         - secretRef:
-            name: "github-tks-mgmt-token"
+            name: "git-svc-token"
       env:
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
