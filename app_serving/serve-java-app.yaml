@@ -236,7 +236,11 @@ spec:
         artifact=${artifact_url##*\/}
 
         # fetch Dockerfile & manifests from git
-        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
+        # NOTE: this is temporary hotfix for tks FT (diverged from main)
+        git clone -b ft --single-branch https://github.com/openinfradev/app-serve-template.git
+
+        cp -r ./app-serve-template/Dockerfile .
+        ls -l .
 
         echo "Composing Dockerfile..." | tee -a $BUILD_LOG
         app_type={{workflow.parameters.app_type}}
@@ -264,7 +268,7 @@ spec:
         docker build --network host -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
         # Get harbor admin password from secret
-        harbor_password=$(kubectl get secret -n harbor {{workflow.parameters.harbor_pw_secret}} -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
+        harbor_password=Harbor12345
 
         # Extract registry URL from image URL
         registry_url=$(echo $image_name | awk -F/ '{ print $1 }')
@@ -311,7 +315,8 @@ spec:
 
         # fetch manifests from git
         cd /apps
-        git clone https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
+        # NOTE: this is temporary hotfix for tks FT (diverged from main)
+        git clone -b ft --single-branch https://github.com/openinfradev/app-serve-template.git
 
         app_type={{workflow.parameters.app_type}}
         ## For legacy spring app case ##

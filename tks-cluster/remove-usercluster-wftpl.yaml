@@ -82,7 +82,7 @@ spec:
     #- - name: deleteKubedApp
     #    templateRef:
     #      name: delete-apps
-    #    template: DeleteAppsByName
+    #      template: DeleteAppsByName
     #    arguments:
     #      parameters:
     #        - name: app_name

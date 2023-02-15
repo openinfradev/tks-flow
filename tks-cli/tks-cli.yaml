@@ -102,6 +102,7 @@ spec:
       - name: csp_id
       - name: creator
       - name: description
+      - name: infra_spec
     container:
       name: create-usercluster
       image: sktcloud/tks-e2e-test:v2.0.2
@@ -113,7 +114,13 @@ spec:
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
           echo "* Create $CL_NAME cluster"
-          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
+
+          INFRA_SPEC="{{inputs.parameters.infra_spec}}"
+          if [ "$INFRA_SPEC" = "TINY" ]; then
+            tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" --machine-replicas 1 --num-of-az 1 --machine-type t3.large
+          else
+            tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
+          fi
 
           threshold=30
           for i in $(seq 1 $threshold)

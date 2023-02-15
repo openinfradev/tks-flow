@@ -25,10 +25,34 @@ spec:
       value: "Cabbead61"
     - name: app_group_id
       value: "Aabbead61"
+    #===============================
+    # For service-mesh-portal
+    #===============================
+    - name: zone_id
+      value: "Z104697219C1N0592X9B3"
+    - name: service_domain
+      value: "taco-cat.xyz"
+    - name: keycloak_namespace
+      value: "keycloak"
+    - name: keycloak_instance_name
+      value: "tks-keycloak"
+    - name: keycloak_url
+      value: "keycloak-ft.taco-cat.xyz"
+    - name: cluster_domain
+      value: "cluster.local"
+    - name: service_cert_secret_name
+      value: "taco-cat-tls"
+
   volumes:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+  - name: awsconfig-route53
+    secret:
+      secretName: awsconfig-secret
   
   templates:
   #=========================================================
@@ -40,6 +64,10 @@ spec:
         templateRef:
           name: service-mesh
           template: deploy-start
+    - - name: install-portal
+        templateRef:
+          name: tks-service-mesh-dashboard
+          template: deploy-tks-service-dashboard
 
   #=========================================================
   # Template Definition
