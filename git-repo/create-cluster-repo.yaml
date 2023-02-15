@@ -201,3 +201,6 @@ spec:
       - name: infra_provider
         valueFrom:
           parameter: "{{steps.createClusterRepo.outputs.parameters.infra_provider}}"
+      - name: managed_cluster
+        valueFrom:
+          parameter: "{{steps.createClusterRepo.outputs.parameters.managed_cluster}}"
