@@ -12,6 +12,10 @@ RUN apk add --no-cache curl bash
 RUN curl -Lo /usr/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 RUN chmod +x /usr/bin/kubectl
 
+# Install kubectl argo rollout plugin
+RUN curl -Lo /usr/bin/kubectl-argo-rollouts https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+RUN chmod +x /usr/bin/kubectl-argo-rollouts
+
 # Install helm
 RUN curl -Lo helm.tar.gz https://get.helm.sh/helm-$HELM_VER-linux-amd64.tar.gz
 RUN tar xf helm.tar.gz && chmod 0755 ./linux-amd64/helm \

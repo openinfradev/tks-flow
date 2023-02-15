@@ -21,6 +21,7 @@ spec:
       - name: asa_id
       - name: asa_task_id
       - name: endpoint
+      - name: preview_endpoint
       - name: helm_revision
     script:
       image: sktcloud/python-centos-wf-worker:v2.0
@@ -50,5 +51,5 @@ spec:
         with grpc.insecure_channel(addr) as channel:
             asa_stub = info_pb2_grpc.AppServeAppServiceStub(channel)
 
-            res = asa_stub.UpdateAppServeAppEndpoint(info_pb2.UpdateAppServeAppEndpointRequest(app_serve_app_id="{{inputs.parameters.asa_id}}", app_serve_app_task_id="{{inputs.parameters.asa_task_id}}", endpoint="{{inputs.parameters.endpoint}}", helm_revision={{inputs.parameters.helm_revision}}))
+            res = asa_stub.UpdateAppServeAppEndpoint(info_pb2.UpdateAppServeAppEndpointRequest(app_serve_app_id="{{inputs.parameters.asa_id}}", app_serve_app_task_id="{{inputs.parameters.asa_task_id}}", endpoint="{{inputs.parameters.endpoint}}", preview_endpoint="{{inputs.parameters.preview_endpoint}}", helm_revision={{inputs.parameters.helm_revision}}))
             print("Response code from UpdateAppServeAppEndpoint: %d" % res.code)
