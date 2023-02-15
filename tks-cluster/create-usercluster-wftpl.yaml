@@ -225,7 +225,7 @@ spec:
         - name: infra_provider
     container:
       name: cluster-init
-      image: ghcr.io/openinfradev/python_kubectl_argo:v1.1.0
+      image: sktcloud/python_kubectl_argo:ft
       command:
         - /bin/bash
         - '-exc'
