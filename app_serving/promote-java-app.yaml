@@ -59,6 +59,22 @@ spec:
             value: "{{steps.promote-app.outputs.parameters.status}}"
           - name: output
             value: "{{steps.promote-app.outputs.parameters.promote_output}}"
+    - - name: update-endpoint-url
+        templateRef:
+          name: update-tks-asa-endpoint
+          template: updateTksAsaEndpoint
+        arguments:
+          parameters:
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: endpoint
+            value: ""
+          - name: preview_endpoint
+            value: "N/A"
+          - name: helm_revision
+            value: 0
 
   #######################
   # Template Definition #
