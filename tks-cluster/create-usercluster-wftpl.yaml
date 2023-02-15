@@ -243,7 +243,7 @@ spec:
                 kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              elif [ $awsmcp_count = 1]; then
+              elif [ $awsmcp_count = 1 ]; then
                 kubectl wait --for=condition=Available --timeout=600s awsmcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
