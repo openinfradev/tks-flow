@@ -240,11 +240,11 @@ spec:
               awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
 
               if [ $kcp_count = 1 ]; then
-                kubectl wait --for=condition=Available --timeout=1800s kcp -n $CLUSTER_ID $CLUSTER_ID
+                kubectl wait --for=condition=Available --timeout=3600s kcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
               elif [ $awsmcp_count = 1 ]; then
-                kubectl wait --for=condition=Available --timeout=1800s awsmcp -n $CLUSTER_ID $CLUSTER_ID
+                kubectl wait --for=condition=ready --timeout=3600s awsmcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
               else
