@@ -25,6 +25,8 @@ spec:
       value: ""
     - name: infra_spec
       value: "TINY" # TINY, SMALL, MEDIUM, LARGE
+    - name: template_name
+      value: "aws-reference"
 
   templates:
   - name: main
@@ -44,7 +46,7 @@ spec:
           - name: cluster_name
             value: "{{workflow.parameters.cluster_name}}"
           - name: template_name
-            value: "aws-reference"
+            value: "{{workflow.parameters.template_name}}"
           - name: contract_id
             value: "{{workflow.parameters.contract_id}}"
           - name: csp_id
