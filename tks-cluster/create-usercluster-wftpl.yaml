@@ -236,15 +236,15 @@ spec:
           case $INFRA_PROVIDER in
             aws)
               # check whether this workload cluster is managed or not
-              kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | wc -l)
-              awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | wc -l)
+              kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
+              awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
 
               if [ $kcp_count = 1 ]; then
-                kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
+                kubectl wait --for=condition=Available --timeout=3600s kcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              elif [ $awsmcp_count = 1]; then
-                kubectl wait --for=condition=Available --timeout=600s awsmcp -n $CLUSTER_ID $CLUSTER_ID
+              elif [ $awsmcp_count = 1 ]; then
+                kubectl wait --for=condition=ready --timeout=3600s awsmcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
               else
