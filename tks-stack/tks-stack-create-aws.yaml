@@ -23,7 +23,9 @@ spec:
       value: "user-uid"
     - name: description
       value: ""
-
+    - name: template_name
+      value: "aws-reference"
+      
   templates:
   - name: main
     steps:
@@ -42,7 +44,7 @@ spec:
           - name: cluster_name
             value: "{{workflow.parameters.cluster_name}}"
           - name: template_name
-            value: "aws-reference"
+            value: "{{workflow.parameters.template_name}}"
           - name: contract_id
             value: "{{workflow.parameters.contract_id}}"
           - name: csp_id
