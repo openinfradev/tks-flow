@@ -112,7 +112,6 @@ spec:
           HTTP_STRING="http"
         fi
 
-
         # download site-yaml
         git clone -b ${SITE_REPO_BRANCH} $HTTP_STRING://$(echo -n ${GIT_TOKEN})@${SITE_REPO_URL} ${SITE_DIR}
         log $? "INFO" "Fetching ${SITE_REPO_URL} with ${SITE_REPO_BRANCH} branch/tag........."

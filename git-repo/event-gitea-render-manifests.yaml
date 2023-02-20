@@ -1,0 +1,156 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: event-gitea-render-manifests
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: decapod_site_repo
+      value: "org/cluster_id"
+
+  templates:
+  - name: main
+    inputs:
+      parameters:
+      - name: decapod_site_repo
+    steps:
+    - - name: prepare-rendering
+        template: prepare-rendering-template
+        arguments:
+          parameters:
+          - name: decapod_site_repo
+            value: "{{inputs.parameters.decapod_site_repo}}"
+
+    - - name: call-render-manifests
+        templateRef:
+          name: render-manifests
+          template: render-manifests-template
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.prepare-rendering.outputs.parameters.cluster_id}}"
+          - name: base_repo_url
+            value: "{{steps.prepare-rendering.outputs.parameters.base_repo_url}}"
+          - name: base_repo_branch
+            value: "{{steps.prepare-rendering.outputs.parameters.base_repo_branch}}"
+          - name: site_repo_url
+            value: "{{steps.prepare-rendering.outputs.parameters.site_repo_url}}"
+          - name: site_repo_branch
+            value: "{{steps.prepare-rendering.outputs.parameters.site_repo_branch}}"
+          - name: manifest_repo_url
+            value: "{{steps.prepare-rendering.outputs.parameters.manifest_repo_url}}"
+          - name: manifest_repo_branch
+            value: "{{steps.prepare-rendering.outputs.parameters.manifest_repo_branch}}"
+          - name: git_repo_type
+            value: "gitea"
+          - name: https_enabled
+            value: "{{steps.prepare-rendering.outputs.parameters.https_enabled}}"
+
+  - name: prepare-rendering-template
+    volumes:
+      - name: out
+        emptyDir: {}
+    inputs:
+      parameters:
+      - name: decapod_site_repo
+    container:
+      image: docker.io/library/bash:latest
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      command:
+      - /usr/local/bin/bash
+      - '-exc'
+      - |
+        #!/bin/bash
+
+        function log() {
+          level=$2
+          msg=$3
+          date=$(date '+%F %H:%M:%S')
+          if [ $1 -eq 0 ];then
+            echo "[$date] $level     $msg"
+          else
+            level="ERROR"
+            echo "[$date] $level     $msg failed"
+            exit $1
+          fi
+        }
+
+        function write_output() {
+          key=$1
+          value=$2
+
+          echo -n $value > /mnt/out/$key.txt
+        }
+
+        GIT_SVC_HTTP=${GIT_SVC_URL%:*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        if [ "$GIT_SVC_HTTP" = "https" ];then
+            https_enabled="true"
+        else
+            https_enabled="false"
+        fi
+
+        DECAPOD_SITE_REPO={{inputs.parameters.decapod_site_repo}}
+
+        gitea_org=${DECAPOD_SITE_REPO%\/*}
+
+        cluster_id=${DECAPOD_SITE_REPO#*\/}
+        base_repo_url="$GIT_SVC_BASE_URL/$gitea_org/decapod-base-yaml"
+        base_repo_branch="main"
+        site_repo_url="$GIT_SVC_BASE_URL/$gitea_org/$cluster_id"
+        site_repo_branch="main"
+        manifest_repo_url="$GIT_SVC_BASE_URL/$gitea_org/$cluster_id-manifests"
+        manifest_repo_branch="main"
+
+        write_output "cluster_id" $cluster_id
+        write_output "base_repo_url" $base_repo_url
+        write_output "base_repo_branch" $base_repo_branch
+        write_output "site_repo_url" $site_repo_url
+        write_output "site_repo_branch" $site_repo_branch
+        write_output "manifest_repo_url" $manifest_repo_url
+        write_output "manifest_repo_branch" $manifest_repo_branch
+        write_output "https_enabled" $https_enabled
+
+      envFrom:
+        - secretRef:
+            name: "git-svc-token"
+
+    outputs:
+      parameters:
+      - name: cluster_id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/cluster_id.txt
+      - name: base_repo_url
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/base_repo_url.txt
+      - name: base_repo_branch
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/base_repo_branch.txt
+      - name: site_repo_url
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/site_repo_url.txt
+      - name: site_repo_branch
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/site_repo_branch.txt
+      - name: manifest_repo_url
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/manifest_repo_url.txt
+      - name: manifest_repo_branch
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/manifest_repo_branch.txt
+      - name: https_enabled
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/https_enabled.txt
