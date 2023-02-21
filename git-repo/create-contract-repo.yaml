@@ -17,7 +17,7 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: 'createRepo'
-      image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash

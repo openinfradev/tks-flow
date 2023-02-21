@@ -227,7 +227,7 @@ spec:
       emptyDir: {}
     sidecars:
     - name: dind
-      image: docker:20.10.16-dind
+      image: harbor-cicd.taco-cat.xyz/tks/docker:20.10.16-dind
       volumeMounts:
       - mountPath: /var/run
         name: varrun
@@ -241,7 +241,7 @@ spec:
         globalName: build_output_global
     container:
       #TODO: split worker image
-      image: sktcloud/appserving-worker:latest
+      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: varrun
         mountPath: /var/run
@@ -324,7 +324,7 @@ spec:
         valueFrom:
           path: /mnt/out/deploy_status
     container:
-      image: sktcloud/appserving-worker:latest
+      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -604,7 +604,7 @@ spec:
         valueFrom:
           path: /mnt/out/failed_step_name.txt
     script:
-      image: python:alpine3.8
+      image: harbor-cicd.taco-cat.xyz/tks/python:alpine3.8
       volumeMounts:
       - name: out
         mountPath: /mnt/out

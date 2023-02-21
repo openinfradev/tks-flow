@@ -36,7 +36,7 @@ spec:
   - name: CreateInternalCon
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v1.0.0
       command:
       - /bin/bash
       - -exc
@@ -77,7 +77,7 @@ spec:
   - name: DeleteInternalCon
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v1.0.0
       command:
       - /bin/bash
       - -exc
@@ -115,7 +115,7 @@ spec:
   - name: FixResources4Prometheus
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v1.0.0
       command:
       - /bin/bash
       - -exc

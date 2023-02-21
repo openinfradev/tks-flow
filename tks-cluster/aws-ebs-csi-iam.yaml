@@ -19,7 +19,7 @@ spec:
   - name: createIAMRole
     activeDeadlineSeconds: 1800
     container:
-      image: sktcloud/tks-aws:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.0
       command:
       - /bin/bash
       - -exc
@@ -50,7 +50,7 @@ spec:
   - name: deleteIAMRole
     activeDeadlineSeconds: 1800
     container:
-      image: sktcloud/tks-aws:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.0
       command:
       - /bin/bash
       - -exc
