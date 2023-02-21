@@ -331,7 +331,7 @@ spec:
   - name: prepare-cluster-autoscaler
     container:
       name: prepare-cluster-autoscaler
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-exc'
@@ -359,7 +359,7 @@ spec:
   - name: install-volumesnapshot-crds
     container:
       name: install-volumesnapshot-crds
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-exc'

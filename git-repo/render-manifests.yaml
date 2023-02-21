@@ -67,7 +67,7 @@ spec:
       - name: git_repo_type
     container:
       name: render-manifests-template
-      image: sktcloud/decapod-render:v2.1.0
+      image: harbor-cicd.taco-cat.xyz/tks/decapod-render:v2.1.0
       command:
       - /bin/bash
       - '-exc'

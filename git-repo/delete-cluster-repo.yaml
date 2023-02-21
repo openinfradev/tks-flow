@@ -14,7 +14,7 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: 'deleteClusterSite'
-      image: sktcloud/ghcli:2.5.1
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli:2.5.1
       imagePullPolicy: Always
       command:
       - /bin/bash

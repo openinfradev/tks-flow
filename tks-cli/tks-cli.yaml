@@ -17,7 +17,7 @@ spec:
   - name: create-tks-client-conf
     container:
       name: create-tks-client-conf
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
@@ -53,7 +53,7 @@ spec:
       - name: description
     container:
       name: create-contract
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
@@ -104,7 +104,7 @@ spec:
       - name: description
     container:
       name: create-usercluster
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
@@ -154,7 +154,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
@@ -195,7 +195,7 @@ spec:
       - name: description
     container:
       name: create-service
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
@@ -244,7 +244,7 @@ spec:
       - name: svc_id
     container:
       name: create-service
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
@@ -283,7 +283,7 @@ spec:
       - name: service_name
     container:
       name: get-service-id
-      image: sktcloud/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
       command:
         - /bin/bash
         - '-exc'
