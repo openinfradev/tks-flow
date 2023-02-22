@@ -97,7 +97,7 @@ spec:
         valueFrom:
           path: /mnt/out/promote_status
     container:
-      image: sktcloud/appserving-worker:latest
+      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out

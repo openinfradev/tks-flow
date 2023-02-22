@@ -56,7 +56,7 @@ spec:
       parameters:
       - name: decapod_site_repo
     container:
-      image: docker.io/library/bash:latest
+      image: harbor-cicd.taco-cat.xyz/tks/bash:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out
