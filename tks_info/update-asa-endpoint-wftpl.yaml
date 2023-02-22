@@ -24,7 +24,7 @@ spec:
       - name: preview_endpoint
       - name: helm_revision
     script:
-      image: sktcloud/python-centos-wf-worker:v2.0
+      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
       command: ["python"]
       env:
       - name: PYTHONPATH

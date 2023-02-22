@@ -346,7 +346,8 @@ spec:
       - name: zone_id
       - name: service_domain
     container:
-      image: ghcr.io/openinfradev/aws_kubectl:v1.0.0
+      name: configure-route53
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
       - /bin/bash
       - -exc
@@ -418,7 +419,7 @@ spec:
       - name: keycloak_instance_name
     container:
       name: create-realm
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -477,7 +478,7 @@ spec:
       - name: keycloak_url
     container:
       name: create-group
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -570,7 +571,7 @@ spec:
       - name: admin_password
     container:
       name: create-realm
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -633,7 +634,7 @@ spec:
       - name: add_mapper
     container:
       name: create-realm
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -724,7 +725,7 @@ spec:
       - name: add_mapper
     container:
       name: create-client-portal
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -817,7 +818,7 @@ spec:
       - name: app_port
     container:
       name: create-realm
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -906,7 +907,7 @@ spec:
       - name: app_port
     container:
       name: create-realm
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -1012,7 +1013,7 @@ spec:
       - name: app_namespace
     container:
       name: 'install-grafana'
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       imagePullPolicy: IfNotPresent
       command:
         - /bin/bash
@@ -1167,7 +1168,7 @@ spec:
       - name: app_namespace
     container:
       name: 'install-servicemesh-portal'
-      image: portainer/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       imagePullPolicy: IfNotPresent
       command:
         - /bin/bash

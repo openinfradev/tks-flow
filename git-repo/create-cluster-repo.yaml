@@ -22,18 +22,37 @@ spec:
       - name: cluster_info
     container:
       name: 'createClusterRepo'
-      image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
       - -ecx
       - |
-        echo $TOKEN | gh auth login --with-token
+        function gh_create_repo() {
+            echo $TOKEN | gh auth login --with-token
 
-        gh repo create ${USERNAME}/${CLUSTER_ID} --public --confirm
-        gh repo create ${USERNAME}/${CLUSTER_ID}-manifests --public --confirm
+            gh repo create ${USERNAME}/${CLUSTER_ID} --public --confirm
+            gh repo create ${USERNAME}/${CLUSTER_ID}-manifests --public --confirm
 
-        git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}.git
+        }
+
+        function gitea_create_repo() {
+            curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'"}' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos
+            curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'-manifests"}' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos
+        }
+
+        GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        if [ "$GIT_SVC_TYPE" = "gitea" ];then
+            gitea_create_repo
+        else
+            gh_create_repo
+        fi
+
+        git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CONTRACT_ID}.git
+        git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CLUSTER_ID}.git
+        git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CLUSTER_ID}-manifests.git
 
         cd ${CONTRACT_ID}
         CONTRACT_COMMIT_ID=$(git rev-parse HEAD)
@@ -49,7 +68,6 @@ spec:
         fi
 
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
-        cp -r ${CONTRACT_ID}/_github ${CLUSTER_ID}/.github
 
         echo $CLUSTER_INFO
 
@@ -97,11 +115,10 @@ spec:
         git config --global user.name "SKTelecom TACO"
 
         cd ${CLUSTER_ID}
-        git add .github
         git add *
         git commit -m "add new ${CLUSTER_ID} site"
         git branch -M main
-        git remote set-url origin https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}
+        git remote set-url origin $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CLUSTER_ID}
         git remote -v
         git push -u origin main
         cd ..
@@ -111,18 +128,10 @@ spec:
         git add README
         git commit -m "add new ${CLUSTER_ID} site"
         git branch -M main
-        git remote set-url origin https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}-manifests
+        git remote set-url origin $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CLUSTER_ID}-manifests
         git remote -v
         git push -u origin main
         cd ..
-
-        # buffer for starting the github action
-        sleep 30
-
-        # waiting for complete of the github action
-        cd ${CLUSTER_ID}
-        gh run list --workflow GenerateYaml --limit 1
-        gh run watch $(gh run list --workflow GenerateYaml --limit 1| grep $CLUSTER_ID | awk -F push '{print $2}' | awk '{print $1}')
 
       envFrom:
         - secretRef:
@@ -159,7 +168,7 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: 'createCredential'
-      image: docker.io/sktcloud/argocd-cli:v2.2.5
+      image: harbor-cicd.taco-cat.xyz/tks/argocd-cli:v2.2.5
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -170,7 +179,10 @@ spec:
         ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
         --password $ARGO_PASSWORD
 
-        ./argocd repo add https://github.com/${USERNAME}/${CLUSTER_ID}-manifests --username ${USERNAME} --password ${TOKEN}
+        GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        ./argocd repo add $GIT_SVC_HTTP://$GIT_SVC_BASE_URL/${USERNAME}/${CLUSTER_ID}-manifests --username ${USERNAME} --password ${TOKEN}
       envFrom:
         - secretRef:
             name: "git-svc-token"

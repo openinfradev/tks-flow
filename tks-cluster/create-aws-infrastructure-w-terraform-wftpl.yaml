@@ -44,7 +44,7 @@ spec:
   - name: prepare-secret
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -90,7 +90,7 @@ spec:
   - name: install-terraform
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -113,7 +113,7 @@ spec:
   - name: create-security-group
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -199,7 +199,7 @@ spec:
   - name: create-elb
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -292,7 +292,7 @@ spec:
   - name: attch-worknodes-to-elb
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -367,7 +367,7 @@ spec:
   - name: add-dns-record
     activeDeadlineSeconds: 1800
     container:
-      image: ghcr.io/openinfradev/python_kubectl_helm_argo:v1.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc

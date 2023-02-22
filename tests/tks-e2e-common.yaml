@@ -19,7 +19,7 @@ spec:
       parameters:
       - name: postfix
     container:
-      image: centos:centos7
+      image: harbor-cicd.taco-cat.xyz/tks/centos:centos7
       command:
         - /bin/bash
         - '-exc'
@@ -48,7 +48,7 @@ spec:
 
   - name: notify-slack
     container:
-      image: centos:centos7
+      image: harbor-cicd.taco-cat.xyz/tks/centos:centos7
       env:
       - name: SLACK_WEBHOOK_URL
         valueFrom:
