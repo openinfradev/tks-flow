@@ -23,24 +23,39 @@ spec:
       - /bin/bash
       - -ecx
       - |
-        echo $TOKEN | gh auth login --with-token
-        echo "===== Current repo list ====="
-        gh repo list openinfradev | grep decapod-site
-        gh repo list ${USERNAME}
 
-        echo "===== Create and initialize ${USERNAME}/${CONTRACT_ID} site and manifests repositories ====="
-        gh repo create ${USERNAME}/${CONTRACT_ID} --public --confirm
+        function gh_create_repo() {
+            echo $TOKEN | gh auth login --with-token
+            echo "===== Current repo list ====="
+            gh repo list openinfradev | grep decapod-site
+            gh repo list ${USERNAME}
 
-        cd ${CONTRACT_ID}
-        echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
+            echo "===== Create and initialize ${USERNAME}/${CONTRACT_ID} site and manifests repositories ====="
+            gh repo create ${USERNAME}/${CONTRACT_ID} --public --confirm
 
-        git clone -b ${REVISION} https://github.com/openinfradev/decapod-site
+            cd ${CONTRACT_ID}
+            echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
+        }
 
+        function gitea_create_repo() {
+            curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CONTRACT_ID}'"}' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos
+        }
+
+        GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        if [ "$GIT_SVC_TYPE" = "gitea" ];then
+            gitea_create_repo
+        else
+            gh_create_repo
+        fi
+
+        git clone -b ${REVISION} $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/decapod-site.git
         cd decapod-site
         echo "Decapod Site Repo Revision: "${REVISION} > META
         echo "Decapod Site Repo Commit: "$(git rev-parse HEAD) >> META
 
-        mv .github _github
+        rm -rf .github
 
         # TODO: support to use decapod-reference-offline later?
         rm -rf decapod-reference
@@ -53,14 +68,12 @@ spec:
         rm -rf aws-reference/openstack aws-reference/decapod-controller aws-reference/admin-tools
         rm -rf byoh-reference/openstack byoh-reference/decapod-controller byoh-reference/admin-tools
 
-        sed -i "s/BRANCH=\"main\"/BRANCH=\"${REVISION}\"/g" _github/workflows/render-cd.sh
-
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
         git add .
         git commit -m "new contract: ${CONTRACT_ID}"
 
-        git remote add new_contract https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CONTRACT_ID}
+        git remote add new_contract $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CONTRACT_ID}
         git push new_contract ${REVISION}:main
         cd ..
 

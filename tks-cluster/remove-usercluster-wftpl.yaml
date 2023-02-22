@@ -102,8 +102,8 @@ spec:
           name: aws-ebs-csi-iam
           template: deleteIAMRole
         when: >-
-            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            ( {{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == true
             )
 
     - - name: deleteCsiDriverApp
@@ -115,8 +115,8 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-aws-ebs-csi-driver"
         when: >-
-            ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+            ( {{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
             )
 
     - - name: deleteCalicoController
@@ -125,7 +125,7 @@ spec:
           parameters:
             - name: target_namespace
               value: "kube-system"
-        when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+        when: "{{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false"
 
     - - name: deleteAddonsApp
         templateRef:
@@ -170,11 +170,19 @@ spec:
       - /bin/bash
       - -ecx
       - |
-        git clone https://$(echo -n $TOKEN)@github.com/${USERNAME}/${CLUSTER_ID}.git
+        GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@$GIT_SVC_BASE_URL/${USERNAME}/${CLUSTER_ID}.git
 
         # Get cluster-api infra provider in the cluster
         INFRA_PROVIDER="$(cat ${CLUSTER_ID}/${CLUSTER_ID}/tks-cluster/kustomization.yaml | grep /infra/ | awk -F \/ '{print $3}')"
         echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
+
+        if [ "$INFRA_PROVIDER" = "aws" ]; then
+            eks_enabled=$(cat ${CLUSTER_ID}/$TEMPLATE_NAME/tks-cluster/site-values.yaml  | grep eksEnabled | awk '{print $2}')
+            echo $eks_enabled | tee /mnt/out/managed_cluster.txt
+        fi
       envFrom:
         - secretRef:
             name: "git-svc-token"
@@ -193,6 +201,10 @@ spec:
         valueFrom:
           default: "Something wrong"
           path: /mnt/out/infra_provider.txt
+      - name: managed_cluster
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/managed_cluster.txt
 
   - name: disableAutoSync
     container:
