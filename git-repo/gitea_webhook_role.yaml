@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-webhook
+  namespace: argo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-webhook.service-account-token
+  namespace: argo
+  annotations:
+    kubernetes.io/service-account.name: gitea-webhook
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-webhook
+  namespace: argo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: submit-workflow-template
+subjects:
+- kind: ServiceAccount
+  name: gitea-webhook
+  namespace: argo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: submit-workflow-template
+  namespace: argo
+rules:
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workfloweventbindings
+    verbs:
+      - list
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflowtemplates
+    verbs:
+      - get
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflows
+    verbs:
+      - create

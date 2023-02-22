@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowEventBinding
+metadata:
+  name: gitea-webhook-event-consumer
+  namespace: argo
+spec:
+  event:
+    selector: payload.full_name != "" && metadata["x-github-event"] == ["push"] && discriminator == "gitea-webhook"
+  submit:
+    workflowTemplateRef:
+      name: event-gitea-render-manifests
+    arguments:
+      parameters:
+      - name: decapod_site_repo
+        valueFrom:
+          event: payload.full_name
+

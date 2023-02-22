@@ -23,6 +23,8 @@ spec:
       value: main
     - name: git_repo_type
       value: github
+    - name: https_enabled
+      value: "true"
 
   templates:
   #=========================================================
@@ -50,6 +52,8 @@ spec:
             value: "{{workflow.parameters.manifest_repo_branch}}"
           - name: git_repo_type
             value: "{{workflow.parameters.git_repo_type}}"
+          - name: https_enabled
+            value: "{{workflow.parameters.https_enabled}}"
 
   #=========================================================
   # Template Definition
@@ -65,6 +69,7 @@ spec:
       - name: manifest_repo_url
       - name: manifest_repo_branch
       - name: git_repo_type
+      - name: https_enabled
     container:
       name: render-manifests-template
       image: harbor-cicd.taco-cat.xyz/tks/decapod-render:v2.1.0
@@ -101,9 +106,14 @@ spec:
         BASE_DIR="decapod-base-yaml"
         DOCKER_IMAGE_REPO="docker.io"
         OUTPUT_DIR="output"
+        if [ "{{inputs.parameters.https_enabled}}" = "true" ]; then
+          HTTP_STRING="https"
+        else
+          HTTP_STRING="http"
+        fi
 
         # download site-yaml
-        git clone -b ${SITE_REPO_BRANCH} https://$(echo -n ${GIT_TOKEN})@${SITE_REPO_URL} ${SITE_DIR}
+        git clone -b ${SITE_REPO_BRANCH} $HTTP_STRING://$(echo -n ${GIT_TOKEN})@${SITE_REPO_URL} ${SITE_DIR}
         log $? "INFO" "Fetching ${SITE_REPO_URL} with ${SITE_REPO_BRANCH} branch/tag........."
         cd ${SITE_DIR}
         site_commit_msg=$(git show -s --format="[%h] %s" HEAD)
@@ -113,7 +123,7 @@ spec:
         site_list=$(ls -d */ | sed 's/\///g' | egrep -v "docs|^template|^deprecated|output|offline")
 
         # download base-yaml
-        git clone -b ${BASE_REPO_BRANCH} https://$(echo -n ${GIT_TOKEN})@${BASE_REPO_URL} ${BASE_DIR}
+        git clone -b ${BASE_REPO_BRANCH} $HTTP_STRING://$(echo -n ${GIT_TOKEN})@${BASE_REPO_URL} ${BASE_DIR}
         log $? "INFO" "Fetching ${BASE_REPO_URL} with ${BASE_REPO_BRANCH} branch/tag........."
         base_commit_msg=$(cd ${BASE_DIR}; git show -s --format="[%h] %s" HEAD)
 
@@ -169,7 +179,7 @@ spec:
         #-----------------------------------------------
         # push manifests files
         #-----------------------------------------------
-        git clone https://$(echo -n ${GIT_TOKEN})@${MANIFEST_REPO_URL} origin-manifests
+        git clone $HTTP_STRING://$(echo -n ${GIT_TOKEN})@${MANIFEST_REPO_URL} origin-manifests
         log 0 "INFO" "git clone ${MANIFEST_REPO_URL}"
         cd origin-manifests
         if [ -z "${MANIFEST_REPO_BRANCH}" ]; then
@@ -194,7 +204,7 @@ spec:
         git push origin ${MANIFEST_REPO_BRANCH}
 
         if [ "${MANIFEST_REPO_BRANCH}" != "main" ] && [ "${GIT_REPO_TYPE}" == "gitea" ]; then
-          curl -X POST -H "content-type: application/json" -H "Authorization: token ${GIT_TOKEN}" --data "{ \"base\": \"main\", \"body\": \"rendered from\n - base: ${base_commit_msg}\n - site: ${site_commit_msg}\", \"head\": \"${MANIFEST_REPO_BRANCH}\", \"title\": \"rendered from site: ${site_commit_msg}\"}" https://${MANIFEST_REPO_URL%%/*}/api/v1/repos/${MANIFEST_REPO_URL#*/}/pulls
+          curl -X POST -H "content-type: application/json" -H "Authorization: token ${GIT_TOKEN}" --data "{ \"base\": \"main\", \"body\": \"rendered from\n - base: ${base_commit_msg}\n - site: ${site_commit_msg}\", \"head\": \"${MANIFEST_REPO_BRANCH}\", \"title\": \"rendered from site: ${site_commit_msg}\"}" $HTTP_STRING://${MANIFEST_REPO_URL%%/*}/api/v1/repos/${MANIFEST_REPO_URL#*/}/pulls
         fi
 
         log 0 "INFO" "pushed all manifests files"
