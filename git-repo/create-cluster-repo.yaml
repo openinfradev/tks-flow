@@ -22,7 +22,7 @@ spec:
       - name: cluster_info
     container:
       name: 'createClusterRepo'
-      image: ghcr.io/sktelecom/ghcli-alpine:2.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -168,7 +168,7 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: 'createCredential'
-      image: docker.io/sktcloud/argocd-cli:v2.2.5
+      image: harbor-cicd.taco-cat.xyz/tks/argocd-cli:v2.2.5
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
