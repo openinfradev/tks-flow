@@ -180,7 +180,7 @@ spec:
         echo ${INFRA_PROVIDER} | tee /mnt/out/infra_provider.txt
 
         if [ "$INFRA_PROVIDER" = "aws" ]; then
-            eks_enabled=$(cat ${CLUSTER_ID}/$TEMPLATE_NAME/tks-cluster/site-values.yaml  | grep eksEnabled | awk '{print $2}')
+            eks_enabled=$(cat ${CLUSTER_ID}/${CLUSTER_ID}/tks-cluster/site-values.yaml  | grep eksEnabled | awk '{print $2}')
             echo $eks_enabled | tee /mnt/out/managed_cluster.txt
         fi
       envFrom:
