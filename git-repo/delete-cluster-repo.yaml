@@ -14,16 +14,32 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: 'deleteClusterSite'
-      image: harbor-cicd.taco-cat.xyz/tks/ghcli:2.5.1
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
       imagePullPolicy: Always
       command:
       - /bin/bash
       - -ecx
       - |
-        echo $TOKEN | gh auth login --with-token
+        function gh_delete_repo() {
+            echo $TOKEN | gh auth login --with-token
 
-        gh repo delete ${USERNAME}/${CLUSTER_ID} --confirm
-        gh repo delete ${USERNAME}/${CLUSTER_ID}-manifests --confirm
+            gh repo delete ${USERNAME}/${CLUSTER_ID} --confirm
+            gh repo delete ${USERNAME}/${CLUSTER_ID}-manifests --confirm
+        }
+
+        function gitea_delete_repo() {
+            curl -X DELETE -H 'accept: application/json' -H "Authorization: token ${TOKEN}" $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/repos/${USERNAME}/${CLUSTER_ID}
+            curl -X DELETE -H 'accept: application/json' -H "Authorization: token ${TOKEN}" $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/repos/${USERNAME}/${CLUSTER_ID}-manifests
+        }
+
+        GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        if [ "$GIT_SVC_TYPE" = "gitea" ];then
+            gitea_delete_repo
+        else
+            gh_delete_repo
+        fi
       envFrom:
         - secretRef:
             name: "git-svc-token"
