@@ -347,7 +347,7 @@ spec:
       - name: service_domain
     container:
       name: configure-route53
-      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v1.0.0
       command:
       - /bin/bash
       - -exc
