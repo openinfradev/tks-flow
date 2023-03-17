@@ -143,6 +143,42 @@ spec:
     - - name: install-volumesnapshot-crds
         template: install-volumesnapshot-crds
 
+    - - name: install-addons-cni-crds
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                {
+                  "app_group": "tks-cluster",
+                  "path": "tigera-operator-crds",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
+                }
+              ]
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+
+    - - name: install-addons-cni
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                {
+                  "app_group": "tks-cluster",
+                  "path": "tigera-operator",
+                  "namespace": "taco-system",
+                  "target_cluster": ""
+                }
+              ]
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+
     - - name: install-addons-common
         templateRef:
           name: create-application
@@ -152,12 +188,6 @@ spec:
           - name: list
             value: |
               [
-                { 
-                  "app_group": "tks-cluster",
-                  "path": "kubernetes-addons",
-                  "namespace": "taco-system",
-                  "target_cluster": ""
-                },
                 {
                   "app_group": "tks-cluster",
                   "path": "ingress-nginx",
