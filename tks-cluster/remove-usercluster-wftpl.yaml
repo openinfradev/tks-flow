@@ -271,6 +271,7 @@ spec:
           else
             echo "Error: installations.v1.operator.tigera.io 'default' was NOT found."
             exit 1
+          fi
 
           kubectl $kube_params get installations.v1.operator.tigera.io | grep default
           if [[ $? =~ 0 ]]; then
