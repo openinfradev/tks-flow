@@ -32,7 +32,7 @@ spec:
 
         def getToken() :
             data = {
-                'organizationId': 'master'
+                'organizationId': 'master',
                 'accountId': 'admin',
                 'password' : 'admin'
             }
@@ -41,7 +41,7 @@ spec:
             if res.status_code != 200 :
                 return ''
             resJson = res.json()
-            return resJson['data']['user']['token']
+            return resJson['user']['token']
 
         print( ENDPOINTS )
         for appType, endpoint in {{inputs.parameters.endpoints}}.items() :
