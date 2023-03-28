@@ -24,7 +24,7 @@ spec:
     - name: app_prefix
       value: "{{workflow.parameters.cluster_id}}"
     - name: tks_info_host
-      value: "tks-info.tks.svc"
+      value: "http://tks-api.tks.svc:9110"
 
   volumes:
   - name: kubeconfig-adm

@@ -1,0 +1,8 @@
+FROM harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0 AS base
+USER root
+
+RUN yum install -y epel-release
+RUN yum install -y jq
+RUN pip3 install requests
+
+

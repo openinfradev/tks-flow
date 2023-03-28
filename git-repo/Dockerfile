@@ -1,7 +1,7 @@
 FROM alpine/git:v2.30.2
 #FROM alpine:3.14
 
-RUN apk add --no-cache curl coreutils bash
+RUN apk add --no-cache curl coreutils bash jq
 #RUN apk add --no-cache libc6-compat
 
 ENV GITHUB_CLI_VERSION 2.5.1

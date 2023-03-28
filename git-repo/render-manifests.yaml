@@ -24,7 +24,7 @@ spec:
     - name: git_repo_type
       value: github
     - name: https_enabled
-      value: "true"
+      value: "false"
 
   templates:
   #=========================================================

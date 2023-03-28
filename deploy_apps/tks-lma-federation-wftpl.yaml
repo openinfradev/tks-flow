@@ -10,7 +10,7 @@ spec:
     - name: site_name
       value: "decapod-refrence"
     - name: logging_component
-      value: "efk"
+      value: "loki"
     - name: github_account
       value: "tks-management"
     - name: manifest_repo_url
@@ -23,7 +23,7 @@ spec:
     # For tks-info task #
     ##########################
     - name: tks_info_host
-      value: "tks-info.tks.svc"
+      value: "http://tks-api.tks.svc:9110"
     - name: cluster_id
       value: "Cabbead61"
     - name: app_group_id
@@ -56,7 +56,7 @@ spec:
 
     - - name: updateEndpointToTksInfo
         templateRef:
-          name: update-tks-app-group-info
+          name: tks-update-appgroup
           template: updateTksAppGroup
         arguments:
           parameters:
@@ -219,32 +219,32 @@ spec:
       emptyDir: {}
     script: 
       name: 'collect'
-      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command:
       - python
       envFrom:
       - secretRef:
           name: "git-svc-token"
-      env:
-      - name: PYTHONPATH
-        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       volumeMounts:
-      - name: tks-proto-vol
-        mountPath: "/opt/protobuf"
-        readOnly: true
       - name: out
         mountPath: /mnt/out
       source: |
         import sys
         import os
-        import google.protobuf
-        import grpc
-        import info_pb2
-        import info_pb2_grpc
-        import common_pb2
-        import common_pb2_grpc
-        import json
         import git
+        import requests
+
+        def getToken() :
+            data = {
+                'accountId': 'admin',
+                'password' : '1234'
+            }
+
+            res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+            if res.status_code != 200 :
+                return ''
+            resJson = res.json()
+            return resJson['data']['user']['token']
 
         output_cluster_list = []
         temp_map = {}
@@ -252,11 +252,82 @@ spec:
         inwards_endpoint_map = {}
         outwards_endpoint_map = {}
 
-        ip = "{{inputs.parameters.tks_info_host}}"
-        # TODO: Make port workflow param?
-        port = 9110
-        addr = "%s:%d" % (ip, port)
-        print("tks-info addr: %s" % addr)
+
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters/" + CLUSTER_ID,
+            headers={"Authorization": "Bearer " + getToken()} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get cluster')
+
+        cluster = res.json()['data']['cluster']
+        print( cluster )
+        organizationId = res.cluster['organizationId']
+        curClusterName = res.cluster['id']
+
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters?organizationId=" + organizationId,
+            headers={"Authorization": "Bearer " + getToken()} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get clusters')
+
+        print("Iterating over clusters in the same contract...")
+
+        # Iterate over cluster list except current cluster #
+        for cluster in res.clusters:
+            if cluster['status'] != "RUNNING":
+              continue
+
+            if cluster['id'] != "{{workflow.parameters.cluster_id}}":
+              print("*******************************************")
+              print("Checking cluster: {}".format(cluster.id))
+
+              print("Checking if corresponding cluster repo exists..")
+              url = "@github.com/{{workflow.parameters.github_account}}/{}".format(cluster['id'])
+              repoUrl = "https://" + os.environ['TOKEN'] + url
+              try:
+                repo = git.Repo.clone_from(repoUrl, './tempcluster')
+
+              except git.exc.GitCommandError as e:
+                print(e)
+                print("Repo {} doesn't exist. Skipping this cluster..".format(repoUrl))
+                continue
+
+              res = requests.get(TKS_API_URL+"/api/1.0/clusters?organizationId=" + organizationId,
+                  headers={"Authorization": "Bearer " + getToken()} )
+              if res.status_code != 200 :
+                  print( 'Failed to get appgroups for cluster ')
+                  continue  
+
+              appGroups = res.json()['data']['appGroups']
+              print( appGroups ) 
+
+              os.system("rm -rf ./tempcluster")
+
+              # Check if LMA group exists.
+              for appGroup in iappGroups:
+                if appGroup['type'] == "LMA" :
+                  print("Found LMA appGroup: {}".format(appGroup['name']))
+
+                  res = requests.get(TKS_API_URL+"/api/1.0/app-groups/" + appGroup['id'] + "/applications",
+                      headers={"Authorization": "Bearer " + getToken()} )
+                  if res.status_code != 200 :
+                      print( 'Failed to get applications for appgroup')
+                      continue                  
+
+
+                  res = app_stub.GetApps(info_pb2.GetAppsRequest(app_group_id=app_group.app_group_id, type=common_pb2.PROMETHEUS))
+
+                  if res.apps:
+                    # This is based on the premise that there's only one prometheus per appGroup.
+                    endpoint = res.apps[0].endpoint
+                    print("Get Thanos-sc endpoint: {}. Appending it to inward list.".format(endpoint))
+
+                    # Add this cluster's endpoint to endpoint map
+                    inwards_endpoint_list.append(endpoint)
+
+                    # Add this cluster to outward list so that current ep is updated to this cluster
+                    temp_map["name"] = cluster.id
+                    str_json = json.dumps(temp_map)
+                    output_cluster_list.append(str_json)
+
 
         with grpc.insecure_channel(addr) as channel:
             cl_stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
