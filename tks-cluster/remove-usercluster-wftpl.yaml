@@ -121,20 +121,16 @@ spec:
 
     - - name: deleteCalicoController
         template: deleteCalicoController
-        arguments:
-          parameters:
-            - name: target_namespace
-              value: "kube-system"
         when: "{{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false"
 
-    - - name: deleteAddonsApp
+    - - name: deleteCniAddons
         templateRef:
           name: delete-apps
           template: DeleteAppsByName
         arguments:
           parameters:
             - name: app_name
-              value: "{{workflow.parameters.app_prefix}}-kubernetes-addons"
+              value: "{{workflow.parameters.app_prefix}}-tigera-operator"
 
     - - name: deleteClusterCR
         template: deleteClusterCR
@@ -256,9 +252,6 @@ spec:
           fi
 
   - name: deleteCalicoController
-    inputs:
-      parameters:
-        - name: target_namespace
     container:
       name: delete-calico
       image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
@@ -272,17 +265,20 @@ spec:
 
           kube_params+="--kubeconfig=/etc/kubeconfig"
 
-          kubectl $kube_params get deployment -n ${TARGET_NAMESPACE} | grep calico-kube-controller
+          kubectl $kube_params get apiserver.v1.operator.tigera.io | grep default
           if [[ $? =~ 0 ]]; then
-            kubectl $kube_params delete deployment calico-kube-controllers -n ${TARGET_NAMESPACE}
-
+            kubectl $kube_params delete apiserver.v1.operator.tigera.io default
           else
-            echo "Error: deployment 'calico-kube-controllers' was NOT found."
+            echo "Error: installations.v1.operator.tigera.io 'default' was NOT found."
+            exit 1
+
+          kubectl $kube_params get installations.v1.operator.tigera.io | grep default
+          if [[ $? =~ 0 ]]; then
+            kubectl $kube_params delete installations.v1.operator.tigera.io default
+          else
+            echo "Error: installations.v1.operator.tigera.io 'default' was NOT found."
             exit 1
           fi
-      env:
-        - name: TARGET_NAMESPACE
-          value: "{{inputs.parameters.target_namespace}}"
 
   - name: deleteClusterCR
     inputs:
