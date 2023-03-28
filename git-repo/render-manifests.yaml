@@ -72,7 +72,7 @@ spec:
       - name: https_enabled
     container:
       name: render-manifests-template
-      image: harbor-cicd.taco-cat.xyz/tks/decapod-render:v2.1.0
+      image: harbor-cicd.taco-cat.xyz/tks/decapod-render:v3.1.2
       command:
       - /bin/bash
       - '-exc'
