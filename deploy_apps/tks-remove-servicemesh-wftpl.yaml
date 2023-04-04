@@ -38,10 +38,10 @@ spec:
           name: remove-servicemesh-all
           template: remove-start
 
-    - - name: updateTksInfo
-        templateRef:
-          name: delete-tks-app-group-info
-          template: deleteTksAppGroup
+    #- - name: updateTksInfo
+    #    templateRef:
+    #      name: delete-tks-app-group-info
+    #      template: deleteTksAppGroup
 
 
   #=========================================================
