@@ -370,6 +370,7 @@ spec:
         import sys
         import requests
         import json
+        import os
 
         TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
@@ -450,6 +451,7 @@ spec:
         import sys
         import requests
         import json
+        import os
 
         TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
