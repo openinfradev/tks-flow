@@ -12,11 +12,11 @@ spec:
     - name: github_account
       value: "tks-management"
     - name: tks_info_host
-      value: "tks-info.tks.svc"
+      value: "http://tks-api.tks.svc:9110"
     - name: cluster_id
-      value: "Cabbead61"
+      value: "cpbiaxy4p"
     - name: app_group_id
-      value: "Aabbead61"
+      value: "o086tb3zc"
     ##########################
     # For removeLMA task #
     ##########################
@@ -52,12 +52,6 @@ spec:
             - name: target_namespace
               value: "lma"
 
-    # TODO: Is this still necessary?
-    - - name: updateTksInfo
-        templateRef:
-          name: delete-tks-app-group-info
-          template: deleteTksAppGroup
-     
       # LMA appGroup specific task #
     - - name: collectClusterList
         template: collectClusterList
@@ -148,92 +142,111 @@ spec:
       emptyDir: {}
     script: 
       name: 'collect'
-      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
-      command:
-      - python
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      command: ["python"]
       envFrom:
       - secretRef:
           name: "git-svc-token"
-      env:
-      - name: PYTHONPATH
-        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      - secretRef:
+          name: "tks-api-secret"       
       volumeMounts:
-      - name: tks-proto-vol
-        mountPath: "/opt/protobuf"
-        readOnly: true
       - name: out
         mountPath: /mnt/out
       source: |
         import sys
         import os
-        import google.protobuf
-        import grpc
-        import info_pb2
-        import info_pb2_grpc
-        import common_pb2
-        import common_pb2_grpc
         import json
         import git
+        import requests
+
+        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
+
+
+        def getToken() :
+            data = {
+                'organizationId' : os.environ['ORGANIZATION_ID'],
+                'accountId': os.environ['ACCOUNT_ID'],
+                'password' : os.environ['PASSWORD']
+            }
+
+            res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+            if res.status_code != 200 :
+                return ''
+            resJson = res.json()
+            return resJson['user']['token']
 
         output_cluster_list = []
         temp_map = {}
         outwards_endpoint_map = {}
 
-        ip = "{{inputs.parameters.tks_info_host}}"
-        # TODO: Make port workflow param?
-        port = 9110
-        addr = "%s:%d" % (ip, port)
-        print("tks-info addr: %s" % addr)
+        TOKEN=getToken()
 
-        with grpc.insecure_channel(addr) as channel:
-            cl_stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
-            app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters/" + CLUSTER_ID,
+            headers={"Authorization": "Bearer " + TOKEN} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get cluster')
 
-            res = cl_stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{workflow.parameters.cluster_id}}"))
+        cluster = res.json()['cluster']
+        print( cluster )
+        organizationId = cluster['organizationId']
+        cur_cluster_name = cluster['id']
 
-            print("Response from GetCluster: ")
-            print(res.cluster)
-            contract_id = res.cluster.contract_id
-            csp_id = res.cluster.csp_id
-            cur_cluster_name = res.cluster.id
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters?organizationId=" + organizationId,
+            headers={"Authorization": "Bearer " + TOKEN} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get clusters')
 
-            res = cl_stub.GetClusters(info_pb2.GetClustersRequest(contract_id=contract_id, csp_id=''))
+        clusters = res.json()['clusters']
 
-            print("Iterating over clusters in the same contract...")
+        print("Iterating over clusters in the same contract...")
 
-            # Iterate over cluster list except current cluster #
-            for cluster in res.clusters:
-                if cluster.id != "{{workflow.parameters.cluster_id}}":
-                  print("*******************************************")
-                  print("Checking cluster: {}".format(cluster.id))
+        # Iterate over cluster list except current cluster #
+        for cluster in clusters:
+            if cluster['status'] != "RUNNING":
+                continue
 
-                  print("Checking if corresponding cluster repo exists..")
-                  url = "@github.com/{{workflow.parameters.github_account}}/{}".format(cluster.id)
-                  repoUrl = "https://" + os.environ['TOKEN'] + url
-                  try:
+            if cluster['id'] != CLUSTER_ID :
+                print("*******************************************")
+                print("Checking cluster: {}".format(cluster['id']))
+
+                gitBaseUrl = os.environ['GIT_SVC_URL'].replace("http://","")
+                print( gitBaseUrl )                
+
+                print("Checking if corresponding cluster repo exists..")
+                url = "@" + gitBaseUrl + "/" + os.environ['USERNAME'] + "/" + cluster['id']
+                print( url )
+
+                repoUrl = "http://" + os.environ['TOKEN'] + url
+                try:
                     repo = git.Repo.clone_from(repoUrl, './tempcluster')
 
-                  except git.exc.GitCommandError as e:
+                except git.exc.GitCommandError as e:
                     print(e)
-                    print("Repo {} doesn't exist. Skipping this cluster..".format(repoUrl))
+                    print("Repo {} doesn't exist. Skipping this 'cluster..".format(repoUrl))
                     continue
 
-                  res = app_stub.GetAppGroupsByClusterID(common_pb2.IDRequest(id=cluster.id))
-                  print("Response from GetAppGroupsByClusterID:")
-                  print(res.app_groups)
+                res = requests.get(TKS_API_URL+"/api/1.0/app-groups?clusterId=" + cluster['id'],
+                    headers={"Authorization": "Bearer " + TOKEN} )
+                if res.status_code != 200 :
+                    print( 'Failed to get appgroups for cluster ')
+                    continue
 
-                  os.system("rm -rf ./tempcluster")
+                appGroups = res.json()['appGroups']
+                print( appGroups )
 
-                  # Check if LMA group exists.
-                  for app_group in res.app_groups:
-                    if app_group.type == common_pb2.LMA:
-                      print("Found LMA app_group: {}".format(app_group.app_group_name))
-                      res = app_stub.GetApps(info_pb2.GetAppsRequest(app_group_id=app_group.app_group_id, type=common_pb2.PROMETHEUS))
+                os.system("rm -rf ./tempcluster")
 
-                      # Add this cluster to outward list so that current ep is deleted from this cluster
-                      temp_map["name"] = cluster.id
-                      str_json = json.dumps(temp_map)
-                      output_cluster_list.append(str_json)
+                # Check if LMA group exists.
+                for appGroup in appGroups:
+                    if appGroup['appGroupType'] == "LMA" :
+                        print("Found LMA appGroup: {}".format(appGroup['name']))
+
+                        # Add this cluster to outward list so that current ep is updated to this cluster
+                        temp_map["name"] = cluster['id']
+                        str_json = json.dumps(temp_map)
+                        output_cluster_list.append(str_json)
+
 
         ###########################
         # Construct output params #
@@ -241,12 +254,13 @@ spec:
         len_list = len(output_cluster_list)
 
         with open("/mnt/out/cluster_list.txt", "w") as f:
-          f.write('[')
+            f.write('[')
 
-          print("*** Outwards Cluster List ***")
-          for idx, item in enumerate(output_cluster_list, start=1):
-            print("item {}: {}".format(idx, item))
-            f.write(item.strip("'"))
-            if idx < len_list:
-              f.write(',')
-          f.write(']')
+            print("*** Outwards Cluster List ***")
+            for idx, item in enumerate(output_cluster_list, start=1):
+                print("item {}: {}".format(idx, item))
+                f.write(item.strip("'"))
+                if idx < len_list:
+                    f.write(',')
+            f.write(']')
+

@@ -315,6 +315,8 @@ spec:
       envFrom:
       - secretRef:
           name: "git-svc-token"
+      - secretRef:
+          name: "tks-api-secret"       
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -332,9 +334,9 @@ spec:
 
         def getToken() :
             data = {
-                'organizationId': 'master',
-                'accountId': 'admin',
-                'password' : 'admin'
+                'organizationId' : os.environ['ORGANIZATION_ID'],
+                'accountId': os.environ['ACCOUNT_ID'],
+                'password' : os.environ['PASSWORD']
             }
 
             res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
@@ -404,7 +406,7 @@ spec:
                   continue
 
               appGroups = res.json()['appGroups']
-              print( appGroups )
+              print( appGroups ) 
 
               os.system("rm -rf ./tempcluster")
 
@@ -419,8 +421,7 @@ spec:
                       print( 'Failed to get applications for appgroup')
                       continue
 
-                  applications = res.json()['applications']
-
+                  applications = res.json()['applications']            
                   if applications :
                     # This is based on the premise that there's only one prometheus per appGroup.
                     endpoint = applications[0]['endpoint']
@@ -435,7 +436,7 @@ spec:
                     output_cluster_list.append(str_json)
 
 
-        # Compose profer format to be used as input on next step
+        # Compose profer format to be used as input on next step 
         inwards_endpoint_map['querier.stores'] = inwards_endpoint_list
 
         ###########################
