@@ -1,0 +1,6 @@
+FROM python:3.11
+# COPY kubectl /usr/bin/kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" -o /usr/bin/kubectl
+RUN mv kubectl /usr/bin/
+RUN chmod +x /usr/bin/kubectl
+RUN pip install shyaml

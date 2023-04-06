@@ -1,0 +1,484 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-primary-cluster
+  namespace: argo
+spec:
+  entrypoint: set-primary-cluster
+  arguments:
+    parameters:
+    ##########################
+    # needed by sub-systems (sub-template)
+    ##########################
+    - name: site_name  # primary cluster
+      value: site3
+    - name: revision
+      value: "main"
+    - name: app_prefix
+      value: "{{workflow.parameters.site_name}}"
+    - name: repository_base
+      value: https://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@github.com/overmon/
+    - name: github_account
+      value: "decapod10"
+
+    ##########################
+    # For tks-info task #
+    ##########################
+    - name: tks_info_host
+      value: "http://tks-api-dev.taco-cat.xyz:9110"
+    - name: organization_id
+      value: "o086tb3zc"
+    # 아마도 site_name과 동일하게 사용하면 될듯하다.
+    - name: cluster_id
+      value: "{{workflow.parameters.site_name}}"
+
+  volumes:
+  - name: tks-proto-vol
+    configMap:
+      name: tks-proto
+
+  templates:
+  - name: set-primary-cluster
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    steps:
+    - - name: update-status-mainternance
+        template: sub-update-tks-status
+        arguments:
+          parameters:
+          - name: tks_status
+            value: MAINTERNANCE
+      # - name: get-clusters-in-contract
+      #   template: sub-get-cluster
+    - - name: set-primary-cluster-on-tks-info
+        template: sub-set-primay-cluster-on-tks-info
+      - name: create-fed-namespace
+        template: sub-create-namespace
+        arguments:
+          parameters:
+          - name: target_namespace
+            value: fed
+
+    # TODO: 전체 완성을 위해서는 아래내역을 구현하여 동적인 bucket을 만드는 방식으로 구현해야 하지만
+    #     5월 오픈전 가능한 형상을 위해 협의한 바(아래)에 따라 본부분은 기존 준비됀 것을 사용하는 것으로 구현하고 추후 수정하다.
+    #       1. 사용자가 생성하는 첫번째 클러스터는 primary cluster
+    #       2. primary cluster는 계약이 종료되기 전까지 임의 삭제불가
+    #       3. 개별 클러스터에서 수행되는 모니터링은 없고 계약단위에서 수행되어야 함
+    # - - name: prepare-bucket
+    #     templateRef:
+    #       name: create-application
+    #       template: installApps
+    #     arguments:
+    #       parameters:
+    #       - name: list
+    #         value: |
+    #           [
+    #             { "app_group": "tks-cluster", "path": "ack-resources", "namespace": "taco-system", "target_cluster": "" }
+    #           ]
+
+    # 개별 클러스터에 설치됀 loki와 grafana는 지우자
+    # - - name: remove-individual-loki-and-grafana
+    #     template: sub-remove-individual-loki-and-grafana
+    #     arguments:
+    #       parameters:
+    #       - name: target_clusters
+    #         value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} {{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
+
+    # TODO: 전체 완성을 위해서는 아래내역을 구현하여 동적인 bucket을 만드는 방식으로 구현해야 하지만
+    #     5월 오픈전 가능한 형상을 위해 협의한 바(아래)에 따라 본부분은 기존 준비됀 것을 사용하는 것으로 구현하고 추후 수정하다.
+    #       1. 사용자가 생성하는 첫번째 클러스터는 primary cluster
+    #       2. primary cluster는 계약이 종료되기 전까지 임의 삭제불가
+    #       3. 개별 클러스터에서 수행되는 모니터링은 없고 계약단위에서 수행되어야 함
+    # 하지만 이부분에 datasource 바꿔주는 부분을 포함하고 있으므로 일단 한번 타야할듯...
+    - - name: change-target
+        template: sub-change-logging-target
+        arguments:
+          parameters:
+          - name: primary_cluster
+            value: '{{inputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{inputs.parameters.member_clusters}}'
+
+    - - name: federation-components
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "primary", "path": "minio", "namespace": "fed", "target_cluster": "" }
+                { "app_group": "primary", "path": "thanos", "namespace": "fed", "target_cluster": "" }
+                { "app_group": "primary", "path": "loki", "namespace": "fed", "target_cluster": "" }
+                { "app_group": "primary", "path": "grafana", "namespace": "fed", "target_cluster": "" }
+              ]
+
+    - - name: update-status-done
+        template: sub-update-tks-status
+        arguments:
+          parameters:
+          - name: tks_status
+            value: Running
+
+  #######################
+  # Template Definition #
+  #######################
+  - name: sub-update-tks-status
+    inputs:
+      parameters:
+      - name: tks_status
+    container:
+      name: update-tks-status
+      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        echo "check tks status"
+        echo "if status is not running then throw exception~~"
+        echo "connect tks-info server and change the {{workflow.parameters.organization_id}} status to mode:{{inputs.parameters.tks_status}}"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+  # - name: sub-prepare-bucket
+  #   inputs:
+  #     parameters:
+  #     - name: primary_cluster
+  #   container:
+  #     name: prepare-bucket
+  #     image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+  #     command:
+  #     - /bin/bash
+  #     - '-c'
+  #     - |
+  #       echo "prepare bucket for the '{{workflow.parameters.organization_id}}' (clusters: '{{inputs.parameters.primary_cluster}}')"
+  #   activeDeadlineSeconds: 900
+  #   retryStrategy:
+  #     limit: 2
+
+  - name: sub-create-namespace
+    inputs:
+      parameters:
+        - name: target_namespace
+    container:
+      name: create-namespace
+      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        function log() {
+          level=$1
+          msg=$2
+          date=$(date '+%F %H:%M:%S')
+          echo "[$date] $level     $msg"
+        }
+
+        kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        echo -e "kube_secret:\n$kube_secret" | head -n 5
+        cat <<< "$kube_secret" > /etc/kubeconfig
+
+        kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
+        if [[ $? =~ 1 ]]; then
+          kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
+          kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${TARGET_NAMESPACE}
+          kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
+          log "INFO" "${TARGET_NAMESPACE} successfully created."
+        fi
+      env:
+      - name: TARGET_NAMESPACE
+        value: '{{inputs.parameters.target_namespace}}'
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+  - name: sub-change-logging-target
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    container:
+      name: logging-target-changer
+      image: harbor-cicd.taco-cat.xyz/tks/shyaml_python:3.11
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        #/bin/bash
+
+        set -ex
+
+        function log() {
+          level=$1
+          msg=$2
+          date=$(date '+%F %H:%M:%S')
+          echo "[$date] $level  $msg"
+        }
+
+        current_cluster={{workflow.parameters.cluster_id}}
+        primary_cluster={{inputs.parameters.primary_cluster}}
+
+        if [ -z ${primary_cluster} ] || [ ${primary_cluster}="null" ]; then
+          primary_cluster=${current_cluster}
+        fi
+
+        #################
+        # Check endpoints from the primary_cluster
+        #################
+        echo kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}"
+        primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
+        cat <<< "$primary_kube_secret" > kubeconfig
+
+        while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+        do
+          echo "Waiting for generating the loadbalancer of LOKI(3s)"
+          sleep 3
+        done
+
+        LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+        LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
+        METRIC_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+        METRIC_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
+        METRIC_URL=${METRIC_HOST}:${METRIC_PORT}
+
+        #################
+        # updates
+        #################
+        GIT_ACCOUNT={{workflow.parameters.github_account}}
+        if  [[ $GIT_SVC_URL == https://* ]]; then
+          repository_base=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+        else
+          repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+        fi
+
+        for i in {{inputs.parameters.member_clusters}}
+        do
+          # 1. endpoint of fb on eachcluster
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $METRIC_URL (the current target is $i)"
+          [ -d $i ] || git clone ${repository_base}${i}
+          cd $i
+          sed -i "s/lokiHost: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiHost)/lokiHost: $LOKI_HOST/g" ${i}/lma/site-values.yaml
+          sed -i "s/lokiPort: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiPort)/lokiPort: $LOKI_PORT/g" ${i}/lma/site-values.yaml
+          sed -i "s/s3Host: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Host)/s3Host: $METRIC_HOST/g" ${i}/lma/site-values.yaml
+          sed -i "s/s3Port: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Port)/s3Port: $METRIC_PORT/g" ${i}/lma/site-values.yaml
+
+          # 2. grafana datasource on primay_cluster
+          if [ $i = ${primary_cluster} ]; then
+            sed -i "s/grafanaDatasourceMetric: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.grafanaDatasourceMetric)/grafanaDatasourceMetric: thanos-query.lma:9090/g" ${i}/lma/site-values.yaml
+          fi
+          cd -
+        done
+
+        git config --global user.name "tks"
+        git config --global user.email "tks@sktelecom.com"
+
+        for i in {{inputs.parameters.member_clusters}}
+        do
+          cd $i
+          log "INFO" "##### commit changes on $i to $LOKI_HOST:$LOKI_PORT and $METRIC_URL"
+          cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $METRIC_URL (cluster $i)"
+          git add ${i}/lma/site-values.yaml
+          git commit -m "change loki and thanos endpoints. (by set-primary workflow)" -m "$cmessage"
+          git push
+          cd -
+          rm -rf $i
+        done
+
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+  - name: sub-remove-individual-loki-and-grafana
+    inputs:
+      parameters:
+      - name: target-clusters
+    container:
+      name: delete-loki
+      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        # log into Argo CD server
+        ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
+        --password $ARGO_PASSWORD
+
+        for cid in {{inputs.parameters.target-clusters}}
+        do
+          for app in loki grafana
+          do
+            APP=${cid}-${app}
+
+            # Pre-check: validate if the app exists
+            if ! (./argocd app list --output name | grep -E "^$APP$"); then
+              echo "No such app: $APP. Skipping app removal.."
+              exit 1
+            fi
+          done
+        done
+
+        for cid in {{inputs.parameters.target-clusters}}
+        do
+          for app in loki grafana
+          do
+            APP=${cid}-${app}
+            echo "Found app '$APP'. Start deleting it.."
+            ./argocd app delete $APP --cascade -y
+
+            while (./argocd app list --output name | grep -E "^$APP$" )
+            do
+              echo "Waiting 20 secs for the app to be deleted.."
+              sleep 20
+            done
+
+            echo "App '$APP' have been deleted!"
+          done
+        done
+
+      envFrom:
+        - secretRef:
+            name: "decapod-argocd-config"
+    activeDeadlineSeconds: 900
+
+  - name: sub-get-cluster
+    volumes:
+    - name: out
+      emptyDir: {}
+    script:
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      - name: TKS_API_URL
+        value: "{{workflow.parameters.tks_info_host}}"
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      source: |
+        import sys
+        import requests
+        import json
+
+        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
+        CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
+
+        def getToken() :
+          data = {
+              'organizationId' : os.environ['ORGANIZATION_ID'],
+              'accountId': os.environ['ACCOUNT_ID'],
+              'password' : os.environ['PASSWORD']
+          }
+
+          res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+          if res.status_code != 200 :
+              return ''
+          resJson = res.json()
+          return resJson['user']['token']
+
+        # get primary organization id
+        res = requests.get(TKS_API_URL+"/api/1.0/organizations/" + ORGANIZATION_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        if res.status_code != 200 :
+          sys.exit('Failed to get organization')
+
+        print(res.text)
+        organization = res.json()['organization']
+
+        with open("/mnt/out/primary_cluster.txt", "w") as f:
+          primary_cluster = json.dumps(organization.get('primaryClusterId'))
+          print('Primary cluster: ', primary_cluster)
+          f.write(primary_cluster)
+
+        # get cluster ids
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters?organizationId=" + ORGANIZATION_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        if res.status_code != 200 :
+          sys.exit('Failed to get clusters')
+
+        # print(res.text)
+        clusters = res.json()['clusters']
+
+        with open("/mnt/out/member_clusters.txt", "w") as f:
+          for cluster in clusters:
+            print('Member cluster: ',cluster['id'])
+            f.write(cluster['id']+' ')
+
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+    outputs:
+      parameters:
+      - name: primary_cluster
+        valueFrom:
+          path: /mnt/out/primary_cluster.txt
+      - name: member_clusters
+        valueFrom:
+          path: /mnt/out/member_clusters.txt
+
+
+  - name: sub-set-primay-cluster-on-tks-info
+    volumes:
+    - name: out
+      emptyDir: {}
+    script:
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      - name: TKS_API_URL
+        value: "{{workflow.parameters.tks_info_host}}"
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      source: |
+        import sys
+        import requests
+        import json
+
+        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
+        CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
+
+        def getToken() :
+          data = {
+              'organizationId' : os.environ['ORGANIZATION_ID'],
+              'accountId': os.environ['ACCOUNT_ID'],
+              'password' : os.environ['PASSWORD']
+          }
+
+          res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+          if res.status_code != 200 :
+              return ''
+          resJson = res.json()
+          return resJson['user']['token']
+
+        # set primary cluster with this cluster
+        # api/1.0/organizations/c3c16juq5/primary-cluster
+        res = requests.patch(TKS_API_URL+"/api/1.0/organizations/"+ ORGANIZATION_ID + "/primary-cluster",
+                              headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"},
+                              data=json.dumps({"primaryClusterId": CLUSTER_ID})
+                            )
+        if res.status_code != 200 :
+          print(res.reason)
+          sys.exit('Failed to set primary-cluster at organization')
+
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
