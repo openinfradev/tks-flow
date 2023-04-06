@@ -1,52 +1,57 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: update-tks-app-group-info
+  name: tks-update-appgroup
   namespace: argo
 spec:
   entrypoint: updateTksAppGroup
   arguments:
     parameters:
     - name: tks_info_host
-      value: "127.0.0.1"
+      value: "http://tks-api.tks.svc:9110"
     - name: app_group_id
-      value: "Aabbead61"
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
+      value: "abcdefghi"
   templates:
   - name: updateTksAppGroup
     inputs:
       parameters:
       - name: endpoints # Dict type
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       env:
       - name: PYTHONPATH
-        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
-      volumeMounts:
-      - name: tks-proto-vol
-        mountPath: "/opt/protobuf"
-        readOnly: true
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"      
       source: |
         import sys
-        import google.protobuf
-        import grpc
-        import info_pb2
-        import info_pb2_grpc
-        import common_pb2
-        import common_pb2_grpc
+        import requests
 
-        ip = "{{workflow.parameters.tks_info_host}}"
-        port = 9110 # if not specified
-        addr = "%s:%d" % (ip, port)
-        print("tks-info addr: %s" % addr)
+        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        APPGROUP_ID = "{{workflow.parameters.app_group_id}}"
+        ENDPOINTS = "{{inputs.parameters.endpoints}}"
 
-        with grpc.insecure_channel(addr) as channel:
-            app_stub = info_pb2_grpc.AppInfoServiceStub(channel)
+        def getToken() :
+            data = {
+                'organizationId': 'master',
+                'accountId': 'admin',
+                'password' : 'admin'
+            }
 
-            for app_type_, ep in {{inputs.parameters.endpoints}}.items():
-              res = app_stub.UpdateApp(info_pb2.UpdateAppRequest(app_group_id="{{workflow.parameters.app_group_id}}", app_type=app_type_, endpoint=ep, metadata="{}"))
-              print("Response code from UpdateApp: %d" % res.code)
+            res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+            if res.status_code != 200 :
+                return ''
+            resJson = res.json()
+            return resJson['user']['token']
+
+        print( ENDPOINTS )
+        for appType, endpoint in {{inputs.parameters.endpoints}}.items() :
+            data = {
+                'appGroupId' : APPGROUP_ID,
+                'applicationType' : appType,
+                'endpoint' : endpoint
+            }
+            res = requests.post(TKS_API_URL + '/api/1.0/app-groups/' + APPGROUP_ID + '/applications' , headers={'Authorization': 'Bearer ' + getToken()}, json = data )
+            print("Response code from UpdateApplication : %d" % res.status_code)
+
+
+

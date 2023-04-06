@@ -8,13 +8,9 @@ spec:
   arguments:
     parameters:
     - name: tks_info_host
-      value: "tks-info.tks.svc"
+      value: "http://tks-api-dev.taco-cat.xyz:9110"
     - name: cluster_id
-      value: "Cabbead61"
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
+      value: "cabbead61"  
   templates:
   - name: getTksCluster
     outputs:
@@ -26,40 +22,47 @@ spec:
     - name: out
       emptyDir: {}
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       env:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      - name: TKS_API_URL
+        value: "{{workflow.parameters.tks_info_host}}"        
       volumeMounts:
-      - name: tks-proto-vol
-        mountPath: "/opt/protobuf"
-        readOnly: true
       - name: out
         mountPath: /mnt/out
       source: |
         import sys
-        import google.protobuf
-        import grpc
-        import info_pb2
-        import info_pb2_grpc
-        import common_pb2
-        import common_pb2_grpc
+        import requests
+        import json
 
-        ip = "{{workflow.parameters.tks_info_host}}"
-        port = 9110 # if not specified
-        addr = "%s:%d" % (ip, port)
-        print("tks-info addr: %s" % addr)
+        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
 
-        with grpc.insecure_channel(addr) as channel:
-            stub = info_pb2_grpc.ClusterInfoServiceStub(channel)
+        def getToken() :
+            data = {
+                'organizationId' : 'master',
+                'accountId': 'admin',
+                'password' : 'admin'
+            }
 
-            res = stub.GetCluster(info_pb2.GetClusterRequest(cluster_id="{{workflow.parameters.cluster_id}}"))
-            print("Response code from GetCluster: %d" % res.code)
-            print("Cluster object from GetCluster:")
-            print(res.cluster)
+            res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+            if res.status_code != 200 :
+                return ''
+            resJson = res.json()
+            return resJson['user']['token']
 
-            with open("/mnt/out/cluster_info.txt", "w") as f:
-                cluster_conf = repr(res.cluster.conf)
-                print(cluster_conf)
-                f.write(cluster_conf)
+
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters/" + CLUSTER_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get cluster')
+
+        print(res.text)
+        cluster = res.json()['cluster']
+
+        with open("/mnt/out/cluster_info.txt", "w") as f:
+            #cluster_conf = str(cluster['conf'])
+            cluster_conf = json.dumps(cluster['conf'])
+            print(cluster_conf)
+            f.write(cluster_conf)

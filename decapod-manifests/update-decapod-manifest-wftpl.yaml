@@ -42,7 +42,7 @@ spec:
         import json
 
         action = "{{inputs.parameters.action}}"
-        clusterName = "{{inputs.parameters.cluster_name}}"
+        clusterId = "{{inputs.parameters.cluster_name}}"
         appGroup = "{{inputs.parameters.app_group}}"
         chartName = "{{inputs.parameters.chart}}"
         kvMapStr = "{{inputs.parameters.kv_map_str}}"
@@ -55,14 +55,19 @@ spec:
         numChanged = 0
         siteDir = 'cluster-site'
         sitePath = "./{}".format(siteDir)
-        siteFileName = "{}/{}/site-values.yaml".format(clusterName,appGroup)
+        siteFileName = "{}/{}/site-values.yaml".format(clusterId,appGroup)
         siteFileNameFull = "{}/{}".format(sitePath, siteFileName)
 
         # Clone or re-use site repository #
         if not os.path.isdir(sitePath):
             print("Cloning repository...")
 
-            repoUrl = "https://" + os.environ['TOKEN'] + "@{{inputs.parameters.site_repo_url}}"
+            gitBaseUrl = os.environ['GIT_SVC_URL'].replace("http://","")
+
+            #repoUrl = "https://" + os.environ['TOKEN'] + "@{{inputs.parameters.site_repo_url}}"
+            url = "@" + gitBaseUrl + "/" + os.environ['USERNAME'] + "/" + clusterId
+            repoUrl = "http://" + os.environ['TOKEN'] + url
+
             try:
               repo = git.Repo.clone_from(repoUrl, siteDir)
               with repo.config_writer() as git_config:
@@ -70,7 +75,7 @@ spec:
                   git_config.set_value('user', 'name', 'TKS Argo')
               print("Cloned repo contents:")
               os.system("ls -al {}".format(sitePath))
-              os.system("ls -al {}/{}".format(sitePath, clusterName))
+              os.system("ls -al {}/{}".format(sitePath, clusterId))
             except git.exc.GitCommandError as e:
               print("Repository {} doesn't exist. Skipping..".format(repoUrl))
               print(e)
@@ -94,7 +99,7 @@ spec:
               else:
                   chartFound['override'][k] = v
                   numChanged += 1
-            commit_msg = "update items for {} chart in '{}' cluster".format(chartName, clusterName)
+            commit_msg = "update items for {} chart in '{}' cluster".format(chartName, clusterId)
         elif action == 'insert':
             for k,v in kvMap.items():
               # If the value is list type, then append one by one iterating over the list. 
@@ -110,7 +115,7 @@ spec:
               else:
                   chartFound['override'][k].append(v)
                   numChanged += 1
-            commit_msg = "insert items for {} chart in '{}' cluster".format(chartName, clusterName)
+            commit_msg = "insert items for {} chart in '{}' cluster".format(chartName, clusterId)
         # DeleteItemFromList
         elif action == 'delete':
             for k,v in kvMap.items():
@@ -120,7 +125,7 @@ spec:
                   numChanged += 1
               else:
                   print("The value {} doesn't exist.".format(v))
-            commit_msg = "delete items for {} chart in '{}' cluster".format(chartName, clusterName)
+            commit_msg = "delete items for {} chart in '{}' cluster".format(chartName, clusterId)
         else:
             sys.exit("Wrong action type")
 
