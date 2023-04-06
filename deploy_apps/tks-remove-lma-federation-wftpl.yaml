@@ -147,6 +147,8 @@ spec:
       envFrom:
       - secretRef:
           name: "git-svc-token"
+      - secretRef:
+          name: "tks-api-secret"       
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -163,9 +165,9 @@ spec:
 
         def getToken() :
             data = {
-                'organizationId': 'master',
-                'accountId': 'admin',
-                'password' : 'admin'
+                'organizationId' : os.environ['ORGANIZATION_ID'],
+                'accountId': os.environ['ACCOUNT_ID'],
+                'password' : os.environ['PASSWORD']
             }
 
             res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )

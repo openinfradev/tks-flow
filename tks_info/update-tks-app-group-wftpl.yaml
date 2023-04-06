@@ -22,9 +22,13 @@ spec:
       env:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"      
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       source: |
         import sys
         import requests
+        import os
 
         TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
         APPGROUP_ID = "{{workflow.parameters.app_group_id}}"
@@ -32,9 +36,9 @@ spec:
 
         def getToken() :
             data = {
-                'organizationId': 'master',
-                'accountId': 'admin',
-                'password' : 'admin'
+                'organizationId' : os.environ['ORGANIZATION_ID'],
+                'accountId': os.environ['ACCOUNT_ID'],
+                'password' : os.environ['PASSWORD']
             }
 
             res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
