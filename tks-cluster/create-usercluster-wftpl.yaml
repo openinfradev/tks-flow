@@ -225,7 +225,7 @@ spec:
                 },
                 {
                   "app_group": "tks-cluster",
-                  "path": "aws-ack-s3",
+                  "path": "s3-chart",
                   "namespace": "taco-system",
                   "target_cluster": ""
                 }
