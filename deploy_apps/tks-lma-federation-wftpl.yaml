@@ -96,7 +96,7 @@ spec:
       # LMA appGroup specific task #
     - - name: collectThanosScEndpoints
         template: collectThanosScEndpoints
-        arguments:====
+        arguments:
           # These params should be moved to global argument? #
           parameters:
           - name: tks_info_host
