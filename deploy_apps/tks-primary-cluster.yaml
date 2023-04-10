@@ -52,14 +52,9 @@ spec:
             value: MAINTERNANCE
       # - name: get-clusters-in-contract
       #   template: sub-get-cluster
+
     - - name: set-primary-cluster-on-tks-info
         template: sub-set-primay-cluster-on-tks-info
-      - name: create-fed-namespace
-        template: sub-create-namespace
-        arguments:
-          parameters:
-          - name: target_namespace
-            value: fed
 
     # TODO: 전체 완성을 위해서는 아래내역을 구현하여 동적인 bucket을 만드는 방식으로 구현해야 하지만
     #     5월 오픈전 가능한 형상을 위해 협의한 바(아래)에 따라 본부분은 기존 준비됀 것을 사용하는 것으로 구현하고 추후 수정하다.
@@ -86,6 +81,22 @@ spec:
     #       - name: target_clusters
     #         value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} {{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
 
+    - - name: federation-components
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "lma", "path": "thanos-config", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "minio", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "thanos", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "grafana", "namespace": "lma", "target_cluster": "" }
+              ]
+
     # TODO: 전체 완성을 위해서는 아래내역을 구현하여 동적인 bucket을 만드는 방식으로 구현해야 하지만
     #     5월 오픈전 가능한 형상을 위해 협의한 바(아래)에 따라 본부분은 기존 준비됀 것을 사용하는 것으로 구현하고 추후 수정하다.
     #       1. 사용자가 생성하는 첫번째 클러스터는 primary cluster
@@ -101,20 +112,15 @@ spec:
           - name: member_clusters
             value: '{{inputs.parameters.member_clusters}}'
 
-    - - name: federation-components
+    - - name: render-modified-clusters
         templateRef:
-          name: create-application
-          template: installApps
+          name: event-gitea-render-manifests
+          template: main
         arguments:
           parameters:
-          - name: list
-            value: |
-              [
-                { "app_group": "primary", "path": "minio", "namespace": "fed", "target_cluster": "" }
-                { "app_group": "primary", "path": "thanos", "namespace": "fed", "target_cluster": "" }
-                { "app_group": "primary", "path": "loki", "namespace": "fed", "target_cluster": "" }
-                { "app_group": "primary", "path": "grafana", "namespace": "fed", "target_cluster": "" }
-              ]
+          - name: decapod_site_repo
+            value: "{{ workflow.parameters.github_account }}/{{item}}"
+        withParam: "{{ steps.change-target.outputs.parameters.modified_cluster_list}}"
 
     - - name: update-status-done
         template: sub-update-tks-status
@@ -160,42 +166,6 @@ spec:
   #   retryStrategy:
   #     limit: 2
 
-  - name: sub-create-namespace
-    inputs:
-      parameters:
-        - name: target_namespace
-    container:
-      name: create-namespace
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
-      command:
-      - /bin/bash
-      - '-c'
-      - |
-        function log() {
-          level=$1
-          msg=$2
-          date=$(date '+%F %H:%M:%S')
-          echo "[$date] $level     $msg"
-        }
-
-        kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-        echo -e "kube_secret:\n$kube_secret" | head -n 5
-        cat <<< "$kube_secret" > /etc/kubeconfig
-
-        kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
-        if [[ $? =~ 1 ]]; then
-          kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
-          kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${TARGET_NAMESPACE}
-          kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
-          log "INFO" "${TARGET_NAMESPACE} successfully created."
-        fi
-      env:
-      - name: TARGET_NAMESPACE
-        value: '{{inputs.parameters.target_namespace}}'
-    activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
-
   - name: sub-change-logging-target
     inputs:
       parameters:
@@ -203,7 +173,7 @@ spec:
       - name: member_clusters
     container:
       name: logging-target-changer
-      image: harbor-cicd.taco-cat.xyz/tks/shyaml_python:3.11
+      image: harbor-cicd.taco-cat.xyz/tks/shyaml_jq_kubectl_python:3.11
       command:
       - /bin/bash
       - '-c'
@@ -221,17 +191,19 @@ spec:
 
         current_cluster={{workflow.parameters.cluster_id}}
         primary_cluster={{inputs.parameters.primary_cluster}}
+        member_clusters={{inputs.parameters.member_clusters}}
+        empty_char=
 
-        if [ -z ${primary_cluster} ] || [ ${primary_cluster}="null" ]; then
+        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
           primary_cluster=${current_cluster}
+          member_clusters="${member_clusters} ${current_cluster}"
         fi
 
         #################
         # Check endpoints from the primary_cluster
         #################
-        echo kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}"
         primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-        echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
+        # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
 
         while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
@@ -242,9 +214,9 @@ spec:
 
         LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
         LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
-        METRIC_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-        METRIC_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
-        METRIC_URL=${METRIC_HOST}:${METRIC_PORT}
+        S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+        S3_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
+        METRIC_URL=${S3_HOST}:${S3_PORT}
 
         #################
         # updates
@@ -256,16 +228,20 @@ spec:
           repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
         fi
 
-        for i in {{inputs.parameters.member_clusters}}
+        for i in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
           log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $METRIC_URL (the current target is $i)"
           [ -d $i ] || git clone ${repository_base}${i}
           cd $i
-          sed -i "s/lokiHost: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiHost)/lokiHost: $LOKI_HOST/g" ${i}/lma/site-values.yaml
-          sed -i "s/lokiPort: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiPort)/lokiPort: $LOKI_PORT/g" ${i}/lma/site-values.yaml
-          sed -i "s/s3Host: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Host)/s3Host: $METRIC_HOST/g" ${i}/lma/site-values.yaml
-          sed -i "s/s3Port: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Port)/s3Port: $METRIC_PORT/g" ${i}/lma/site-values.yaml
+          defined_cluster_name=$(cat ${i}/lma/site-values.yaml | shyaml get-value global.clusterName)
+          if [ ${defined_cluster_name} != ${current_cluster} ]; then
+            sed -i "s/clusterName: *${defined_cluster_name}/clusterName: ${current_cluster}/g" ${i}/lma/site-values.yaml
+          fi
+          sed -i "s/lokiHost: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiHost)/lokiHost: ${LOKI_HOST}/g" ${i}/lma/site-values.yaml
+          sed -i "s/lokiPort: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiPort)/lokiPort: ${LOKI_PORT}/g" ${i}/lma/site-values.yaml
+          sed -i "s/s3Host: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Host)/s3Host: ${S3_HOST}/g" ${i}/lma/site-values.yaml
+          sed -i "s/s3Port: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Port)/s3Port: ${S3_PORT}/g" ${i}/lma/site-values.yaml
 
           # 2. grafana datasource on primay_cluster
           if [ $i = ${primary_cluster} ]; then
@@ -277,7 +253,7 @@ spec:
         git config --global user.name "tks"
         git config --global user.email "tks@sktelecom.com"
 
-        for i in {{inputs.parameters.member_clusters}}
+        for i in $member_clusters
         do
           cd $i
           log "INFO" "##### commit changes on $i to $LOKI_HOST:$LOKI_PORT and $METRIC_URL"
@@ -288,13 +264,26 @@ spec:
           cd -
           rm -rf $i
         done
+        jq -n '$ARGS.positional' --args $member_clusters >  /mnt/out/modified_cluster_list.txt
 
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
       envFrom:
       - secretRef:
           name: "git-svc-token"
     activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
+    # retryStrategy:
+    #   limit: 2
+
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: modified_cluster_list
+        valueFrom:
+          path: /mnt/out/modified_cluster_list.txt
 
   - name: sub-remove-individual-loki-and-grafana
     inputs:
@@ -362,7 +351,7 @@ spec:
         value: "{{workflow.parameters.tks_info_host}}"
       envFrom:
       - secretRef:
-          name: "tks-api-secret"       
+          name: "tks-api-secret"
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -398,6 +387,7 @@ spec:
         organization = res.json()['organization']
 
         with open("/mnt/out/primary_cluster.txt", "w") as f:
+          # primary_cluster = json.dumps(organization.get('phone')) # for test without db manifulation
           primary_cluster = json.dumps(organization.get('primaryClusterId'))
           print('Primary cluster: ', primary_cluster)
           f.write(primary_cluster)
@@ -412,8 +402,9 @@ spec:
 
         with open("/mnt/out/member_clusters.txt", "w") as f:
           for cluster in clusters:
-            print('Member cluster: ',cluster['id'])
-            f.write(cluster['id']+' ')
+            if cluster['status']==2:
+              print('Member cluster: ',cluster['id'])
+              f.write(cluster['id']+' ')
 
     activeDeadlineSeconds: 900
     retryStrategy:
@@ -427,7 +418,6 @@ spec:
       - name: member_clusters
         valueFrom:
           path: /mnt/out/member_clusters.txt
-
 
   - name: sub-set-primay-cluster-on-tks-info
     volumes:
@@ -443,7 +433,7 @@ spec:
         value: "{{workflow.parameters.tks_info_host}}"
       envFrom:
       - secretRef:
-          name: "tks-api-secret"       
+          name: "tks-api-secret"
       volumeMounts:
       - name: out
         mountPath: /mnt/out
