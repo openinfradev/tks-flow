@@ -1,7 +1,0 @@
-FROM harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0 AS base
-RUN apt update
-RUN apk update
-RUN pip3 install requests
-
-
-// docker build -t harbor-cicd.taco-cat.xyz/tks/python-tks-api:v1.0 -f Dockerfile.tks_api .

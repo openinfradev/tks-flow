@@ -4,13 +4,15 @@ MAINTAINER Cloud Co, SK Telecom
 
 ENV TKS_RELEASE=2.0.0-rc2
 
-RUN curl -SLo tks-client.tar.gz https://github.com/openinfradev/tks-client/releases/download/v${TKS_RELEASE}/tks-client_${TKS_RELEASE}_Linux_x86_64.tar.gz
-RUN tar -xzf ./tks-client.tar.gz
+#RUN curl -SLo tks-client.tar.gz https://github.com/openinfradev/tks-client/releases/download/v${TKS_RELEASE}/tks-client_${TKS_RELEASE}_Linux_x86_64.tar.gz
+#RUN tar -xzf ./tks-client.tar.gz
 
-RUN curl -SLo tksadmin-client.tar.gz https://github.com/openinfradev/tksadmin-client/releases/download/v${TKS_RELEASE}/tksadmin-client_${TKS_RELEASE}_Linux_x86_64.tar.gz
-RUN tar -xzf ./tksadmin-client.tar.gz
+#RUN curl -SLo tksadmin-client.tar.gz https://github.com/openinfradev/tksadmin-client/releases/download/v${TKS_RELEASE}/tksadmin-client_${TKS_RELEASE}_Linux_x86_64.tar.gz
+#RUN tar -xzf ./tksadmin-client.tar.gz
 
 RUN curl -Lo /usr/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 RUN chmod +x /usr/bin/kubectl
+
+COPY tks /usr/local/bin/tks
 
 CMD ["bash"]
