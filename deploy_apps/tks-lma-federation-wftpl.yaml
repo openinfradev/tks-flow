@@ -60,17 +60,29 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == null"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''"
 
     - - name: organization-level-update
-        template: primayCluster
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-change-logging-target
         arguments:
           parameters:
           - name: primary_cluster
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{workflow.parameters.cluster_id}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != null && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
+
+    - - name: render-modified-clusters
+        templateRef:
+          name: event-gitea-render-manifests
+          template: main
+        arguments:
+          parameters:
+          - name: decapod_site_repo
+            value: "{{ workflow.parameters.github_account }}/{{workflow.parameters.cluster_id}}"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
     - - name: installApps
         templateRef:
@@ -181,72 +193,6 @@ spec:
     retryStrategy:
       limit: 2
 
-  - name: primayCluster
-    inputs:
-      parameters:
-      - name: primary_cluster
-      - name: member_clusters
-    container:
-      name: logging-target-changer
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
-      command:
-      - /bin/bash
-      - '-c'
-      - |
-
-        function log() {
-          level=$1
-          msg=$2
-          date=$(date '+%F %H:%M:%S')
-          echo "[$date] $level     $msg"
-        }
-
-        # Check endpoints from the primary_cluster
-        primary_cluster={{inputs.parameters.primary_cluster}}
-        echo __${primary_cluster}__
-        if [ -z primary_cluster ] || [ primary_cluster="null" ]; then
-          primary_cluster={{workflow.parameters.cluster_id}}
-        fi
-
-        echo kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}"
-        primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-        echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
-        cat <<< "$primary_kube_secret" > kubeconfig
-
-        while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
-        do
-          echo "Waiting for generating the loadbalancer of LOKI(3s)"
-          sleep 3
-        done
-
-        LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-        LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
-        THANOS_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-        THANOS_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
-        THANOS_URL=${THANOS_HOST}:${THANOS_PORT}
-
-        echo "DEBUG: received parameters: {{inputs.parameters.primary_cluster}}:{{inputs.parameters.member_clusters}}:{{workflow.parameters.cluster_id}} "
-        echo "DEBUG: for the input i get: $LOKI_HOST $LOKI_PORT $THANOS_HOST $THANOS_PORT"
-        exit 0
-
-        # update primary
-
-        kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-        echo -e "kube_secret:\n$kube_secret" | head -n 5
-        cat <<< "$kube_secret" > /etc/kubeconfig
-
-        kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
-        if [[ $? =~ 1 ]]; then
-          kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
-          kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${TARGET_NAMESPACE}
-          kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
-          log "INFO" "${TARGET_NAMESPACE} successfully created."
-        fi
-
-    activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
-
   - name: GetMyThanosScEndpoint
     inputs:
       parameters:
@@ -316,7 +262,7 @@ spec:
       - secretRef:
           name: "git-svc-token"
       - secretRef:
-          name: "tks-api-secret"       
+          name: "tks-api-secret"
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -406,7 +352,7 @@ spec:
                   continue
 
               appGroups = res.json()['appGroups']
-              print( appGroups ) 
+              print( appGroups )
 
               os.system("rm -rf ./tempcluster")
 
@@ -421,7 +367,7 @@ spec:
                       print( 'Failed to get applications for appgroup')
                       continue
 
-                  applications = res.json()['applications']            
+                  applications = res.json()['applications']
                   if applications :
                     # This is based on the premise that there's only one prometheus per appGroup.
                     endpoint = applications[0]['endpoint']
@@ -436,7 +382,7 @@ spec:
                     output_cluster_list.append(str_json)
 
 
-        # Compose profer format to be used as input on next step 
+        # Compose profer format to be used as input on next step
         inwards_endpoint_map['querier.stores'] = inwards_endpoint_list
 
         ###########################

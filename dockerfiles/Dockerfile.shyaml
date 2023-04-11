@@ -1,6 +1,8 @@
 FROM python:3.11
 # COPY kubectl /usr/bin/kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" -o /usr/bin/kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 
 RUN mv kubectl /usr/bin/
-RUN chmod +x /usr/bin/kubectl
+RUN curl -LO "https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64"
+RUN mv jq-linux64 /usr/bin/jq
+RUN chmod +x /usr/bin/kubectl /usr/bin/jq
 RUN pip install shyaml
