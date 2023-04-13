@@ -119,6 +119,32 @@ spec:
               {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
             )
 
+      - name: deleteS3ChartApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-s3-chart"
+        when: >-
+            ( {{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
+            )
+
+    - - name: deleteS3ChartCrdApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-s3-chart-crds"
+        when: >-
+            ( {{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
+            )
+
     - - name: deleteCalicoController
         template: deleteCalicoController
         when: "{{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false"
