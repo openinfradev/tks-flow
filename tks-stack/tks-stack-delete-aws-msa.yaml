@@ -38,7 +38,7 @@ spec:
           - name: name
             value: "{{ workflow.parameters.cluster_id }}_servicemesh"
           - name: appgroup_id
-            value: "{{steps.call-get-appgroup-id-of-LMA.outputs.parameters.appgroup_id}}"
+            value: "{{steps.call-get-appgroup-id-of-SERVICEMESH.outputs.parameters.appgroup_id}}"
     - - name: call-get-appgroup-id-of-LMA
         templateRef:
           name: tks-cli

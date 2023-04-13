@@ -100,7 +100,7 @@ spec:
               break
             fi
 
-            CL_STATUS=$(tks cluster list -o "{{inputs.parameters.organization_id}}" | grep {{inputs.parameters.cluster_id}} | awk '{ print $3 }')
+            CL_STATUS=$(tks cluster list -o "{{inputs.parameters.organization_id}}" | grep {{inputs.parameters.cluster_id}} | awk '{ print $4 }')
             if [ "$CL_STATUS" = "DELETED" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
