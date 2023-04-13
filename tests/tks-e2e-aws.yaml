@@ -8,20 +8,12 @@ spec:
   onExit: notify-slack
   arguments:
     parameters:
-    - name: tks_info_url
-      value: "tks-info.tks.com:9110"
-    - name: tks_contract_url
-      value: "tks-contract.tks.com:9110"
-    - name: tks_cluster_lcm_url
-      value: "tks-cluster_lcm.tks.com:9110"
+    - name: tks_api_url
+      value: "http://tks-api-cicd.taco-cat.xyz"
 
   templates:
   - name: main
     steps:
-    - - name: call-create-tks-client-conf
-        templateRef:
-          name: tks-cli
-          template: create-tks-client-conf
     - - name: call-generate-names
         templateRef:
           name: tks-e2e-test-common
@@ -30,40 +22,38 @@ spec:
           parameters:
           - name: postfix
             value: "aws"
-    - - name: call-create-contract
-        templateRef:
-          name: tks-cli
-          template: create-contract
-        arguments:
-          parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-          - name: contract_name
-            value: "{{steps.call-generate-names.outputs.parameters.contract-name}}"
-          - name: creator
-            value: ""
-          - name: description
-            value: "e2e-test"
+#    - - name: call-create-contract
+#        templateRef:
+#          name: tks-cli
+#          template: create-contract
+#        arguments:
+#          parameters:
+#          - name: tks_client_conf
+#            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
+#          - name: contract_name
+#            value: "{{steps.call-generate-names.outputs.parameters.contract-name}}"
+#          - name: creator
+#            value: ""
+#          - name: description
+#            value: "e2e-test"
     - - name: call-create-usercluster
         templateRef:
           name: tks-cli
           template: create-usercluster
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_name
             value: "{{steps.call-generate-names.outputs.parameters.cluster-name}}"
-          - name: template_name
+          - name: stack_template_id
             value: "aws-reference"
-          - name: contract_id 
-            value: "{{steps.call-create-contract.outputs.parameters.contract-id}}"
-          - name: csp_id
-            value: "{{steps.call-create-contract.outputs.parameters.csp-id}}"
+          - name: organization_id 
+            value: "{{workflow.parameters.organization_id}}"
+          - name: cloud_account_id
+            value: "{{workflow.parameters.cloud_account_id}}"
           - name: creator
             value: ""
           - name: description
-            value: "e2e-test"
+            value: "e2e-test"            
     - - name: call-validate-cluster
         templateRef:
           name: tks-validate-usercluster
@@ -74,22 +64,22 @@ spec:
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: sonobuoy_mode
             value: "quick"
-    - - name: call-create-service-for-LMA-1st
+    - - name: call-create-appgroup-for-LMA-1st
         templateRef:
           name: tks-cli
-          template: create-service
+          template: create-appgroup
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
+          - name: name
+            value: "LMA"
+          - name: type
             value: "LMA"
           - name: creator
             value: ""
           - name: description
-            value: "e2e-test"
+            value: "e2e-test"            
     - - name: call-validate-lma-1st
         templateRef:
           name: tks-validate-service
@@ -98,36 +88,34 @@ spec:
           parameters:
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    - - name: call-delete-service-for-LMA-1st
+    - - name: call-delete-appgroup-for-LMA-1st
         templateRef:
           name: tks-cli
-          template: delete-service
+          template: delete-appgroup
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
+          - name: name
             value: "LMA"
-          - name: svc_id
-            value: "{{steps.call-create-service-for-LMA-1st.outputs.parameters.svc_id}}"
-    - - name: call-create-service-for-LMA-2nd
+          - name: appgroup_id
+            value: "{{steps.call-create-appgroup-for-LMA-1st.outputs.parameters.appgroup_id}}"
+    - - name: call-create-appgroup-for-LMA-2nd
         templateRef:
           name: tks-cli
-          template: create-service
+          template: create-appgroup
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
+          - name: name
+            value: "LMA"
+          - name: type
             value: "LMA"
           - name: creator
             value: ""
           - name: description
-            value: "e2e-test"
+            value: "e2e-test"            
     - - name: call-validate-lma-2nd
         templateRef:
           name: tks-validate-service
@@ -136,20 +124,18 @@ spec:
           parameters:
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-    - - name: call-delete-service-for-LMA-2nd
+    - - name: call-delete-appgroup-for-LMA-2nd
         templateRef:
           name: tks-cli
-          template: delete-service
+          template: delete-appgroup
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
+          - name: name
             value: "LMA"
-          - name: svc_id
-            value: "{{steps.call-create-service-for-LMA-2nd.outputs.parameters.svc_id}}"
+          - name: appgroup_id
+            value: "{{steps.call-create-appgroup-for-LMA-2nd.outputs.parameters.appgroup_id}}"
     - - name: call-delete-usercluster
         templateRef:
           name: tks-cli
@@ -160,8 +146,8 @@ spec:
             value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: contract_id
-            value: "{{steps.call-create-contract.outputs.parameters.contract-id}}"
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
     # TODO: cleaup remaining AWS resources
 
   - name: notify-slack
