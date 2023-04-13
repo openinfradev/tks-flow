@@ -40,7 +40,7 @@ spec:
   - name: awsconfig
     secret:
       secretName: awsconfig-secret
-      
+
   templates:
   - name: deploy
     steps:
@@ -72,11 +72,11 @@ spec:
           name: create-application
           template: installApps
         arguments:
-          parameters: 
+          parameters:
           - name: list
             value: |
               [
-                { 
+                {
                   "app_group": "tks-cluster",
                   "path": "cluster-api-aws",
                   "namespace": "argo",
@@ -221,6 +221,12 @@ spec:
                   "app_group": "tks-cluster",
                   "path": "aws-ebs-csi-driver",
                   "namespace": "kube-system",
+                  "target_cluster": ""
+                },
+                {
+                  "app_group": "tks-cluster",
+                  "path": "s3-chart-crds",
+                  "namespace": "taco-system",
                   "target_cluster": ""
                 },
                 {
