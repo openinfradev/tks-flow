@@ -142,8 +142,6 @@ spec:
           template: delete-usercluster
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: organization_id
