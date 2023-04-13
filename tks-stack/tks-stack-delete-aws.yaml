@@ -7,59 +7,45 @@ spec:
   entrypoint: main
   arguments:
     parameters:
-    - name: tks_info_url
-      value: "tks-info.tks.com:9110"
-    - name: tks_contract_url
-      value: "tks-contract.tks.com:9110"
-    - name: tks_cluster_lcm_url
-      value: "tks-cluster_lcm.tks.com:9110"
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
     - name: cluster_id
-      value: "c011b88fa"
-    - name: contract_id
-      value: ""
+      value: "czr9ts9ug"
+    - name: organization_id
+      value: "o1bm5xjim"
 
   templates:
   - name: main
     steps:
-    - - name: call-create-tks-client-conf
+    - - name: call-get-appgroup-id-of-LMA
         templateRef:
           name: tks-cli
-          template: create-tks-client-conf
-    - - name: call-get-service-id-of-LMA
-        templateRef:
-          name: tks-cli
-          template: get-service-id
+          template: get-appgroup-id
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{ workflow.parameters.cluster_id }}"
-          - name: service_name
-            value: "LMA"
-    - - name: call-delete-service-for-LMA
+          - name: name
+            value: "{{ workflow.parameters.cluster_id }}_lma"
+    - - name: call-delete-appgroup-for-LMA
         templateRef:
           name: tks-cli
-          template: delete-service
+          template: delete-appgroup
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{ workflow.parameters.cluster_id }}"
-          - name: service_name
-            value: "LMA"
-          - name: svc_id
-            value: "{{steps.call-get-service-id-of-LMA.outputs.parameters.svc_id}}"
+          - name: name
+            value: "{{ workflow.parameters.cluster_id }}_lma"
+          - name: appgroup_id
+            value: "{{steps.call-get-appgroup-id-of-LMA.outputs.parameters.appgroup_id}}"
     - - name: call-delete-usercluster
         templateRef:
           name: tks-cli
           template: delete-usercluster
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{ workflow.parameters.cluster_id }}"
-          - name: contract_id
-            value: "{{ workflow.parameters.contract_id }}"
+          - name: organization_id
+            value: "{{ workflow.parameters.organization_id }}"

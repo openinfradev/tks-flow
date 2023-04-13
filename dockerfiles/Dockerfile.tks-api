@@ -5,4 +5,9 @@ RUN yum install -y epel-release
 RUN yum install -y jq
 RUN pip3 install requests
 
+# [TODO] release 후 아래 주석을 해제한다. 현재는 tks 바이너리를 수동으로 복사함.
+#RUN curl -SLo tks-client.tar.gz https://github.com/openinfradev/tks-client/releases/download/v${TKS_RELEASE}/tks-client_${TKS_RELEASE}_Linux_x86_64.tar.gz
+#RUN tar -xzf ./tks-client.tar.gz
+COPY tks /usr/local/bin/tks
 
+#docker build -t harbor-cicd.taco-cat.xyz/tks/tks-api:v1.0 -f Dockerfile.tks-api .

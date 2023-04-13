@@ -6,119 +6,50 @@ metadata:
 spec:
   arguments:
     parameters:
-    - name: tks_info_url
-      value: "tks-info.tks.com:9110"
-    - name: tks_contract_url
-      value: "tks-contract.tks.com:9110"
-    - name: tks_cluster_lcm_url
-      value: "tks-cluster_lcm.tks.com:9110"
-
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
   templates:
-  - name: create-tks-client-conf
+  - name: login-tks-api
     container:
-      name: create-tks-client-conf
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
+      name: login-tks-api
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.0
       command:
         - /bin/bash
         - '-exc'
         - |
-          cat > /mnt/out/tks-client.yaml <<EOF
-          tksInfoUrl: "{{workflow.parameters.tks_info_url}}"
-          tksContractUrl: "{{workflow.parameters.tks_contract_url}}"
-          tksClusterLcmUrl: "{{workflow.parameters.tks_cluster_lcm_url}}"
-          EOF
-
-          cat /mnt/out/tks-client.yaml
-
-          tks --config /mnt/out/tks-client.yaml cluster list
-      volumeMounts:
-        - name: out
-          mountPath: /mnt/out
-    volumes:
-      - name: out
-        emptyDir: { }
-    outputs:
-      parameters:
-      - name: tks_client_conf
-        valueFrom:
-          default: "Something wrong"
-          path: /mnt/out/tks-client.yaml
-
-  - name: create-contract
-    inputs:
-      parameters:
-      - name: tks_client_conf
-      - name: contract_name
-      - name: creator
-      - name: description
-    container:
-      name: create-contract
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
-      command:
-        - /bin/bash
-        - '-exc'
-        - |
-          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
-
-          CT_NAME="{{inputs.parameters.contract_name}}"
-          echo "* Create $CT_NAME contract"
-
-          OUTPUT=$(tksadmin contract create ${CT_NAME} --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" | grep csp_id)
-          if [ "$OUTPUT" = "" ]; then
-            exit 1
-          fi
-
-          CSP_ID=$(echo $OUTPUT | cut -d'"' -f2)
-          CT_ID=$(echo $OUTPUT | cut -d'"' -f4)
-
-          sleep 1m
-
-          echo $CSP_ID | tee /mnt/out/csp_id.txt
-          echo $CT_ID | tee /mnt/out/contract_id.txt
-      volumeMounts:
-        - name: out
-          mountPath: /mnt/out
-    volumes:
-      - name: out
-        emptyDir: { }
-    outputs:
-      parameters:
-      - name: csp-id
-        valueFrom:
-          default: "Something wrong"
-          path: /mnt/out/csp_id.txt
-      - name: contract-id
-        valueFrom:
-          default: "Something wrong"
-          path: /mnt/out/contract_id.txt
+          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks cluster list
 
   - name: create-usercluster
     inputs:
       parameters:
-      - name: tks_client_conf
       - name: cluster_name
-      - name: template_name
-      - name: contract_id
-      - name: csp_id
+      - name: stack_template_id
+      - name: organization_id
+      - name: cloud_account_id
       - name: creator
       - name: description
     container:
       name: create-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.0
       command:
         - /bin/bash
         - '-exc'
         - |
-          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
           echo "* Create $CL_NAME cluster"
-          tks cluster create ${CL_NAME} --template "{{inputs.parameters.template_name}}" --contract-id "{{inputs.parameters.contract_id}}" --csp-id "{{inputs.parameters.csp_id}}" --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
+          tks cluster create ${CL_NAME} \
+            --template "{{inputs.parameters.stack_template_id}}" \
+            --organization-id "{{inputs.parameters.organization_id}}" \
+            --cloud-setting-id "{{inputs.parameters.cloud_account_id}}" \
+            --description "{{inputs.parameters.description}}" 
 
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            CL_STATUS=$(tks cluster list "{{inputs.parameters.contract_id}}" | grep $CL_NAME | awk '{ print $3 }')
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{ print $4 }')
             if [ "$CL_STATUS" = "RUNNING" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
@@ -132,7 +63,7 @@ spec:
             sleep 1m
           done
 
-          tks cluster list "{{inputs.parameters.contract_id}}" | grep $CL_NAME | awk '{print $2}' | tee /mnt/out/cluster_id.txt
+          tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{print $3}' | tee /mnt/out/cluster_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -149,29 +80,27 @@ spec:
   - name: delete-usercluster
     inputs:
       parameters:
-      - name: tks_client_conf
-      - name: contract_id
+      - name: organization_id
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.0
       command:
         - /bin/bash
         - '-exc'
         - |
-          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
-
+          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
           tks cluster delete {{inputs.parameters.cluster_id}}
 
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            CL_EXIST=$(tks cluster list "{{inputs.parameters.contract_id}}" | grep {{inputs.parameters.cluster_id}} | wc -l)
+            CL_EXIST=$(tks cluster list -o "{{inputs.parameters.organization_id}}" | grep {{inputs.parameters.cluster_id}} | wc -l)
             if [ "$CL_EXIST" = "0" ]; then
               break
             fi
 
-            CL_STATUS=$(tks cluster list "{{inputs.parameters.contract_id}}" | grep {{inputs.parameters.cluster_id}} | awk '{ print $3 }')
+            CL_STATUS=$(tks cluster list -o "{{inputs.parameters.organization_id}}" | grep {{inputs.parameters.cluster_id}} | awk '{ print $3 }')
             if [ "$CL_STATUS" = "DELETED" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
@@ -185,43 +114,42 @@ spec:
             sleep 1m
           done
 
-  - name: create-service
+  - name: create-appgroup
     inputs:
       parameters:
-      - name: tks_client_conf
       - name: cluster_id
-      - name: service_name
+      - name: name
+      - name: type
       - name: creator
       - name: description
     container:
-      name: create-service
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
+      name: create-appgroup
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.0
       command:
         - /bin/bash
         - '-exc'
         - |
-          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
-
-          tks service create --cluster-id {{inputs.parameters.cluster_id}} --service-name {{inputs.parameters.service_name}} --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}"
+          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks appgroup create --name "{{inputs.parameters.name}}" --cluster-id "{{inputs.parameters.cluster_id}}" --type "{{inputs.parameters.type}}" --description "{{inputs.parameters.description}}"
 
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            SVC_STATUS=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $3}')
-            if [ "$SVC_STATUS" = "APP_GROUP_RUNNING" ]; then
+            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $5}')
+            if [ "$STATUS" = "RUNNING" ]; then
               break
-            elif [ "$SVC_STATUS" = "APP_GROUP_ERROR" ]; then
+            elif [ "$STATUS" = "ERROR" ]; then
               exit 1
             fi
 
             if [ "$i" -ge "$threshold" ]; then
-              echo "Timed out waiting for {{inputs.parameters.service_name}} to be ready."
+              echo "Timed out waiting for {{inputs.parameters.name}} to be ready."
               exit 1
             fi
             sleep 1m
           done
 
-          echo $(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $2}') | tee /mnt/out/svc_id.txt
+          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -230,67 +158,64 @@ spec:
         emptyDir: { }
     outputs:
       parameters:
-      - name: svc_id
+      - name: appgroup_id
         valueFrom:
           default: "Something wrong"
-          path: /mnt/out/svc_id.txt
+          path: /mnt/out/appgroup_id.txt
 
-  - name: delete-service
+  - name: delete-appgroup
     inputs:
       parameters:
-      - name: tks_client_conf
       - name: cluster_id
-      - name: service_name
-      - name: svc_id
+      - name: name
+      - name: appgroup_id
     container:
-      name: create-service
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
+      name: delete-appgroup
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.0
       command:
         - /bin/bash
         - '-exc'
         - |
-          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
-
-          tks service delete {{inputs.parameters.svc_id}}
+          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks appgroup delete {{inputs.parameters.appgroup_id}}
 
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            SVC_EXIST=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.svc_id}} | wc -l)
-            if [ "$SVC_EXIST" = "0" ]; then
+            EXIST=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.appgroup_id}} | wc -l)
+            if [ "$EXIST" = "0" ]; then
               break
             fi
 
-            SVC_STATUS=$(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $3}')
-            if [ "$SVC_STATUS" = "APP_GROUP_DELETED" ]; then
+            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $5}')
+            if [ "$STATUS" = "DELETED" ]; then
               break
-            elif [ "$SVC_STATUS" = "APP_GROUP_ERROR" ]; then
+            elif [ "$STATUS" = "ERROR" ]; then
               exit 1
             fi
 
             if [ "$i" -ge "$threshold" ]; then
-              echo "Timed out waiting for {{inputs.parameters.service_name}} to be deleted."
+              echo "Timed out waiting for {{inputs.parameters.name}} to be deleted."
               exit 1
             fi
             sleep 1m
           done
 
-  - name: get-service-id
+  - name: get-appgroup-id
     inputs:
       parameters:
-      - name: tks_client_conf
       - name: cluster_id
-      - name: service_name
+      - name: name
     container:
-      name: get-service-id
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.0.2
+      name: get-appgroup-id
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.0
       command:
         - /bin/bash
         - '-exc'
         - |
-          echo "{{inputs.parameters.tks_client_conf}}" | tee ~/.tks-client.yaml
+          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
 
-          echo $(tks service list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.service_name}} | awk '{print $2}') | tee /mnt/out/svc_id.txt
+          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -299,7 +224,7 @@ spec:
         emptyDir: { }
     outputs:
       parameters:
-      - name: svc_id
+      - name: appgroup_id
         valueFrom:
           default: "Something wrong"
-          path: /mnt/out/svc_id.txt
+          path: /mnt/out/appgroup_id.txt

@@ -7,67 +7,58 @@ spec:
   entrypoint: main
   arguments:
     parameters:
-    - name: tks_info_url
-      value: "tks-info.tks.com:9110"
-    - name: tks_contract_url
-      value: "tks-contract.tks.com:9110"
-    - name: tks_cluster_lcm_url
-      value: "tks-cluster_lcm.tks.com:9110"
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
     - name: cluster_name
-      value: "cluster-foo"
-    - name: contract_id
       value: ""
-    - name: csp_id
-      value: ""
-    - name: creator
-      value: "user-uid"
     - name: description
       value: ""
-    - name: template_name
+    - name: organization_id
+      value: "o1bm5xjim"
+    - name: cloud_account_id
+      value: "964d3631-2ea1-4bb0-b17e-03de91d6381b"
+    - name: stack_template_id
       value: "aws-reference"
-      
+    - name: creator
+      value: ""
+
   templates:
   - name: main
     steps:
-    - - name: call-create-tks-client-conf
-        templateRef:
-          name: tks-cli
-          template: create-tks-client-conf
     - - name: call-create-usercluster
         templateRef:
           name: tks-cli
           template: create-usercluster
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_name
             value: "{{workflow.parameters.cluster_name}}"
-          - name: template_name
-            value: "{{workflow.parameters.template_name}}"
-          - name: contract_id
-            value: "{{workflow.parameters.contract_id}}"
-          - name: csp_id
-            value: "{{workflow.parameters.csp_id}}"
+          - name: stack_template_id
+            value: "{{workflow.parameters.stack_template_id}}"
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: cloud_account_id
+            value: "{{workflow.parameters.cloud_account_id}}"
           - name: creator
             value: "{{workflow.parameters.creator}}"
           - name: description
             value: "{{workflow.parameters.description}}"
 
-    - - name: call-create-service-for-LMA
+    - - name: call-create-appgroup-for-LMA
         templateRef:
           name: tks-cli
-          template: create-service
+          template: create-appgroup
         arguments:
           parameters:
-          - name: tks_client_conf
-            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: service_name
-            value: "LMA"
+          - name: name
+            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}_lma"
+          - name: type
+            value: "LMA"            
           - name: creator
             value: "{{workflow.parameters.creator}}"
           - name: description
             value: "{{workflow.parameters.description}}"
+
 
