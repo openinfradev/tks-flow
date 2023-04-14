@@ -6,12 +6,8 @@ metadata:
 spec:
   arguments:
     parameters:
-    - name: tks_info_url
-      value: "tks-info.tks.com:9110"
-    - name: tks_contract_url
-      value: "tks-contract.tks.com:9110"
-    - name: tks_cluster_lcm_url
-      value: "tks-cluster_lcm.tks.com:9110"
+    - name: tks_api_url
+      value: "http://tks-api-cicd.taco-cat.xyz"
 
   templates:
   - name: generate-names
