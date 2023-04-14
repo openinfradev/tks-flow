@@ -1,13 +1,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: abort-java-app
+  name: rollback-java-app
   namespace: argo
 spec:
   entrypoint: main
   onExit: exit-handler
   arguments:
     parameters:
+    - name: organization_id
+      value: "ose4j7p39"
     - name: target_cluster_id
       value: "C011b88fa"
     - name: app_name
@@ -18,8 +20,8 @@ spec:
       value: ""
     - name: asa_task_id
       value: ""
-    - name: organization_id
-      value: "ose4j7p39"
+    - name: helm_revision
+      value: ""
     # tks_info service URL
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
@@ -27,7 +29,7 @@ spec:
   templates:
   - name: exit-handler
     steps:
-    - - name: notify-abort-failure
+    - - name: notify-rollback-failure
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -40,14 +42,14 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "ABORT_FAILED"
+            value: "ROLLBACK_FAILED"
           - name: output
-            value: "{{workflow.outputs.parameters.abort_output_global}}"
+            value: "{{workflow.outputs.parameters.rollback_output_global}}"
         when: "{{workflow.status}} != Succeeded"
 
   - name: main
     steps:
-    - - name: notify-abort-start
+    - - name: notify-rollback-start
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -60,12 +62,12 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "ABORTING"
+            value: "ROLLBACKING"
           - name: output
             value: ""
-    - - name: abort-app
-        template: abort-app
-    - - name: notify-abort-success
+    - - name: rollback-app
+        template: rollback-app
+    - - name: notify-rollback-success
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -78,9 +80,9 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "{{steps.abort-app.outputs.parameters.status}}"
+            value: "{{steps.rollback-app.outputs.parameters.status}}"
           - name: output
-            value: "{{steps.abort-app.outputs.parameters.abort_output}}"
+            value: "{{steps.rollback-app.outputs.parameters.rollback_output}}"
     - - name: update-endpoint-url
         templateRef:
           name: update-tks-asa-endpoint
@@ -98,25 +100,25 @@ spec:
           - name: preview_endpoint
             value: "N/A"
           - name: helm_revision
-            value: "{{steps.abort-app.outputs.parameters.revision}}"
+            value: "{{steps.rollback-app.outputs.parameters.revision}}"
 
   #######################
   # Template Definition #
   #######################
 
-  - name: abort-app
+  - name: rollback-app
     volumes:
     - name: out
       emptyDir: {}
     outputs:
       parameters:
-      - name: abort_output
+      - name: rollback_output
         valueFrom:
-          path: /mnt/out/abort_output.log
-        globalName: abort_output_global
+          path: /mnt/out/rollback_output.log
+        globalName: rollback_output_global
       - name: status
         valueFrom:
-          path: /mnt/out/abort_status
+          path: /mnt/out/rollback_status
       - name: revision
         valueFrom:
           path: /mnt/out/revision
@@ -129,15 +131,16 @@ spec:
       - /bin/sh
       - '-exc'
       - |
-        ABORT_LOG='/mnt/out/abort_output.log'
+        ROLLBACK_LOG='/mnt/out/rollback_output.log'
         app_name={{workflow.parameters.app_name}}
-        ns={{workflow.parameters.namespace}}
+        namespace={{workflow.parameters.namespace}}
+        helm_revision={{workflow.parameters.helm_revision}}
 
         # Prepare kubeconfig
-        echo "Preparing kubeconfig for target cluster..." | tee -a $ABORT_LOG
+        echo "Preparing kubeconfig for target cluster..." | tee -a $ROLLBACK_LOG
         KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         if [[ -z "$KUBECONFIG_" ]]; then
-          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster_id}}" | tee -a $ABORT_LOG
+          echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster_id}}" | tee -a $ROLLBACK_LOG
           exit 1
         fi
 
@@ -148,31 +151,31 @@ spec:
 
 
         #==========================================================
-        # function: check_rollout_phase (Degraded)
+        # function: check_rollout_phase (Healthy)
         #==========================================================
         function check_rollout_phase() {
           # check if abort is completed
           rollout_phase=$1
           rollout_status=$2
           app_name={{workflow.parameters.app_name}}
-          abort_done=false
+          rollback_done=false
           for i in `seq 1 10`
           do
             phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
             ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
 
             if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
-              echo "'Abort' request completed successfully." | tee -a $ABORT_LOG
-              abort_done=true
+              echo "'Rollback' request completed successfully." | tee -a $ROLLBACK_LOG
+              rollback_done=true
               break
             else
-              echo "Waiting for 'abort' to be done.. sleeping 3 secs.."
+              echo "Waiting for 'rollback' to be done.. sleeping 3 secs.."
               sleep 3
             fi
           done
 
-          if [ "$abort_done" = false ]; then
-            echo "Timed out waiting for 'abort' to be done.." | tee -a $ABORT_LOG
+          if [ "$rollback_done" = false ]; then
+            echo "Timed out waiting for 'rollback' to be done.." | tee -a $ROLLBACK_LOG
             exit 1
           fi
         }
@@ -192,13 +195,13 @@ spec:
             available_repls=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
 
             if [ -z "$replicas" ]; then
-              echo "Failed to get number of replicas. Exiting workflow.." | tee -a $ABORT_LOG
+              echo "Failed to get number of replicas. Exiting workflow.." | tee -a $ROLLBACK_LOG
               exit 1
             fi
 
             # check if replicas == availableReplicas
             if [ "$replicas" == "$available_repls" ]; then
-              echo "All replicas are available. Abort is successful!" | tee -a $ABORT_LOG
+              echo "All replicas are available. Rollback is successful!" | tee -a $ROLLBACK_LOG
               ready=true
               break
             fi
@@ -206,7 +209,7 @@ spec:
           done  # End of FOR loop #
 
           if [ "$ready" = false ]; then
-            echo "Timed out waiting for abort to be done.." | tee -a $ABORT_LOG
+            echo "Timed out waiting for rollback to be done.." | tee -a $ROLLBACK_LOG
             exit 1
           fi
         }
@@ -214,19 +217,17 @@ spec:
 
 
         #==========================================================
-        # Write revision
+        # Write revision (latest deployed version)
         #==========================================================
         function write_revision() {
           # Writing helm release info to file.
-          revision=$( (helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1) 2> >(tee -a $ABORT_LOG >&2) )
+          revision=$( (helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1) 2> >(tee -a $ROLLBACK_LOG >&2) )
           
           # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
           if [ -z "$revision" ]; then
-            echo "Failed to get helm release revision. Exiting workflow.." | tee -a $ABORT_LOG
+            echo "Failed to get helm release revision. Exiting workflow.." | tee -a $ROLLBACK_LOG
             exit 1
           fi
-
-          revision=$((revision - 1))
 
           # Debug revision number
           echo "Deployed revision number: $revision"
@@ -236,33 +237,23 @@ spec:
 
 
         #==========================================================
-        # Start aborting Rollout
+        # Start Rollback
         #==========================================================
-        echo "Starting abort process..." | tee -a $ABORT_LOG
+        echo "Starting rollback..." | tee -a $ROLLBACK_LOG
 
-        # Check if rollout is waiting for promotion
-        if (kubectl argo rollouts status ${app_name} -n $ns --timeout 2s | grep Paused) ||
-          (kubectl argo rollouts status ${app_name} -n $ns --timeout 2s | grep Degraded)
-        then
-          echo "Rollout is in Paused state. Starting abort process.." | tee -a $ABORT_LOG
-        else
-          echo "Error: Rollout is NOT in Paused state. Exiting.." | tee -a $ABORT_LOG
-          exit 1
-        fi
+        # For rolling-update, change autoPromotionEnabled to true
+        # TODO: considering canary strategy 
+        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}'
 
-        # write revision
-        write_revision
-
-        # Perform abort
-        kubectl argo rollouts abort ${app_name} -n $ns
+        helm rollback $app_name -n $namespace $helm_revision
 
 
 
         #==========================================================
-        # check abort finished (Degraded)
+        # check promote finished (Healthy)
         #==========================================================
-        check_rollout_phase "Degraded" "Degraded"
-
+        check_rollout_phase "Healthy" "Healthy"
+        
 
 
         #==========================================================
@@ -273,26 +264,10 @@ spec:
 
 
         #==========================================================
-        # undo to the latest active revision
-        #==========================================================
-        revision=$(kubectl argo rollouts get rollout ${app_name} -n $ns | grep -v Images |  grep -m 1 -B 1 -E "stable|active" | grep revision | cut -d':' -f2)
-        if [ -z $revision ]; then
-          echo "Failed to get number of revisions. Exiting workflow.." | tee -a $ABORT_LOG
-          exit 1
-        fi
-        kubectl argo rollouts undo $app_name -n $ns --to-revision=$revision
-
-
-
-        #==========================================================
-        # check undo finished (Healthy)
-        #==========================================================
-        check_rollout_phase "Healthy" "Healthy"
-
-
-
-        #==========================================================
         # write information
         #==========================================================
+        # write revision
+        write_revision
+
         # Write deployment status to file for next step
-        echo "ABORT_SUCCESS" > /mnt/out/abort_status
+        echo "ROLLBACK_SUCCESS" > /mnt/out/rollback_status

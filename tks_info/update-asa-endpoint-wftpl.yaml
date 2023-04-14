@@ -9,47 +9,70 @@ spec:
   arguments:
     parameters:
     - name: tks_info_host
-      value: "127.0.0.1"
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
+      value: "http://tks-api.tks.svc:9110"
   templates:
   - name: updateTksAsaEndpoint
     inputs:
       parameters:
+      - name: organization_id
       - name: asa_id
       - name: asa_task_id
       - name: endpoint
       - name: preview_endpoint
       - name: helm_revision
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
+      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       env:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
-      volumeMounts:
-      - name: tks-proto-vol
-        mountPath: "/opt/protobuf"
-        readOnly: true
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
+      - secretRef:
+          name: "tks-api-secret"
       source: |
+        import os
+        import requests
         import sys
-        import google.protobuf
-        import grpc
-        import info_pb2
-        import info_pb2_grpc
-        import common_pb2
-        import common_pb2_grpc
 
-        ip = "{{workflow.parameters.tks_info_host}}"
-        port = 9110 # if not specified
-        addr = "%s:%d" % (ip, port)
 
-        print("Updating endpoint for AppServeApp with ID '%s'" % "{{inputs.parameters.asa_id}}")
+        TKS_API_URL = '{{workflow.parameters.tks_info_host}}'
+        ORG_ID = '{{inputs.parameters.organization_id}}'
+        APP_ID = '{{inputs.parameters.asa_id}}'
+        TASK_ID = '{{inputs.parameters.asa_task_id}}'
+        ENDPOINT_URL = '{{inputs.parameters.endpoint}}'
+        PREVIEW_ENDPOINT_URL = '{{inputs.parameters.preview_endpoint}}'
+        HELM_REVISION = '{{inputs.parameters.helm_revision}}'
 
-        with grpc.insecure_channel(addr) as channel:
-            asa_stub = info_pb2_grpc.AppServeAppServiceStub(channel)
 
-            res = asa_stub.UpdateAppServeAppEndpoint(info_pb2.UpdateAppServeAppEndpointRequest(app_serve_app_id="{{inputs.parameters.asa_id}}", app_serve_app_task_id="{{inputs.parameters.asa_task_id}}", endpoint="{{inputs.parameters.endpoint}}", preview_endpoint="{{inputs.parameters.preview_endpoint}}", helm_revision={{inputs.parameters.helm_revision}}))
-            print("Response code from UpdateAppServeAppEndpoint: %d" % res.code)
+        def getToken():
+          data = {
+            'organizationId': os.environ['ORGANIZATION_ID'],
+            'accountId': os.environ['ACCOUNT_ID'],
+            'password': os.environ['PASSWORD']
+          }
+
+          res = requests.post(TKS_API_URL + '/api/1.0/auth/login', json=data)
+          if res.status_code != 200:
+            sys.exit('Failed to login')
+          res_json = res.json()
+          return res_json['user']['token']
+
+
+        TOKEN = getToken()
+        uri = '/api/1.0/organizations/%s/app-serve-apps/%s/endpoint' % (ORG_ID, APP_ID)
+        data = {
+          'taskId': TASK_ID,
+          'endpointUrl': ENDPOINT_URL,
+          'previewEndpointUrl': PREVIEW_ENDPOINT_URL,
+          'helmRevision': int(HELM_REVISION)
+        }
+        res = requests.patch(TKS_API_URL + uri,
+                            headers={"Authorization": "Bearer " + TOKEN},
+                            json=data)
+        if res.status_code != 200:
+          sys.exit('Failed to update endpoint')
+
+        res_json = res.json()
+        print(res_json)

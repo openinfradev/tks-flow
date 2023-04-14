@@ -6,10 +6,6 @@ metadata:
 spec:
   entrypoint: main
   onExit: exit-handler
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
   arguments:
     parameters:
     - name: target_cluster_id
@@ -22,9 +18,11 @@ spec:
       value: ""
     - name: asa_task_id
       value: ""
+    - name: organization_id
+      value: "ose4j7p39"
     # tks_info service URL
     - name: tks_info_host
-      value: "tks-info.tks"
+      value: "http://tks-api.tks.svc:9110"
 
   templates:
   - name: exit-handler
@@ -35,6 +33,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -45,6 +47,22 @@ spec:
 
   - name: main
     steps:
+    - - name: notify-promote-start
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "PROMOTING"
+          - name: output
+            value: ""
     - - name: promote-app
         template: promote-app
     - - name: notify-promote-success
@@ -53,6 +71,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -65,6 +87,8 @@ spec:
           template: updateTksAsaEndpoint
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -74,7 +98,7 @@ spec:
           - name: preview_endpoint
             value: "N/A"
           - name: helm_revision
-            value: 0
+            value: "{{steps.promote-app.outputs.parameters.revision}}"
 
   #######################
   # Template Definition #
@@ -90,12 +114,15 @@ spec:
         valueFrom:
           path: /mnt/out/promote_output.log
         globalName: promote_output_global
-      - name: endpoint
-        valueFrom:
-          path: /mnt/out/endpoint
+      # - name: endpoint
+      #   valueFrom:
+      #     path: /mnt/out/endpoint
       - name: status
         valueFrom:
           path: /mnt/out/promote_status
+      - name: revision
+        valueFrom:
+          path: /mnt/out/revision
     container:
       image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
@@ -120,92 +147,130 @@ spec:
         chmod 0600 /etc/kubeconfig_temp
         export KUBECONFIG='/etc/kubeconfig_temp'
 
-        ###############
-        # Promote app #
-        ###############
+
+
+        #==========================================================
+        # function: check_rollout_phase (Healthy)
+        #==========================================================
+        function check_rollout_phase() {
+          # check if abort is completed
+          rollout_phase=$1
+          rollout_status=$2
+          app_name={{workflow.parameters.app_name}}
+          promote_done=false
+          for i in `seq 1 10`
+          do
+            phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
+            ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
+
+            if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
+              echo "'Promote' request completed successfully." | tee -a $PROMOTE_LOG
+              promote_done=true
+              break
+            else
+              echo "Waiting for 'promote' to be done.. sleeping 3 secs.."
+              sleep 3
+            fi
+          done
+
+          if [ "$promote_done" = false ]; then
+            echo "Timed out waiting for 'promote' to be done.." | tee -a $ABORT_LOG
+            exit 1
+          fi
+        }
+
+
+
+        #==========================================================
+        # function: check_rollout_replicas
+        #==========================================================
+        function check_rollout_replicas() {
+          # Check num of replicas
+          ready=false
+          SLEEP_INTERVAL=5
+          for i in `seq 1 15`
+          do
+            replicas=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
+            available_repls=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
+
+            if [ -z "$replicas" ]; then
+              echo "Failed to get number of replicas. Exiting workflow.." | tee -a $DEPLOY_LOG
+              exit 1
+            fi
+
+            # check if replicas == availableReplicas
+            if [ "$replicas" == "$available_repls" ]; then
+              echo "All replicas are available. Promote is successful!" | tee -a $DEPLOY_LOG
+              ready=true
+              break
+            fi
+            sleep $SLEEP_INTERVAL
+          done  # End of FOR loop #
+
+          if [ "$ready" = false ]; then
+            echo "Timed out waiting for promote to be done.." | tee -a $DEPLOY_LOG
+            exit 1
+          fi
+        }
+
+
+
+        #==========================================================
+        # Write revision (latest deployed version)
+        #==========================================================
+        function write_revision() {
+          # Writing helm release info to file.
+          revision=$( (helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1) 2> >(tee -a $PROMOTE_LOG >&2) )
+          
+          # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
+          if [ -z "$revision" ]; then
+            echo "Failed to get helm release revision. Exiting workflow.." | tee -a $PROMOTE_LOG
+            exit 1
+          fi
+
+          # Debug revision number
+          echo "Deployed revision number: $revision"
+          echo $revision > /mnt/out/revision
+        }
+
+
+
+        #==========================================================
+        # Start promoting Rollout
+        #==========================================================
         echo "Starting promote..." | tee -a $PROMOTE_LOG
 
         # Check if rollout is waiting for promotion
-        if (kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | grep Paused); then
+        if (kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | grep Paused); then
           echo "Rollout is in Paused state. Starting promote process.." | tee -a $PROMOTE_LOG
         else
           echo "Error: Rollout is NOT in Paused state. Exiting.." | tee -a $PROMOTE_LOG
           exit 1
         fi
 
+        # write revision
+        write_revision
+
         # Perform promotion
-        kubectl argo rollouts promote rollout-${app_name} -n {{workflow.parameters.namespace}}
+        kubectl argo rollouts promote ${app_name} -n {{workflow.parameters.namespace}}
 
-        # check if promote is completed
-        promote_done=false
-        for i in `seq 1 10`
-        do
-          phase=$(kubectl get rollout rollout-${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
-          ro_stat=$(kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s || true)
 
-          if [ "$phase" == "Healthy" ] && [ "$ro_stat" == "Healthy" ]; then
-            echo "Promotion is done successfully." | tee -a $PROMOTE_LOG
-            promote_done=true
-            break
-          else
-            echo "Waiting for promotion to be done.. sleeping 3 secs.."
-            sleep 3
-          fi
-        done
+        #==========================================================
+        # check promote finished (Healthy)
+        #==========================================================
+        check_rollout_phase "Healthy" "Healthy"
+        
 
-        if [ "$promote_done" = false ]; then
-          echo "Timed out waiting for promotion to be done.." | tee -a $PROMOTE_LOG
-          exit 1
-        fi
 
-        # Cleanup rollout resources
-        kubectl delete rollout rollout-${app_name} -n {{workflow.parameters.namespace}}
-        kubectl delete svc ${app_name}-preview -n {{workflow.parameters.namespace}}
+        #==========================================================
+        # check replicas
+        #==========================================================
+        check_rollout_replicas
 
-        # Temporary debug
-        sleep 3
-        kubectl get all -n {{workflow.parameters.namespace}}
 
-        # Wait for deployment to be ready
-        echo "Waiting for the deployment to be finished..." | tee -a $PROMOTE_LOG
 
-        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $PROMOTE_LOG >&2)
-
-        echo "Deployment status is 'Available'. Checking replicas.." | tee -a $PROMOTE_LOG
-
-        # Check num of replicas
-        ready=false
-        SLEEP_INTERVAL=5
-        for i in `seq 1 15`
-        do
-          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
-          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
-
-          if [ -z "$replicas" ]; then
-            echo "Failed to get number of replicas. Exiting workflow.." | tee -a $PROMOTE_LOG
-            exit 1
-          fi
-
-          # check if replicas == availableReplicas
-          if [ "$replicas" == "$available_repls" ]; then
-            echo "All replicas are available. Deployment is successful!" | tee -a $PROMOTE_LOG
-            ready=true
-            break
-          fi
-          sleep $SLEEP_INTERVAL
-        done  # End of FOR loop #
-
-        if [ "$ready" = false ]; then
-          echo "Timed out waiting for deployment to be done.." | tee -a $PROMOTE_LOG
-          exit 1
-        fi
-
+        #==========================================================
+        # write information
+        #==========================================================
         # Write deployment status to file for next step
         echo "PROMOTE_SUCCESS" > /mnt/out/promote_status
-
-        # Wait 5 secs for the endpoint to be ready
-        # TODO: fix this temp sleep cmd to busy-wait loop
-        sleep 5
-
-        # Writing endpoint to file
-        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
