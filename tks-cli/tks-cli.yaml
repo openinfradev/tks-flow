@@ -12,7 +12,7 @@ spec:
   - name: login-tks-api
     container:
       name: login-tks-api
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.1
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
       command:
         - /bin/bash
         - '-exc'
@@ -31,7 +31,7 @@ spec:
       - name: description
     container:
       name: create-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.1
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
       command:
         - /bin/bash
         - '-exc'
@@ -84,7 +84,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.1
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
       command:
         - /bin/bash
         - '-exc'
@@ -124,7 +124,7 @@ spec:
       - name: description
     container:
       name: create-appgroup
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.1
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
       command:
         - /bin/bash
         - '-exc'
@@ -171,7 +171,7 @@ spec:
       - name: appgroup_id
     container:
       name: delete-appgroup
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.1
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
       command:
         - /bin/bash
         - '-exc'
@@ -208,7 +208,7 @@ spec:
       - name: name
     container:
       name: get-appgroup-id
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.1
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
       command:
         - /bin/bash
         - '-exc'
