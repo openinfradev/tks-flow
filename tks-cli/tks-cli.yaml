@@ -43,7 +43,7 @@ spec:
           tks cluster create ${CL_NAME} \
             --stack-template-id "{{inputs.parameters.stack_template_id}}" \
             --organization-id "{{inputs.parameters.organization_id}}" \
-            --cloud-setting-id "{{inputs.parameters.cloud_account_id}}" \
+            --cloud-account-id "{{inputs.parameters.cloud_account_id}}" \
             --description "{{inputs.parameters.description}}" 
 
           threshold=30
