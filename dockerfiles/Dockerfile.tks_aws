@@ -1,8 +1,11 @@
 FROM weaveworks/eksctl AS eksctl
 #FROM amazon/aws-cli AS awscli
 
-#make a docker image with this CLI: docker build -t sktcloud/tks-aws:v1.0.0 -f Dockerfile.tks_aws .
+#make a docker image with this CLI: docker build -t harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.0 -f Dockerfile.tks_aws .
 FROM alpine
 COPY --from=eksctl /usr/local/bin/eksctl /usr/bin/eksctl
 RUN apk update
-RUN apk add aws-cli
+RUN apk add aws-cli curl bash gettext
+RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/v2.0.2/clusterawsadm-linux-amd64 -o clusterawsadm
+RUN chmod +x clusterawsadm
+RUN mv clusterawsadm /usr/local/bin
