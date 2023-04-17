@@ -208,6 +208,11 @@ spec:
 
         while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
         do
+          if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+            log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
+            exit -1
+          fi
+
           echo "Waiting for generating the loadbalancer of LOKI(3s)"
           sleep 3
         done
