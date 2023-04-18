@@ -1,0 +1,82 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-aws-multi-tenancy-identity
+  namespace: argo
+spec:
+  arguments:
+    parameters:
+    - name: aws_account_id
+      value: "NULL"
+    - name: aws_account_name
+      value: "NULL"
+  volumes:
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+
+  templates:
+  - name: createIdentity
+    activeDeadlineSeconds: 120
+    container:
+      name: creator
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+       
+        echo "apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: AWSClusterRoleIdentity
+        metadata:
+          name: ${AWS_ACCOUNT_ID}-${AWS_ACCOUNT_NAME}-account-role
+        spec:
+          allowedNamespaces:
+            selector:
+              matchLabels:
+                aws-account: ${AWS_ACCOUNT_NAME}
+          roleARN: \"arn:aws:iam::${AWS_ACCOUNT_ID}:role/controllers.cluster-api-provider-aws.sigs.k8s.io\"
+          sourceIdentityRef:
+            kind: AWSClusterControllerIdentity
+            name: default" > aws-cluster-roleidentity.yaml
+
+        cp /kube/value kubeconfig_adm
+        export KUBECONFIG=kubeconfig_adm
+
+        cat aws-cluster-roleidentity.yaml
+        kubectl apply -f aws-cluster-roleidentity.yaml
+
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      env:
+      - name: AWS_ACCOUNT_ID
+        value: "{{workflow.parameters.aws_account_id}}"
+      - name: AWS_ACCOUNT_NAME
+        value: "{{workflow.parameters.aws_account_name}}"
+
+  - name: deleteIdentity
+    activeDeadlineSeconds: 120
+    container:
+      name: destroy
+      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+       
+        cp /kube/value kubeconfig_adm
+        export KUBECONFIG=kubeconfig_adm
+
+        kubectl delete awsri ${AWS_ACCOUNT_ID}-${AWS_ACCOUNT_NAME}-account-role
+
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      env:
+      - name: AWS_ACCOUNT_ID
+        value: "{{workflow.parameters.aws_account_id}}"
+      - name: AWS_ACCOUNT_NAME
+        value: "{{workflow.parameters.aws_account_name}}"
