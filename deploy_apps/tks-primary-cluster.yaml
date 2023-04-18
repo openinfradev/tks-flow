@@ -262,6 +262,8 @@ spec:
           # 2. grafana datasource on primay_cluster
           if [ $i = ${primary_cluster} ]; then
             sed -i "s/grafanaDatasourceMetric: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.grafanaDatasourceMetric)/grafanaDatasourceMetric: thanos-query.lma:9090/g" ${i}/lma/site-values.yaml
+          else
+            sed -i "s/grafanaDatasourceMetric: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.grafanaDatasourceMetric)/grafanaDatasourceMetric: lma-prometheus.lma:9090/g" ${i}/lma/site-values.yaml
           fi
           cd -
         done
@@ -492,4 +494,3 @@ spec:
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
-
