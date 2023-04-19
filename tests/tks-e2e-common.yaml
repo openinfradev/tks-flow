@@ -20,8 +20,8 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          CL_NAME="e2e-test-cl-{{inputs.parameters.postfix}}-$(date "+%Y-%m%d-%H%M")"
-          CT_NAME="e2e-test-ct-{{inputs.parameters.postfix}}-$(date "+%Y-%m%d-%H%M")"
+          CL_NAME="ec-$(date "+%Y-%m%d-%H%M")"
+          CT_NAME="eo-$(date "+%Y-%m%d-%H%M")"
 
           echo $CL_NAME | tee /mnt/out/cluster_name.txt
           echo $CT_NAME | tee /mnt/out/organization_name.txt

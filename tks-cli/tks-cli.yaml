@@ -43,17 +43,21 @@ spec:
 
           CT_NAME="{{inputs.parameters.organization_name}}"
           echo "* Create $CT_NAME organization"
-          CT_ID=$(tks organization create ${CT_NAME} --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" | awk '{print $3}')
-          if [ "$CT_ID" = "" ]; then
+          OUTPUT=$(tks organization create ${CT_NAME} --description "{{inputs.parameters.description}}" | grep Success)
+          if [ "$OUTPUT" = "" ]; then
             exit 1
           fi
           sleep 1m
+
+          CT_ID=$(echo $OUTPUT | cut -d ':' -f3 | cut -d ']' -f1)
           echo $CT_ID | tee /mnt/out/organization_id.txt
 
-          CA_ID=$(tks cloud-account create ${CT_NAME}-ca --access-key-id TODO_CICD_AWS_ACCESS_KEY_ID --secret-access-key TODO_CICD_AWS_SECRET_KEY_ID -o $CT_ID --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" | awk '{print $3}')
-          if [ "$CA_ID" = "" ]; then
+          OUTPUT=$(tks cloud-account create ${CT_NAME}-ca --access-key-id TODO_CICD_AWS_ACCESS_KEY_ID --secret-access-key TODO_CICD_AWS_SECRET_KEY_ID -o ${CT_ID} | grep cloudAccountId)
+          if [ "$OUTPUT" = "" ]; then
             exit 1
           fi
+
+          CA_ID=$(echo $OUTPUT | awk '{print $3}')
           echo $CA_ID | tee /mnt/out/cloud_account_id.txt
 
       volumeMounts:

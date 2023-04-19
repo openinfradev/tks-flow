@@ -218,9 +218,9 @@ spec:
             value: "{{steps.call-create-organization.outputs.parameters.organization-id}}"
     # TODO: cleaup remaining AWS resources
 
-#  - name: notify-slack
-#    steps:
-#    - - name: notify-slack
-#        templateRef:
-#          name: tks-e2e-test-common
-#          template: notify-slack
+  - name: notify-slack
+    steps:
+    - - name: notify-slack
+        templateRef:
+          name: tks-e2e-test-common
+          template: notify-slack
