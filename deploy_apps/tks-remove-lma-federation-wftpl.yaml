@@ -52,37 +52,21 @@ spec:
             - name: target_namespace
               value: "lma"
 
-      # LMA appGroup specific task #
-    - - name: collectClusterList
-        template: collectClusterList
-        arguments:
-          # These params should be moved to global argument? #
-          parameters:
-          - name: tks_info_host
-            value:  "{{ workflow.parameters.tks_info_host }}"
-          - name: app_group_id
-            value: "{{ workflow.parameters.app_group_id }}"
-
-    # Delete endpoint from other cluster's manifests
-    - - name: updateDecapodManifestOutwards
+    - - name: get-clusters-in-contract
         templateRef:
-          name: update-decapod-manifest
-          template: updateManifest
+          name: tks-primary-cluster
+          template: sub-get-cluster
+
+    - - name: update-eps-for-thanos
+        templateRef:
+          name: tks-primary-cluster
+          template: update-eps-for-thanos
         arguments:
           parameters:
-          - name: site_repo_url
-            value: "github.com/{{workflow.parameters.github_account}}/{{item.name}}"
-          - name: action
-            value: "delete"
-          - name: cluster_name
-            value: "{{item.name}}"
-          - name: app_group
-            value: "{{workflow.parameters.app_group}}"
-          - name: chart
-            value: "thanos"
-          - name: kv_map_str
-            value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
-        withParam: "{{steps.collectClusterList.outputs.parameters.outwards_cluster_list}}"
+          - name: primary_cluster
+            value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
 
   #######################
   # Template Definition #
