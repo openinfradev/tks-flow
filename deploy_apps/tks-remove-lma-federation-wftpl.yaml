@@ -80,7 +80,7 @@ spec:
             value: "{{workflow.parameters.app_group}}"
           - name: chart
             value: "thanos"
-          - name: kv_map_str 
+          - name: kv_map_str
             value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
         withParam: "{{steps.collectClusterList.outputs.parameters.outwards_cluster_list}}"
 
@@ -140,7 +140,7 @@ spec:
     volumes:
     - name: out
       emptyDir: {}
-    script: 
+    script:
       name: 'collect'
       image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
@@ -148,7 +148,7 @@ spec:
       - secretRef:
           name: "git-svc-token"
       - secretRef:
-          name: "tks-api-secret"       
+          name: "tks-api-secret"
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -211,7 +211,7 @@ spec:
                 print("Checking cluster: {}".format(cluster['id']))
 
                 gitBaseUrl = os.environ['GIT_SVC_URL'].replace("http://","")
-                print( gitBaseUrl )                
+                print( gitBaseUrl )
 
                 print("Checking if corresponding cluster repo exists..")
                 url = "@" + gitBaseUrl + "/" + os.environ['USERNAME'] + "/" + cluster['id']

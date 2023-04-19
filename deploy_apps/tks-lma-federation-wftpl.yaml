@@ -65,7 +65,7 @@ spec:
     - - name: organization-level-update
         templateRef:
           name: tks-primary-cluster
-          template: sub-change-logging-target
+          template: change-logging-target
         arguments:
           parameters:
           - name: primary_cluster
@@ -74,85 +74,21 @@ spec:
             value: '{{workflow.parameters.cluster_id}}'
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
-    - - name: render-modified-clusters
-        templateRef:
-          name: event-gitea-render-manifests
-          template: main
-        arguments:
-          parameters:
-          - name: decapod_site_repo
-            value: "{{ workflow.parameters.github_account }}/{{workflow.parameters.cluster_id}}"
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
-
     - - name: installApps
         templateRef:
           name: lma-federation
           template: deploy
 
-    - - name: GetMyThanosScEndpoint
-        template: GetMyThanosScEndpoint
-        arguments:
-          parameters:
-          - name: target_namespace
-            value: lma
-
-    - - name: updateEndpointToTksInfo
+    - - name: update-eps-for-thanos
         templateRef:
-          name: tks-update-appgroup
-          template: updateTksAppGroup
+          name: tks-primary-cluster
+          template: update-eps-for-thanos
         arguments:
           parameters:
-          - name: endpoints
-            value: "{'PROMETHEUS': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
-
-      # LMA appGroup specific task #
-    - - name: collectThanosScEndpoints
-        template: collectThanosScEndpoints
-        arguments:
-          # These params should be moved to global argument? #
-          parameters:
-          - name: tks_info_host
-            value:  "{{ workflow.parameters.tks_info_host }}"
-          - name: app_group_id
-            value: "{{ workflow.parameters.app_group_id }}"
-
-    - - name: updateDecapodManifestOutwards
-        templateRef:
-          name: update-decapod-manifest
-          template: updateManifest
-        arguments:
-          parameters:
-          - name: action
-            value: "insert"
-          - name: cluster_name
-            value: "{{ workflow.parameters.cluster_id }}"
-          - name: app_group
-            value: "lma"
-          - name: chart
-            value: "thanos"
-          - name: kv_map_str
-            value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
-        withParam: "{{steps.collectThanosScEndpoints.outputs.parameters.outwards_cluster_list}}"
-
-    - - name: updateDecapodManifestInwards
-        templateRef:
-          name: update-decapod-manifest
-          template: updateManifest
-        arguments:
-          parameters:
-          - name: action
-            value: "insert"
-          # TODO: modify this to reflect actual cluster name for all cases
-          # instead of just using cluster id
-          - name: cluster_name
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.cur_cluster_name}}"
-          - name: app_group
-            value: "lma"
-          - name: chart
-            value: "thanos"
-          ## {"querier.stores": ['endpointA', 'endpointB']}
-          - name: kv_map_str
-            value: "{{steps.collectThanosScEndpoints.outputs.parameters.inwards_endpoint_map}}"
+          - name: primary_cluster
+            value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
 
   #######################
   # Template Definition #

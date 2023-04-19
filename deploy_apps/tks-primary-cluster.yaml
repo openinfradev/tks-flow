@@ -140,6 +140,55 @@ spec:
           - name: tks_status
             value: Running
 
+  - name: change-logging-target
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    steps:
+    - - name: change-target
+        template: sub-change-logging-target
+        arguments:
+          parameters:
+          - name: primary_cluster
+            value: '{{inputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{inputs.parameters.member_clusters}}'
+
+    - - name: render-modified-clusters
+        templateRef:
+          name: event-gitea-render-manifests
+          template: main
+        arguments:
+          parameters:
+          - name: decapod_site_repo
+            value: "{{ workflow.parameters.github_account }}/{{item}}"
+        withParam: "{{ steps.change-target.outputs.parameters.modified_cluster_list}}"
+
+  - name: update-eps-for-thanos
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    steps:
+    - - name: change-thanos-store
+        template: sub-change-thanos-store
+        arguments:
+          parameters:
+          - name: primary_cluster
+            value: '{{inputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{inputs.parameters.member_clusters}}'
+
+    - - name: render-primary-cluster
+        templateRef:
+          name: event-gitea-render-manifests
+          template: main
+        arguments:
+          parameters:
+          - name: decapod_site_repo
+            value: "{{ workflow.parameters.github_account }}/{{inputs.parameters.primary_cluster}}"
+
   #######################
   # Template Definition #
   #######################
@@ -207,7 +256,6 @@ spec:
 
         if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
           primary_cluster=${current_cluster}
-          member_clusters="${member_clusters} ${current_cluster}"
         fi
 
         #################
@@ -304,6 +352,101 @@ spec:
       - name: modified_cluster_list
         valueFrom:
           path: /mnt/out/modified_cluster_list.txt
+    activeDeadlineSeconds: 900
+
+  - name: sub-change-thanos-store
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    container:
+      name: logging-thanos-store-changer
+      image: harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        #/bin/bash
+
+        set -ex
+
+        function log() {
+          level=$1
+          msg=$2
+          date=$(date '+%F %H:%M:%S')
+          echo "[$date] $level  $msg"
+        }
+
+        current_cluster={{workflow.parameters.cluster_id}}
+        primary_cluster={{inputs.parameters.primary_cluster}}
+        member_clusters="{{inputs.parameters.member_clusters}}"
+        # empty_char=
+
+        # if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        #   primary_cluster=${current_cluster}
+        # fi
+
+        #################
+        # Gather endpoints
+        #################
+        eplist=\"thanos-storegateway:10901\"
+        for member_cluster in $member_clusters
+        do
+          kube_secret=$(kubectl get secret -n ${member_cluster} ${member_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          # echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > kubeconfig
+          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+            do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+                log "FAIL" "A service for the thanos-sidcar in ${member_cluster} is not cofigured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of Prometheus thanos-sidecar(3s)"
+              sleep 3
+            done
+
+            eplist="${eplist}, \"$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[0].hostname}"):$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.spec.ports[0].port}")\""
+          else
+            log "WARN" "Cluster(${member_cluster}) has no prometheus sidecar"
+          fi
+        done
+
+
+        #################
+        # updates
+        #################
+        GIT_ACCOUNT={{workflow.parameters.github_account}}
+        if  [[ $GIT_SVC_URL == https://* ]]; then
+          repository_url=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/${primary_cluster}
+        else
+          repository_url=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/${primary_cluster}
+        fi
+
+        git clone ${repository_url}
+        cd ${primary_cluster}
+        git config --global user.name "tks"
+        git config --global user.email "tks@sktelecom.com"
+
+        yq -i e  ".global.thanosQueryStores=[${eplist}]" ${primary_cluster}/lma/site-values.yaml
+
+        if [[ `git status --porcelain` ]]; then
+          log "INFO" "##### commit changes endpoints for the thanos query on ${primay_cluster} "
+          cmessage="changes endpoints for the thanos query on ${primay_cluster}"
+          git add ${primary_cluster}/lma/site-values.yaml
+          git commit -m "change loki and thanos endpoints. (by set-primary workflow)" -m "$cmessage"
+          git push
+          modified_clusters="${modified_clusters} ${i}"
+        else
+          log "INFO" "No change on the cluster $i"
+        fi
+        cd -
+        rm -rf ${primary_cluster}
+
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
     activeDeadlineSeconds: 900
 
   - name: sub-remove-individual-loki-and-grafana
@@ -423,7 +566,7 @@ spec:
 
         with open("/mnt/out/member_clusters.txt", "w") as f:
           for cluster in clusters:
-            if cluster['status']==2:
+            if cluster['status']=="RUNNING":
               print('Member cluster: ',cluster['id'])
               f.write(cluster['id']+' ')
 
