@@ -24,7 +24,7 @@ spec:
           CT_NAME="e2e-test-ct-{{inputs.parameters.postfix}}-$(date "+%Y-%m%d-%H%M")"
 
           echo $CL_NAME | tee /mnt/out/cluster_name.txt
-          echo $CT_NAME | tee /mnt/out/contract_name.txt
+          echo $CT_NAME | tee /mnt/out/organization_name.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -37,10 +37,10 @@ spec:
         valueFrom:
           default: "Something wrong"
           path: /mnt/out/cluster_name.txt
-      - name: contract-name
+      - name: organization-name
         valueFrom:
           default: "Something wrong"
-          path: /mnt/out/contract_name.txt
+          path: /mnt/out/organization_name.txt
 
   - name: notify-slack
     container:

@@ -12,13 +12,67 @@ spec:
   - name: login-tks-api
     container:
       name: login-tks-api
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       command:
         - /bin/bash
         - '-exc'
         - |
-          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
           tks cluster list
+
+  - name: create-organization
+    inputs:
+      parameters:
+      - name: organization_name
+      - name: creator
+      - name: description
+    container:
+      name: create-organization
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
+
+          CT_NAME="{{inputs.parameters.organization_name}}"
+          echo "* Create $CT_NAME organization"
+          CT_ID=$(tks organization create ${CT_NAME} --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" | awk '{print $3}')
+          if [ "$CT_ID" = "" ]; then
+            exit 1
+          fi
+          sleep 1m
+          echo $CT_ID | tee /mnt/out/organization_id.txt
+
+          CA_ID=$(tks cloud-account create ${CT_NAME}-ca --access-key-id TODO_CICD_AWS_ACCESS_KEY_ID --secret-access-key TODO_CICD_AWS_SECRET_KEY_ID -o $CT_ID --description "{{inputs.parameters.description}}" --creator "{{inputs.parameters.creator}}" | awk '{print $3}')
+          if [ "$CA_ID" = "" ]; then
+            exit 1
+          fi
+          echo $CA_ID | tee /mnt/out/cloud_account_id.txt
+
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: organization-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/organization_id.txt
+      - name: cloud-account-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/cloud_account_id.txt
+
 
   - name: create-usercluster
     inputs:
@@ -31,12 +85,15 @@ spec:
       - name: description
     container:
       name: create-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       command:
         - /bin/bash
         - '-exc'
         - |
-          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
           echo "* Create $CL_NAME cluster"
@@ -84,12 +141,15 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       command:
         - /bin/bash
         - '-exc'
         - |
-          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
           tks cluster delete {{inputs.parameters.cluster_id}}
 
           threshold=30
@@ -124,12 +184,15 @@ spec:
       - name: description
     container:
       name: create-appgroup
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       command:
         - /bin/bash
         - '-exc'
         - |
-          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
           tks appgroup create --name "{{inputs.parameters.name}}" --cluster-id "{{inputs.parameters.cluster_id}}" --type "{{inputs.parameters.type}}" --description "{{inputs.parameters.description}}"
 
           threshold=30
@@ -171,12 +234,15 @@ spec:
       - name: appgroup_id
     container:
       name: delete-appgroup
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       command:
         - /bin/bash
         - '-exc'
         - |
-          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
           tks appgroup delete {{inputs.parameters.appgroup_id}}
 
           threshold=30
@@ -208,12 +274,15 @@ spec:
       - name: name
     container:
       name: get-appgroup-id
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.2
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.3
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
       command:
         - /bin/bash
         - '-exc'
         - |
-          tks login {{workflow.parameters.tks_api_url}} --organization-id master --account-id admin --password admin
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
 
           echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
