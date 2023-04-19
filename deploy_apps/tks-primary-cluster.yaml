@@ -233,7 +233,7 @@ spec:
       - name: member_clusters
     container:
       name: logging-target-changer
-      image: harbor-cicd.taco-cat.xyz/tks/shyaml_jq_kubectl_python:3.11
+      image: harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11
       command:
       - /bin/bash
       - '-c'
@@ -300,18 +300,20 @@ spec:
           cd $i
           defined_cluster_name=$(cat ${i}/lma/site-values.yaml | shyaml get-value global.clusterName)
           if [ ${defined_cluster_name} != ${current_cluster} ]; then
-            sed -i "s/clusterName: *${defined_cluster_name}/clusterName: ${current_cluster}/g" ${i}/lma/site-values.yaml
+            yq -i e  ".global.clusterName=${current_cluster}/g" ${i}/lma/site-values.yaml
           fi
-          sed -i "s/lokiHost: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiHost)/lokiHost: ${LOKI_HOST}/g" ${i}/lma/site-values.yaml
-          sed -i "s/lokiPort: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.lokiPort)/lokiPort: ${LOKI_PORT}/g" ${i}/lma/site-values.yaml
-          sed -i "s/s3Host: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Host)/s3Host: ${S3_HOST}/g" ${i}/lma/site-values.yaml
-          sed -i "s/s3Port: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.s3Port)/s3Port: ${S3_PORT}/g" ${i}/lma/site-values.yaml
+          yq -i e  ".global.lokiHost=${LOKI_HOST}" ${i}/lma/site-values.yaml
+          yq -i e  ".global.lokiPort=${LOKI_PORT}" ${i}/lma/site-values.yaml
+          yq -i e  ".global.s3Host=${S3_HOST}" ${i}/lma/site-values.yaml
+          yq -i e  ".global.s3Port=${S3_PORT}" ${i}/lma/site-values.yaml
+
+          yq -i e  ".global.clusterName=${current_cluster}/g" ${i}/lma/site-values.yaml
 
           # 2. grafana datasource on primay_cluster
           if [ $i = ${primary_cluster} ]; then
-            sed -i "s/grafanaDatasourceMetric: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.grafanaDatasourceMetric)/grafanaDatasourceMetric: thanos-query.lma:9090/g" ${i}/lma/site-values.yaml
+            yq -i e  ".global.grafanaDatasourceMetric=thanos-query.lma:9090/g" ${i}/lma/site-values.yaml
           else
-            sed -i "s/grafanaDatasourceMetric: *$(cat ${i}/lma/site-values.yaml | shyaml get-value global.grafanaDatasourceMetric)/grafanaDatasourceMetric: lma-prometheus.lma:9090/g" ${i}/lma/site-values.yaml
+            yq -i e  ".global.grafanaDatasourceMetric=lma-prometheus.lma:9090/g" ${i}/lma/site-values.yaml
           fi
           cd -
         done
@@ -393,7 +395,6 @@ spec:
         for member_cluster in $member_clusters
         do
           kube_secret=$(kubectl get secret -n ${member_cluster} ${member_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-          # echo -e "kube_secret:\n$kube_secret" | head -n 5
           cat <<< "$kube_secret" > kubeconfig
           if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
