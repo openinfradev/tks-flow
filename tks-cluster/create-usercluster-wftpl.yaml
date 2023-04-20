@@ -13,6 +13,8 @@ spec:
       value: "C011b88fa"
     - name: site_name
       value: "{{ workflow.parameters.cluster_id }}"
+    - name: cloud_account_id
+      value: "NULL"
     - name: template_name
       value: "aws-reference"
     - name: git_account
