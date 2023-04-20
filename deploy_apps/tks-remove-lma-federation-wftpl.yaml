@@ -61,6 +61,16 @@ spec:
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
 
+    - - name: set-primary-cluster-on-tks-info
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-set-primay-cluster-on-tks-info
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: ""
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
   #######################
   # Template Definition #
   #######################

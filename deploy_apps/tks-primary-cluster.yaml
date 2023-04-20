@@ -55,6 +55,10 @@ spec:
 
     - - name: set-primary-cluster-on-tks-info
         template: sub-set-primay-cluster-on-tks-info
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
 
     # TODO: 전체 완성을 위해서는 아래내역을 구현하여 동적인 bucket을 만드는 방식으로 구현해야 하지만
     #     5월 오픈전 가능한 형상을 위해 협의한 바(아래)에 따라 본부분은 기존 준비됀 것을 사용하는 것으로 구현하고 추후 수정하다.
@@ -595,6 +599,9 @@ spec:
       limit: 2
 
   - name: sub-set-primay-cluster-on-tks-info
+    inputs:
+      parameters:
+      - name: cluster_id
     script:
       image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
@@ -606,9 +613,6 @@ spec:
       envFrom:
       - secretRef:
           name: "tks-api-secret"
-      volumeMounts:
-      - name: out
-        mountPath: /mnt/out
       source: |
         import sys
         import requests
@@ -617,7 +621,7 @@ spec:
 
         TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
-        CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
+        CLUSTER_ID = "{{inputs.parameters.cluster_id}}"
 
         def getToken() :
           data = {
