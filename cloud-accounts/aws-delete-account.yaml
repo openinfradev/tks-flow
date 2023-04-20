@@ -11,11 +11,11 @@ spec:
       value: "ap-northeast-2"
     - name: tks_aws_account_id
       value: "NULL"
+    - name: tks_cloud_accout_id
+      value: "NULL"
     - name: tks_aws_user
       value: "NULL"
     - name: aws_account_id
-      value: "NULL"
-    - name: aws_account_name
       value: "NULL"
     - name: aws_access_key_id
       value: "NULL"

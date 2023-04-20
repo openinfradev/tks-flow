@@ -13,9 +13,9 @@ spec:
       value: "NULL"
     - name: tks_aws_user
       value: "NULL"
-    - name: aws_account_id
+    - name: tks_cloud_account_id
       value: "NULL"
-    - name: aws_account_name
+    - name: aws_account_id
       value: "NULL"
     - name: aws_access_key_id
       value: "NULL"

@@ -24,7 +24,7 @@ spec:
 
   templates:
   - name: bootstrapIam
-    activeDeadlineSeconds: 120
+    activeDeadlineSeconds: 300
     inputs:
       parameters:
       - name: command # "create" or "delete"

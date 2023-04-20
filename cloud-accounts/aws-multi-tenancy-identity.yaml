@@ -8,7 +8,7 @@ spec:
     parameters:
     - name: aws_account_id
       value: "NULL"
-    - name: aws_account_name
+    - name: tks_cloud_account_id
       value: "NULL"
   volumes:
   - name: kubeconfig-adm
@@ -30,12 +30,12 @@ spec:
         echo "apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: AWSClusterRoleIdentity
         metadata:
-          name: ${AWS_ACCOUNT_ID}-${AWS_ACCOUNT_NAME}-account-role
+          name: ${TKS_CLOUD_ACCOUNT_ID}-account-role
         spec:
           allowedNamespaces:
             selector:
               matchLabels:
-                aws-account: ${AWS_ACCOUNT_NAME}
+                tks-cloud-accout-id: ${TKS_CLOUD_ACCOUNT_ID}
           roleARN: \"arn:aws:iam::${AWS_ACCOUNT_ID}:role/controllers.cluster-api-provider-aws.sigs.k8s.io\"
           sourceIdentityRef:
             kind: AWSClusterControllerIdentity
@@ -53,8 +53,8 @@ spec:
       env:
       - name: AWS_ACCOUNT_ID
         value: "{{workflow.parameters.aws_account_id}}"
-      - name: AWS_ACCOUNT_NAME
-        value: "{{workflow.parameters.aws_account_name}}"
+      - name: TKS_CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.tks_cloud_account_id}}"
 
   - name: deleteIdentity
     activeDeadlineSeconds: 120
@@ -70,7 +70,7 @@ spec:
         cp /kube/value kubeconfig_adm
         export KUBECONFIG=kubeconfig_adm
 
-        kubectl delete awsri ${AWS_ACCOUNT_ID}-${AWS_ACCOUNT_NAME}-account-role
+        kubectl delete awsri ${TKS_CLOUD_ACCOUNT_ID}-account-role
 
       volumeMounts:
       - name: kubeconfig-adm
@@ -78,5 +78,5 @@ spec:
       env:
       - name: AWS_ACCOUNT_ID
         value: "{{workflow.parameters.aws_account_id}}"
-      - name: AWS_ACCOUNT_NAME
-        value: "{{workflow.parameters.aws_account_name}}"
+      - name: TKS_CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.tks_cloud_account_id}}"
