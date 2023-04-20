@@ -10,13 +10,15 @@ spec:
     - name: app_group
       value: "lma"
     - name: github_account
-      value: "tks-management"
+      value: "decapod10"
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
+    - name: organization_id
+      value: "ohxwkh7iy"
     - name: cluster_id
-      value: "cpbiaxy4p"
+      value: "c750jgmy8"
     - name: app_group_id
-      value: "o086tb3zc"
+      value: "aey4niy0a"
     ##########################
     # For removeLMA task #
     ##########################
@@ -31,15 +33,6 @@ spec:
   templates:
   - name: removeLMA
     steps:
-    - - name: GetMyThanosScEndpoint
-        templateRef:
-          name: tks-lma-federation
-          template: GetMyThanosScEndpoint
-        arguments:
-          parameters:
-          - name: target_namespace
-            value: lma
-
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation

@@ -187,7 +187,8 @@ spec:
         arguments:
           parameters:
           - name: decapod_site_repo
-            value: "{{ workflow.parameters.github_account }}/{{inputs.parameters.primary_cluster}}"
+            value: "{{ workflow.parameters.github_account }}/{{steps.change-thanos-store.outputs.parameters.primary_cluster}}"
+        when: "{{steps.change-thanos-store.outputs.parameters.primary_cluster}} != 'NO_CHANGE_HERE'"
 
   #######################
   # Template Definition #
@@ -251,7 +252,7 @@ spec:
 
         current_cluster={{workflow.parameters.cluster_id}}
         primary_cluster={{inputs.parameters.primary_cluster}}
-        member_clusters={{inputs.parameters.member_clusters}}
+        member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
         if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
@@ -298,22 +299,19 @@ spec:
           log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $METRIC_URL (the current target is $i)"
           [ -d $i ] || git clone ${repository_base}${i}
           cd $i
-          defined_cluster_name=$(cat ${i}/lma/site-values.yaml | shyaml get-value global.clusterName)
-          if [ ${defined_cluster_name} != ${current_cluster} ]; then
-            yq -i e  ".global.clusterName=${current_cluster}/g" ${i}/lma/site-values.yaml
-          fi
-          yq -i e  ".global.lokiHost=${LOKI_HOST}" ${i}/lma/site-values.yaml
-          yq -i e  ".global.lokiPort=${LOKI_PORT}" ${i}/lma/site-values.yaml
-          yq -i e  ".global.s3Host=${S3_HOST}" ${i}/lma/site-values.yaml
-          yq -i e  ".global.s3Port=${S3_PORT}" ${i}/lma/site-values.yaml
 
-          yq -i e  ".global.clusterName=${current_cluster}/g" ${i}/lma/site-values.yaml
+          yq -i e  ".global.lokiHost=\"${LOKI_HOST}\"" ${i}/lma/site-values.yaml
+          yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${i}/lma/site-values.yaml
+          yq -i e  ".global.s3Host=\"${S3_HOST}\"" ${i}/lma/site-values.yaml
+          yq -i e  ".global.s3Port=\"${S3_PORT}\"" ${i}/lma/site-values.yaml
+
+          yq -i e  ".global.clusterName=\"${i}\"" ${i}/lma/site-values.yaml
 
           # 2. grafana datasource on primay_cluster
           if [ $i = ${primary_cluster} ]; then
-            yq -i e  ".global.grafanaDatasourceMetric=thanos-query.lma:9090/g" ${i}/lma/site-values.yaml
+            yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${i}/lma/site-values.yaml
           else
-            yq -i e  ".global.grafanaDatasourceMetric=lma-prometheus.lma:9090/g" ${i}/lma/site-values.yaml
+            yq -i e  ".global.grafanaDatasourceMetric=\"lma-prometheus.lma:9090\"" ${i}/lma/site-values.yaml
           fi
           cd -
         done
@@ -384,9 +382,9 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         # empty_char=
 
-        # if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
-        #   primary_cluster=${current_cluster}
-        # fi
+        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+          primary_cluster=${current_cluster}
+        fi
 
         #################
         # Gather endpoints
@@ -436,11 +434,12 @@ spec:
           log "INFO" "##### commit changes endpoints for the thanos query on ${primay_cluster} "
           cmessage="changes endpoints for the thanos query on ${primay_cluster}"
           git add ${primary_cluster}/lma/site-values.yaml
-          git commit -m "change loki and thanos endpoints. (by set-primary workflow)" -m "$cmessage"
+          git commit -m "change thanos-query stores. (by set-primary workflow)" -m "$cmessage"
           git push
-          modified_clusters="${modified_clusters} ${i}"
+          echo ${primary_cluster} > /mnt/out/primary_cluster.txt
         else
           log "INFO" "No change on the cluster $i"
+          echo NO_CHANGE_HERE > /mnt/out/primary_cluster.txt
         fi
         cd -
         rm -rf ${primary_cluster}
@@ -448,6 +447,17 @@ spec:
       envFrom:
       - secretRef:
           name: "git-svc-token"
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: primary_cluster
+        valueFrom:
+          path: /mnt/out/primary_cluster.txt
     activeDeadlineSeconds: 900
 
   - name: sub-remove-individual-loki-and-grafana
@@ -571,10 +581,6 @@ spec:
               print('Member cluster: ',cluster['id'])
               f.write(cluster['id']+' ')
 
-    activeDeadlineSeconds: 900
-    retryStrategy:
-      limit: 2
-
     outputs:
       parameters:
       - name: primary_cluster
@@ -584,10 +590,11 @@ spec:
         valueFrom:
           path: /mnt/out/member_clusters.txt
 
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
   - name: sub-set-primay-cluster-on-tks-info
-    volumes:
-    - name: out
-      emptyDir: {}
     script:
       image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
