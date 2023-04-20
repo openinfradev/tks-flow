@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-create-aws-cloud-account
+  namespace: argo
+spec:
+  entrypoint: create_account_resources
+  arguments:
+    parameters:
+    - name: aws_region
+      value: "ap-northeast-2"
+    - name: tks_aws_account_id
+      value: "NULL"
+    - name: tks_aws_user
+      value: "NULL"
+    - name: tks_cloud_account_id
+      value: "NULL"
+    - name: aws_account_id
+      value: "NULL"
+    - name: aws_access_key_id
+      value: "NULL"
+    - name: aws_secret_access_key
+      value: "NULL"
+    - name: aws_session_token
+      value: "NULL"
+  volumes:
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+
+  templates:
+  - name: create_account_resources
+    steps:
+    - - name: provision-iam-resources
+        templateRef:
+          name: tks-aws-multi-tenancy-iam-resources
+          template: bootstrapIam
+        arguments:
+          parameters:
+            - name: command
+              value: "create"
+    - - name: create-role-identity
+        templateRef:
+          name: tks-aws-multi-tenancy-identity
+          template: createIdentity
