@@ -22,20 +22,18 @@ spec:
           parameters:
           - name: postfix
             value: "aws"          
-#    - - name: call-create-contract
-#        templateRef:
-#          name: tks-cli
-#          template: create-contract
-#        arguments:
-#          parameters:
-#          - name: tks_client_conf
-#            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-#          - name: contract_name
-#            value: "{{steps.call-generate-names.outputs.parameters.contract-name}}"
-#          - name: creator
-#            value: ""
-#          - name: description
-#            value: "e2e-test"
+    - - name: call-create-organization
+        templateRef:
+          name: tks-cli
+          template: create-organization
+        arguments:
+          parameters:
+          - name: organization_name
+            value: "{{steps.call-generate-names.outputs.parameters.organization-name}}"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"
     - - name: call-create-usercluster
         templateRef:
           name: tks-cli
@@ -47,9 +45,9 @@ spec:
           - name: stack_template_id
             value: "{{workflow.parameters.stack_template_id}}"
           - name: organization_id 
-            value: "{{workflow.parameters.organization_id}}"
+            value: "{{steps.call-create-organization.outputs.parameters.organization-id}}"
           - name: cloud_account_id
-            value: "{{workflow.parameters.cloud_account_id}}"
+            value: "{{steps.call-create-organization.outputs.parameters.cloud-account-id}}"
           - name: creator
             value: ""
           - name: description
@@ -216,8 +214,8 @@ spec:
           parameters:
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
+          - name: organization_id 
+            value: "{{steps.call-create-organization.outputs.parameters.organization-id}}"
     # TODO: cleaup remaining AWS resources
 
   - name: notify-slack
