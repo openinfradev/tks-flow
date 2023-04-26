@@ -199,7 +199,7 @@ spec:
           EOF
           kubectl apply -f $CLUSTER_ID_namespace.yaml
 
-          kubectl create secret generic $CLUSTER_ID-kubeconfig -n $CLUSTER_ID --from-file=value=kubeconfig_$CLUSTER_ID
+          kubectl create secret generic $CLUSTER_ID-tks-kubeconfig -n $CLUSTER_ID --from-file=value=kubeconfig_$CLUSTER_ID
 
       volumeMounts:
       - name: kubeconfig-adm
@@ -224,7 +224,7 @@ spec:
           cp /kube/value kubeconfig_adm
           export KUBECONFIG=kubeconfig_adm
 
-          KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
 
           kubectl --kubeconfig=kubeconfig_workload label node --all taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite

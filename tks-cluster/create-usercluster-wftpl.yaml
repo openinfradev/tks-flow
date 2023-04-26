@@ -447,7 +447,7 @@ spec:
           kubectl --kubeconfig kubeconfig config delete-context "$ADMIN_USER@$CLUSTER"
           kubectl --kubeconfig kubeconfig config delete-user "$ADMIN_USER"
 
-          KUBECONFIG_WORKLOAD=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_WORKLOAD=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig_workload:\n$KUBECONFIG_WORKLOAD" | head -n 5
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
 
@@ -464,7 +464,7 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
           cat <<< "$KUBECONFIG" > kubeconfig_temp
 

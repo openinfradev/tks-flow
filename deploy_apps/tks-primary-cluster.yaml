@@ -202,7 +202,7 @@ spec:
         #################
         # Check endpoints from the primary_cluster
         #################
-        primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
 
