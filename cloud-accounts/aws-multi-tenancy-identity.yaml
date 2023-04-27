@@ -32,10 +32,7 @@ spec:
         metadata:
           name: ${TKS_CLOUD_ACCOUNT_ID}-account-role
         spec:
-          allowedNamespaces:
-            selector:
-              matchLabels:
-                tks-cloud-accout-id: ${TKS_CLOUD_ACCOUNT_ID}
+          allowedNamespaces: {}
           roleARN: \"arn:aws:iam::${AWS_ACCOUNT_ID}:role/controllers.cluster-api-provider-aws.sigs.k8s.io\"
           sourceIdentityRef:
             kind: AWSClusterControllerIdentity
