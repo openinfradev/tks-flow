@@ -9,6 +9,8 @@ spec:
     parameters:
     - name: cluster_id
       value: "Cc81dd656"
+    - name: cloud_account_id
+      value: "NULL"
 
   volumes:
     - name: kubeconfig-adm
@@ -36,7 +38,7 @@ spec:
   - name: CreateInternalCon
     activeDeadlineSeconds: 1800
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v2.0.0
       command:
       - /bin/bash
       - -exc
@@ -45,6 +47,15 @@ spec:
         cp /aws/* ~/.aws/
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
+
+        # Use AWS STS temporary security credential if multi-tenancy
+        if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+          ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+          aws sts assume-role --role-arn $ROLE_ARN --role-session-name "TKS-CreateInternalCon-$cluster_id" --output json | tee ~/assume-role-sts-credential.txt
+          export AWS_ACCESS_KEY_ID=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
+        fi
 
         # Gether VPC info.   
         VPC=$(kubectl get awscluster -n $cluster_id $cluster_id -o=jsonpath={.spec.network.vpc.id})
@@ -68,6 +79,9 @@ spec:
       env:
       - name: cluster_id
         value: "{{workflow.parameters.cluster_id}}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
+
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
@@ -77,7 +91,7 @@ spec:
   - name: DeleteInternalCon
     activeDeadlineSeconds: 1800
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/aws_kubectl:v2.0.0
       command:
       - /bin/bash
       - -exc
@@ -86,6 +100,15 @@ spec:
         cp /aws/* ~/.aws/
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
+
+        # Use AWS STS temporary security credential if multi-tenancy
+        if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+          ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+          aws sts assume-role --role-arn $ROLE_ARN --role-session-name "TKS-CreateInternalCon-$cluster_id" --output json | tee ~/assume-role-sts-credential.txt
+          export AWS_ACCESS_KEY_ID=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
+        fi
 
         # Gether VPC info.
         VPC=$(kubectl get awscluster -n $cluster_id $cluster_id -o=jsonpath={.spec.network.vpc.id})
@@ -106,6 +129,9 @@ spec:
       env:
       - name: cluster_id
         value: "{{workflow.parameters.cluster_id}}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
+
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"

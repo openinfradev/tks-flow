@@ -5,3 +5,4 @@ FROM amazon/aws-cli
 # if the line above was fail, download it in locally and use the line below
 COPY kubectl /usr/bin/kubectl
 RUN chmod +x /usr/bin/kubectl
+RUN yum install -y jq
