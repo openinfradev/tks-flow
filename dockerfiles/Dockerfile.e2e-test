@@ -15,5 +15,7 @@ COPY tks /usr/local/bin/tks
 RUN curl -Lo /usr/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 RUN chmod +x /usr/bin/kubectl
 
+RUN yum install -y epel-release
+RUN yum install -y jq
 
 CMD ["bash"]

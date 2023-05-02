@@ -76,11 +76,13 @@ spec:
           aws)
             ## Fetch cluster params from cluster_info file ##
             val_ssh_key=$(echo $CLUSTER_INFO | jq -r '.sshKeyName')
-            val_region=$(echo $CLUSTER_INFO | jq -r '.region')
-            val_num_of_az=$(echo $CLUSTER_INFO | jq -r '.numOfAz')
-            val_machine_type=$(echo $CLUSTER_INFO | jq -r '.machineType')
-            val_min_size=$(echo $CLUSTER_INFO | jq -r '.minSizePerAz')
-            val_max_size=$(echo $CLUSTER_INFO | jq -r '.maxSizePerAz')
+            val_region=$(echo $CLUSTER_INFO | jq -r '.clusterRegion')
+            val_num_of_az=$(echo $CLUSTER_INFO | jq -r '.mdNumOfAz')
+            val_machine_type=$(echo $CLUSTER_INFO | jq -r '.mdMachineType')
+            val_min_size=$(echo $CLUSTER_INFO | jq -r '.mdMinSizePerAz')
+            val_max_size=$(echo $CLUSTER_INFO | jq -r '.mdMaxSizePerAz')
+            val_mp_replicas=$(echo $CLUSTER_INFO | jq -r '.mpReplicas')
+            val_mp_machine_type=$(echo $CLUSTER_INFO | jq -r '.mpNodeMachineType')
 
             sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
@@ -91,6 +93,8 @@ spec:
             sed -i "s/mdMaxSizePerAz:\ CHANGEME/mdMaxSizePerAz: $val_max_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdMachineType:\ CHANGEME/mdMachineType: $val_machine_type/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/cpReplicas:\ CHANGEME/cpReplicas: 3/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/mpReplicas:\ CHANGEME/mpReplicas: $val_mp_replicas/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            sed -i "s/mpMachineType:\ CHANGEME/mpMachineType: $val_mp_machine_type/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
 
             ## multi-tenancy ##
             if [ "$CLOUD_ACCOUNT_ID" = "NULL" ]; then

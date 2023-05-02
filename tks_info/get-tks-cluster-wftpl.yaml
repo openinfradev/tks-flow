@@ -58,15 +58,15 @@ spec:
             return resJson['user']['token']
 
 
-        res = requests.get(TKS_API_URL+"/api/1.0/clusters/" + CLUSTER_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        res = requests.get(TKS_API_URL+"/api/1.0/clusters/" + CLUSTER_ID + "/site-values", headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
         if res.status_code != 200 :
             sys.exit('Failed to get cluster')
 
         print(res.text)
-        cluster = res.json()['cluster']
+        clusterSiteValues = res.json()['clusterSiteValues']
 
         with open("/mnt/out/cluster_info.txt", "w") as f:
-            #cluster_conf = str(cluster['conf'])
-            cluster_conf = json.dumps(cluster['conf'])
+            #cluster_conf = str(clusterSiteValues)
+            cluster_conf = json.dumps(clusterSiteValues)
             print(cluster_conf)
             f.write(cluster_conf)
