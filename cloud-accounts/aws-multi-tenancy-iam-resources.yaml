@@ -62,10 +62,16 @@ spec:
             trustStatements:
             - Action:
               - \"sts:AssumeRole\"
-              Effect: "Allow"
+              Effect: \"Allow\"
               Principal:
                 AWS:
-                - \"arn:aws:iam::${TKS_AWS_ACCOUNT_ID}:user/${TKS_AWS_USER}\"" | envsubst > bootstrap-manager-account.yaml
+                - \"arn:aws:iam::${TKS_AWS_ACCOUNT_ID}:user/${TKS_AWS_USER}\"
+            extraStatements:
+            - Action:
+              - \"ec2:DescribeInstanceAttribute\"
+              Effect: \"Allow\"
+              Resource:
+              - \"*\"" | envsubst > bootstrap-manager-account.yaml
 
           cat bootstrap-manager-account.yaml
           clusterawsadm bootstrap iam "{{ inputs.parameters.command }}"-cloudformation-stack --config bootstrap-manager-account.yaml

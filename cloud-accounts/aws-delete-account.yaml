@@ -31,7 +31,7 @@ spec:
   templates:
   - name: delete_account_resources
     steps:
-    - - name: provision-iam-resources
+    - - name: delete-iam-resources
         templateRef:
           name: tks-aws-multi-tenancy-iam-resources
           template: bootstrapIam
