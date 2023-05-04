@@ -87,7 +87,6 @@ spec:
             sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/clusterRegion:\ CHANGEME/clusterRegion: $val_region/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/awsAccountID:\ CHANGEME/awsAccountID: \"$AWS_ACCOUNT_ID\"/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdNumOfAz:\ CHANGEME/mdNumOfAz: $val_num_of_az/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdMinSizePerAz:\ CHANGEME/mdMinSizePerAz: $val_min_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             sed -i "s/mdMaxSizePerAz:\ CHANGEME/mdMaxSizePerAz: $val_max_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
@@ -144,8 +143,6 @@ spec:
       envFrom:
         - secretRef:
             name: "git-svc-token"
-        - secretRef:
-            name: "aws-account-id"
       env:
       - name: CONTRACT_ID
         value: "{{workflow.parameters.contract_id}}"
