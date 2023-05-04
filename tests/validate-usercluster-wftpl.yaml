@@ -36,7 +36,7 @@ spec:
         - /bin/bash
         - '-exc'
         - |
-          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          KUBECONFIG_=$(kubectl get secret -n {{inputs.parameters.cluster_id}} {{inputs.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 

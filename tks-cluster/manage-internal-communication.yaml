@@ -123,7 +123,7 @@ spec:
         mkdir ~/.kube
         cp /kube/value ~/.kube/config
 
-        kubectl get secret -n $cluster_id ${cluster_id}-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config
+        kubectl get secret -n $cluster_id ${cluster_id}-tks-kubeconfig -o=jsonpath='{.data.value}' | base64 -d > ~/.kube/config
 
         # FIX binding address of kubeproxy's metric server to 0.0.0.0
         kubectl get cm -n kube-system kube-proxy -o yaml > /tmp/kube-proxy.cm.yaml

@@ -97,7 +97,7 @@ spec:
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $DELETE_LOG
-        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         if [[ -z "$KUBECONFIG_" ]]; then
           echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster_id}}" | tee -a $DELETE_LOG
           exit 1
