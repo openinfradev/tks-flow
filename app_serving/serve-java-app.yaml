@@ -6,10 +6,6 @@ metadata:
 spec:
   entrypoint: main
   onExit: exit-handler
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
   arguments:
     parameters:
     ##############
@@ -26,11 +22,13 @@ spec:
     # Param "app_type"
     # options: spring/springboot
     - name: app_type
-      value: "spring"
+      value: "springboot"
     - name: target_cluster_id
-      value: "C011b88fa"
+      value: "cmibsrdnq"
+    - name: organization_id
+      value: "ose4j7p39"
     - name: app_name
-      value: "sample-petclinic"
+      value: "spring-petclinic"
     - name: namespace
       value: "{{workflow.parameters.app_name}}"
     - name: asa_id
@@ -38,9 +36,11 @@ spec:
     - name: asa_task_id
       value: ""
     - name: artifact_url
-      value: "http://ab846aadb5b974536a0463a29ed866f5-200924269.ap-northeast-2.elb.amazonaws.com:8081/repository/my-release-repo/default/petclinic/1.0/petclinic-1.0.jar"
+      value: "http://a650ce058f73a4ed287e1b8719d77530-1138849010.ap-northeast-2.elb.amazonaws.com:8081/repository/maven-releases/org/springframework/samples/spring-petclinic/3.0.0/spring-petclinic-3.0.0.jar"
     - name: image_url
-      value: "REGISTRY/IMAGE:TAG"
+      value: "harbor-cicd.taco-cat.xyz/appserving/{{workflow.parameters.app_name}}-{{target_cluster_id}}:v1.0"
+    - name: replicas
+      value: "1"
     - name: port
       value: "8080"
     #######################
@@ -48,7 +48,7 @@ spec:
     #######################
     # executable path in the image
     - name: executable_path
-      value: "FILE_PATH_IN_THE_IMAGE"
+      value: "/usr/src/myapp/spring-petclinic-3.0.0.jar"
     - name: profile
       value: "default"
     - name: extra_env
@@ -73,7 +73,7 @@ spec:
       value: ""
     # tks_info service URL
     - name: tks_info_host
-      value: "tks-info.tks"
+      value: "http://tks-api.tks.svc:9110"
     - name: git_repo_url
       value: "github.com/openinfradev"
     - name: app-serve-template_branch
@@ -104,6 +104,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -117,6 +121,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -130,6 +138,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -147,6 +159,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -163,6 +179,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -176,6 +196,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -192,6 +216,10 @@ spec:
           template: updateTksAsaStatus
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
@@ -205,6 +233,8 @@ spec:
           template: updateTksAsaEndpoint
         arguments:
           parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -333,6 +363,7 @@ spec:
       - '-exc'
       - |
         DEPLOY_LOG='/mnt/out/deploy_output.log'
+        strategy={{workflow.parameters.strategy}}
         mkdir -p /apps/
 
         # temporary debug
@@ -344,9 +375,111 @@ spec:
         cd /apps
         git clone -b {{workflow.parameters.app-serve-template_branch}} --single-branch https://{{workflow.parameters.git_repo_url}}/app-serve-template.git
 
-        ##################
-        # Replace values #
-        ##################
+
+        #============================================================
+        # function: is_rollout_exist (0: rollout exist, 1: not exist)
+        #============================================================
+        function is_rollout_exist() {
+          if (kubectl get rollout {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} >/dev/null 2>&1); then
+            return 0
+          else
+            return 1
+          fi
+        }
+
+
+        #==========================================================
+        # function: deploy_rollout
+        #==========================================================
+        function deploy_rollout() {
+          strategy={{workflow.parameters.strategy}}
+          replicas={{workflow.parameters.replicas}}
+
+          echo "Deploying rollout resources..." | tee -a $DEPLOY_LOG
+          cd /apps/app-serve-template/canary-manifests
+          sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./rollout.yaml
+          sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./rollout.yaml
+          sed -i "s/REPLICAS/${replicas}/g" ./rollout.yaml
+
+          # For blue-green and canary case, deploy rollout and preview service #
+          if [[ "$strategy" == "rolling-update" ]]; then
+            sed -i "s/AUTO_PROMOTION/true/g" ./rollout.yaml
+          else
+            sed -i "s/AUTO_PROMOTION/false/g" ./rollout.yaml
+          fi
+
+          kubectl apply -f ./rollout.yaml -n {{workflow.parameters.namespace}}
+        }
+
+
+        #==========================================================
+        # function: check_rollout_phase (Healthy, Paused)
+        #==========================================================
+        function check_rollout_phase() {
+          rollout_phase=$1
+          rollout_status=$2
+          app_name={{workflow.parameters.app_name}}
+          rollout_finish=false
+          for i in `seq 1 10`
+          do
+            phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
+            ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
+
+            if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
+              echo "Rollout is finished." | tee -a $DEPLOY_LOG
+              rollout_finish=true
+              break
+            else
+              echo "Waiting for rollout to be ready.. sleeping 3 secs.."
+              sleep 3
+            fi
+          done
+
+          if [ "$rollout_finish" = false ]; then
+            echo "Timed out waiting for rollout to be finished.." | tee -a $DEPLOY_LOG
+            exit 1
+          fi
+        }
+
+
+        #==========================================================
+        # function: check_rollout_replicas (when rolling-update)
+        #==========================================================
+        function check_rollout_replicas() {
+          # Check num of replicas
+          ready=false
+          SLEEP_INTERVAL=5
+          for i in `seq 1 15`
+          do
+            replicas=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
+            available_repls=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
+
+            if [ -z "$replicas" ]; then
+              echo "Failed to get number of replicas. Exiting workflow.." | tee -a $DEPLOY_LOG
+              exit 1
+            fi
+
+            # check if replicas == availableReplicas
+            if [ "$replicas" == "$available_repls" ]; then
+              echo "All replicas are available. Deployment is successful!" | tee -a $DEPLOY_LOG
+              ready=true
+              break
+            fi
+            sleep $SLEEP_INTERVAL
+          done  # End of FOR loop #
+
+          if [ "$ready" = false ]; then
+            echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
+            #echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
+            exit 1
+          fi
+        }
+
+
+
+        #==========================================================
+        # Replace values
+        #==========================================================
         app_type={{workflow.parameters.app_type}}
         ## For legacy spring app case ##
         if [[ "$app_type" == "spring" ]]; then
@@ -388,6 +521,7 @@ spec:
           sed -i "s#EXECUTABLE_PATH#{{workflow.parameters.executable_path}}#g" ./values.yaml
           sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./values.yaml
           sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./values.yaml ./Chart.yaml
+          sed -i "s/NAMESPACE/{{workflow.parameters.namespace}}/g" ./values.yaml
           sed -i "s#IMAGE_URL#${image_name}#g" ./values.yaml
           sed -i "s/PROFILE/{{workflow.parameters.profile}}/g" ./values.yaml
           sed -i "s/PV_ENABLED/{{workflow.parameters.pv_enabled}}/g" ./values.yaml
@@ -442,47 +576,29 @@ spec:
         chmod 0600 /etc/kubeconfig_temp
         export KUBECONFIG='/etc/kubeconfig_temp'
 
-        ###############
-        # Deploy apps #
-        ###############
-        echo "Starting deployment..." | tee -a $DEPLOY_LOG
 
-        strategy={{workflow.parameters.strategy}}
-        # For blue-green case, deploy rollout and preview service #
-        if [[ "$strategy" == "blue-green" ]]; then
-          echo "Deploying rollout resources..." | tee -a $DEPLOY_LOG
 
-          cd /apps/app-serve-template/canary-manifests
-          sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./rollout.yaml
-          sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./rollout.yaml
-          kubectl apply -f ./rollout.yaml -n {{workflow.parameters.namespace}}
-
-          # check if rollout is ready
-          app_name={{workflow.parameters.app_name}}
-          rollout_ready=false
-          for i in `seq 1 10`
-          do
-            phase=$(kubectl get rollout rollout-${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
-            ro_stat=$(kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s || true)
-
-            if [ "$phase" == "Healthy" ] && [ "$ro_stat" == "Healthy" ]; then
-              echo "Rollout is ready." | tee -a $DEPLOY_LOG
-              rollout_ready=true
-              break
-            else
-              echo "Waiting for rollout to be ready.. sleeping 3 secs.."
-              sleep 3
-            fi
-          done
-
-          if [ "$rollout_ready" = false ]; then
-            echo "Timed out waiting for rollout to be ready.." | tee -a $DEPLOY_LOG
-            exit 1
-          fi
-        fi  # End of blue-green block
-
+        #==========================================================
+        # create namespace
+        #==========================================================
         # To make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
         kubectl create ns {{workflow.parameters.namespace}} || true
+
+
+
+        #==========================================================
+        # Deploy rollout when exist
+        #==========================================================
+        if is_rollout_exist; then
+          deploy_rollout
+        fi
+
+
+
+        #==========================================================
+        # Deploy apps which replicas is 0
+        #==========================================================
+        echo "Starting deployment..." | tee -a $DEPLOY_LOG
 
         ## For legacy spring app case ##
         if [[ "$app_type" == "spring" ]]; then
@@ -497,12 +613,15 @@ spec:
           eval "helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml $extra_env_str -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} ." 2> >(tee -a $DEPLOY_LOG >&2)
         fi
 
-        # Just make sure helm release is deployed before status cmd
-        sleep 1
+
+        # Wait for deployment to be ready
+        echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
+
+        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Writing helm release info to file.
-        revision=$( (helm status {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} -o table | grep REVISION | cut -d' ' -f2) 2> >(tee -a $DEPLOY_LOG >&2) )
-        
+        revision=$( (helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1) 2> >(tee -a $DEPLOY_LOG >&2) )
+
         # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
         if [ -z "$revision" ]; then
           echo "Failed to get helm release revision. Exiting workflow.." | tee -a $DEPLOY_LOG
@@ -513,86 +632,50 @@ spec:
         echo "Deployed revision number: $revision"
         echo $revision > /mnt/out/revision
 
-        # Wait for deployment to be ready
-        echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
 
-        kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
 
-        echo "Deployment status has changed to 'Available'. Checking replicas.." | tee -a $DEPLOY_LOG
-
-        # Check num of replicas
-        ready=false
-        SLEEP_INTERVAL=5
-        for i in `seq 1 15`
-        do
-          replicas=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
-          available_repls=$(kubectl get deploy/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
-
-          if [ -z "$replicas" ]; then
-            echo "Failed to get number of replicas. Exiting workflow.." | tee -a $DEPLOY_LOG
-            exit 1
-          fi
-
-          # check if replicas == availableReplicas
-          if [ "$replicas" == "$available_repls" ]; then
-            echo "All replicas are available. Deployment is successful!" | tee -a $DEPLOY_LOG
-            ready=true
-            break
-          fi
-          sleep $SLEEP_INTERVAL
-        done  # End of FOR loop #
-
-        if [ "$ready" = false ]; then
-          echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
-          #echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
-          exit 1
+        #==========================================================
+        # Deploy rollout when dose not exist
+        #==========================================================
+        if ! is_rollout_exist; then
+          deploy_rollout
         fi
 
-        ## For blue-green case, check if rollout is completed ##
-        if [[ "$strategy" == "blue-green" ]]; then
-          rollout_finished=false
-          for i in `seq 1 10`
-          do
-            # Check if rollout is completed
-            if (kubectl argo rollouts status rollout-${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | grep Paused); then
-              echo "Rollout is completed. Waiting for user's approval.." | tee -a $DEPLOY_LOG
-              rollout_finished=true
-              break
-            else
-              echo "Waiting for rollout to be finished.. sleeping 3 secs.."
-              sleep 3
-            fi
-          done
 
-          if [ "$rollout_finished" = false ]; then
-            echo "Timed out waiting for rollout to be completed.." | tee -a $DEPLOY_LOG
-            #echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
-            exit 1
-          fi
 
-          # Wait 5 secs for the endpoint to be ready
-          sleep 5
-
-          # Writing preview-svc endpoint to file
-          kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
-
-          # Write deployment status to file for next step
-          echo "WAIT_FOR_PROMOTE" > /mnt/out/deploy_status
-        else
-          ## For rolling-update ##
-          # Prevent output param from being null
-          echo "N/A" > /mnt/out/preview_endpoint
-
-          # Write deployment status to file for next step
-          echo "DEPLOY_SUCCESS" > /mnt/out/deploy_status
+        #==========================================================
+        # check rollout phase and replicas
+        #==========================================================
+        if [[ "$strategy" == "rolling-update" ]]; then
+          check_rollout_phase "Healthy" "Healthy"
+          echo "Rollout status has changed to 'Healthy'. Checking replicas.." | tee -a $DEPLOY_LOG
+          check_rollout_replicas
+        elif [[ "$strategy" == "blue-green" ]]; then
+          check_rollout_phase "Paused" "Paused"
         fi
 
-        # Wait 5 secs for the endpoint to be ready
-        # TODO: fix this temp sleep cmd to busy-wait loop
-        sleep 5
+
+
+        #==========================================================
+        # write complete log
+        #==========================================================
+        # Writing preview-svc endpoint to file
+        kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
 
         # Writing endpoint to file
         kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
+
+        if [[ "$strategy" == "rolling-update" ]]; then
+          # Prevent output param from being null
+          # echo "N/A" > /mnt/out/preview_endpoint
+
+          # Write deployment status to file for next step
+          echo "DEPLOY_SUCCESS" > /mnt/out/deploy_status
+        elif [[ "$strategy" == "blue-green" ]]; then
+          # Write deployment status to file for next step
+          echo "WAIT_FOR_PROMOTE" > /mnt/out/deploy_status
+        fi
+
 
   - name: parse-failed-step
     volumes:
