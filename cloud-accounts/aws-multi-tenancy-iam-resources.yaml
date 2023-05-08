@@ -9,10 +9,6 @@ spec:
     parameters:
     - name: aws_region
       value: "ap-northeast-2"
-    - name: tks_aws_account_id
-      value: "NULL"
-    - name: tks_aws_user
-      value: "NULL"
     - name: aws_account_id
       value: "NULL"
     - name: aws_access_key_id
@@ -88,6 +84,12 @@ spec:
       - name: AWS_REGION
         value: "{{workflow.parameters.aws_region}}"
       - name: TKS_AWS_ACCOUNT_ID
-        value: "{{workflow.parameters.tks_aws_account_id}}"
+        valueFrom:
+          secretKeyRef:
+            name: tks-aws-user
+            key: account_id
       - name: TKS_AWS_USER
-        value: "{{workflow.parameters.tks_aws_user}}"
+        valueFrom:
+          secretKeyRef:
+            name: tks-aws-user
+            key: user

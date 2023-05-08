@@ -9,10 +9,6 @@ spec:
     parameters:
     - name: aws_region
       value: "ap-northeast-2"
-    - name: tks_aws_account_id
-      value: "NULL"
-    - name: tks_aws_user
-      value: "NULL"
     - name: tks_cloud_account_id
       value: "NULL"
     - name: aws_account_id
