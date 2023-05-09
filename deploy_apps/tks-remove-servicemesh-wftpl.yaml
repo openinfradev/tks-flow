@@ -22,10 +22,10 @@ spec:
       value: "{{workflow.parameters.cluster_id)}}"
     - name: filter
       value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group}}"
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
+  # volumes:
+  # - name: tks-proto-vol
+  #   configMap:
+  #     name: tks-proto
 
   templates:
   #=========================================================
