@@ -119,14 +119,6 @@ spec:
             - name: cloud_account_id
               value: "{{ workflow.parameters.cloud_account_id }}"
 
-    - - name: create-aws-ebs-csi-iam
-        templateRef:
-          name: aws-ebs-csi-iam
-          template: createIAMRole
-        when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
-
     - - name: install-cluster-autoscaler-rbac
         templateRef:
           name: create-application
@@ -251,7 +243,9 @@ spec:
         templateRef:
           name: manage-internal-communication
           template: deploy
-        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
 
     - - name: install-addons-byoh
         templateRef:
