@@ -397,6 +397,20 @@ spec:
               echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
               TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
             fi
+
+            cat <<EOF > sc-taco-storage.yaml
+            apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: taco-storage
+            parameters:
+              fsType: ext4
+              type: gp2
+            provisioner: kubernetes.io/aws-ebs
+            reclaimPolicy: Delete
+            volumeBindingMode: WaitForFirstConsumer
+            EOF
+            kubectl apply -f sc-taco-storage.yaml
           else
             echo "Wrong AWS Cluster type!"
             exit 1
