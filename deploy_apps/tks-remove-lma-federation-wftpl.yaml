@@ -10,13 +10,15 @@ spec:
     - name: app_group
       value: "lma"
     - name: github_account
-      value: "tks-management"
+      value: "decapod10"
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
+    - name: organization_id
+      value: "ohxwkh7iy"
     - name: cluster_id
-      value: "cpbiaxy4p"
+      value: "c750jgmy8"
     - name: app_group_id
-      value: "o086tb3zc"
+      value: "aey4niy0a"
     ##########################
     # For removeLMA task #
     ##########################
@@ -31,15 +33,6 @@ spec:
   templates:
   - name: removeLMA
     steps:
-    - - name: GetMyThanosScEndpoint
-        templateRef:
-          name: tks-lma-federation
-          template: GetMyThanosScEndpoint
-        arguments:
-          parameters:
-          - name: target_namespace
-            value: lma
-
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation
@@ -52,37 +45,31 @@ spec:
             - name: target_namespace
               value: "lma"
 
-      # LMA appGroup specific task #
-    - - name: collectClusterList
-        template: collectClusterList
-        arguments:
-          # These params should be moved to global argument? #
-          parameters:
-          - name: tks_info_host
-            value:  "{{ workflow.parameters.tks_info_host }}"
-          - name: app_group_id
-            value: "{{ workflow.parameters.app_group_id }}"
-
-    # Delete endpoint from other cluster's manifests
-    - - name: updateDecapodManifestOutwards
+    - - name: get-clusters-in-contract
         templateRef:
-          name: update-decapod-manifest
-          template: updateManifest
+          name: tks-primary-cluster
+          template: sub-get-cluster
+
+    - - name: update-eps-for-thanos
+        templateRef:
+          name: tks-primary-cluster
+          template: update-eps-for-thanos
         arguments:
           parameters:
-          - name: site_repo_url
-            value: "github.com/{{workflow.parameters.github_account}}/{{item.name}}"
-          - name: action
-            value: "delete"
-          - name: cluster_name
-            value: "{{item.name}}"
-          - name: app_group
-            value: "{{workflow.parameters.app_group}}"
-          - name: chart
-            value: "thanos"
-          - name: kv_map_str 
-            value: "{'querier.stores': '{{steps.GetMyThanosScEndpoint.outputs.parameters.my_thanos_sc_ep}}'}"
-        withParam: "{{steps.collectClusterList.outputs.parameters.outwards_cluster_list}}"
+          - name: primary_cluster
+            value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
+
+    - - name: set-primary-cluster-on-tks-info
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-set-primay-cluster-on-tks-info
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: ""
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
   #######################
   # Template Definition #
@@ -140,7 +127,7 @@ spec:
     volumes:
     - name: out
       emptyDir: {}
-    script: 
+    script:
       name: 'collect'
       image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
@@ -148,7 +135,7 @@ spec:
       - secretRef:
           name: "git-svc-token"
       - secretRef:
-          name: "tks-api-secret"       
+          name: "tks-api-secret"
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -211,7 +198,7 @@ spec:
                 print("Checking cluster: {}".format(cluster['id']))
 
                 gitBaseUrl = os.environ['GIT_SVC_URL'].replace("http://","")
-                print( gitBaseUrl )                
+                print( gitBaseUrl )
 
                 print("Checking if corresponding cluster repo exists..")
                 url = "@" + gitBaseUrl + "/" + os.environ['USERNAME'] + "/" + cluster['id']
