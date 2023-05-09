@@ -25,10 +25,10 @@ spec:
       value: "Cabbead61"
     - name: app_group_id
       value: "Aabbead61"
-  volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
+  # volumes:
+  # - name: tks-proto-vol
+  #   configMap:
+  #     name: tks-proto
   
   templates:
   #=========================================================
