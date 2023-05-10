@@ -389,28 +389,26 @@ spec:
             TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           elif [ $awsmcp_count = 1 ]; then
             TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-            if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
-              cat <<< $TKS_KUBECONFIG_WORKLOAD | sed '/exec:/,+15d' > tmp_tks_kubeconfig_workload
-              API_SERVER=$(grep server tmp_tks_kubeconfig_workload | awk '{print tolower($2)}')
-              ARGOCD_CLUSTER_SECRET=$(kubectl get secret -n argo | grep ${API_SERVER#*\/\/} | awk '{print $1}')
-              CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
-              echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
-              TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
-            fi
+            cat <<< $TKS_KUBECONFIG_WORKLOAD | sed '/exec:/,+15d' > tmp_tks_kubeconfig_workload
+            API_SERVER=$(grep server tmp_tks_kubeconfig_workload | awk '{print tolower($2)}')
+            ARGOCD_CLUSTER_SECRET=$(kubectl get secret -n argo | grep ${API_SERVER#*\/\/} | awk '{print $1}')
+            CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
+            echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
+            TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
 
             cat <<EOF > sc-taco-storage.yaml
-            apiVersion: storage.k8s.io/v1
-            kind: StorageClass
-            metadata:
-              name: taco-storage
-            parameters:
-              fsType: ext4
-              type: gp2
-            provisioner: kubernetes.io/aws-ebs
-            reclaimPolicy: Delete
-            volumeBindingMode: WaitForFirstConsumer
-            EOF
-            kubectl apply -f sc-taco-storage.yaml
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: taco-storage
+          parameters:
+            fsType: ext4
+            type: gp2
+          provisioner: kubernetes.io/aws-ebs
+          reclaimPolicy: Delete
+          volumeBindingMode: WaitForFirstConsumer
+          EOF
+            kubectl --kubeconfig kubeconfig_workload apply -f sc-taco-storage.yaml
           else
             echo "Wrong AWS Cluster type!"
             exit 1
