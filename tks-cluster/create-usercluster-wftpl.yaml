@@ -119,14 +119,6 @@ spec:
             - name: cloud_account_id
               value: "{{ workflow.parameters.cloud_account_id }}"
 
-    - - name: create-aws-ebs-csi-iam
-        templateRef:
-          name: aws-ebs-csi-iam
-          template: createIAMRole
-        when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
-
     - - name: install-cluster-autoscaler-rbac
         templateRef:
           name: create-application
@@ -251,7 +243,9 @@ spec:
         templateRef:
           name: manage-internal-communication
           template: deploy
-        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
 
     - - name: install-addons-byoh
         templateRef:
@@ -309,17 +303,17 @@ spec:
                   IDENTITY_ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
                   cat <<< $KUBECONFIG_WORKLOAD | sed '/args/,+7d' > tmp_kubeconfig_workload
                   echo "      args:
-                        - --region
-                        - ap-northeast-2
-                        - eks
-                        - get-token
-                        - --cluster-name
-                        - ${CLUSTER_ID}
-                        - --output
-                        - json
-                        - --role
-                        - ${IDENTITY_ROLE_ARN}
-                        command: aws" | envsubst >> tmp_kubeconfig_workload
+                - --region
+                - ap-northeast-2
+                - eks
+                - get-token
+                - --cluster-name
+                - ${CLUSTER_ID}
+                - --output
+                - json
+                - --role
+                - ${IDENTITY_ROLE_ARN}
+                command: aws" | envsubst >> tmp_kubeconfig_workload
                   KUBECONFIG_WORKLOAD=$(cat tmp_kubeconfig_workload)
                 fi
               else
@@ -396,13 +390,27 @@ spec:
           elif [ $awsmcp_count = 1 ]; then
             TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
-              cat <<< $TKS_KUBECONFIG_WORKLOAD | sed '/args/,+13d' > tmp_tks_kubeconfig_workload
+              cat <<< $TKS_KUBECONFIG_WORKLOAD | sed '/exec:/,+15d' > tmp_tks_kubeconfig_workload
               API_SERVER=$(grep server tmp_tks_kubeconfig_workload | awk '{print tolower($2)}')
               ARGOCD_CLUSTER_SECRET=$(kubectl get secret -n argo | grep ${API_SERVER#*\/\/} | awk '{print $1}')
               CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
               echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
               TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
             fi
+
+            cat <<EOF > sc-taco-storage.yaml
+            apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: taco-storage
+            parameters:
+              fsType: ext4
+              type: gp2
+            provisioner: kubernetes.io/aws-ebs
+            reclaimPolicy: Delete
+            volumeBindingMode: WaitForFirstConsumer
+            EOF
+            kubectl apply -f sc-taco-storage.yaml
           else
             echo "Wrong AWS Cluster type!"
             exit 1

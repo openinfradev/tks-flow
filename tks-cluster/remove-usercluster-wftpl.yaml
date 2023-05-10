@@ -95,15 +95,9 @@ spec:
         templateRef:
           name: manage-internal-communication
           template: DeleteInternalCon
-        when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws"
-
-    - - name: delete-aws-ebs-csi-iam
-        templateRef:
-          name: aws-ebs-csi-iam
-          template: deleteIAMRole
         when: >-
             ( {{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws &&
-              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == true
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
             )
 
     - - name: deleteCsiDriverApp
@@ -157,6 +151,7 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-tigera-operator"
+        when: "{{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false"
 
     - - name: deleteClusterCR
         template: deleteClusterCR

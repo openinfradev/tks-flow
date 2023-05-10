@@ -74,10 +74,21 @@ spec:
             value: '{{workflow.parameters.cluster_id}}'
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
+    - - name: determine-if-a-mananged-cluster
+        template: determineIfaManagedCluster
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
+
     - - name: installApps
         templateRef:
           name: lma-federation
           template: deploy
+        arguments:
+          parameters:
+          - name: is_mananged_cluster
+            value: "{{steps.determine-if-a-mananged-cluster.outputs.parameters.managed_cluster}}"
 
     - - name: update-eps-for-thanos
         templateRef:
@@ -128,6 +139,53 @@ spec:
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
+
+  - name: determineIfaManagedCluster
+    inputs:
+      parameters:
+        - name: cluster_id
+    container:
+      name: cluster-init
+      image: harbor-cicd.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          cp /kube/value kubeconfig_adm
+          export KUBECONFIG=kubeconfig_adm
+
+          # check whether this workload cluster is managed or not
+          kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
+          awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
+
+          if [ $kcp_count = 1 ]; then
+            echo false | tee /mnt/out/managed_cluster.txt
+          elif [ $awsmcp_count = 1 ]; then
+            echo true | tee /mnt/out/managed_cluster.txt
+          else
+            echo "Wrong Cluster type!"
+            exit 1
+          fi
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      - name: out
+        mountPath: /mnt/out
+      env:
+      - name: CLUSTER_ID
+        value: "{{ inputs.parameters.cluster_id }}"
+    volumes:
+      - name: out
+        emptyDir: { }
+      - name: kubeconfig-adm
+        secret:
+          secretName: tks-admin-kubeconfig-secret
+    outputs:
+      parameters:
+      - name: managed_cluster
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/managed_cluster.txt
 
   - name: GetMyThanosScEndpoint
     inputs:
