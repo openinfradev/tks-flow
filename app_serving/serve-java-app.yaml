@@ -128,7 +128,7 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "BLUEGREEN_FAILED"
+            value: "BLUEGREEN_DEPLOY_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.deploy_output_global}}"
         when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app' && '{{workflow.parameters.strategy}}' == 'blue-green'"
@@ -190,7 +190,8 @@ spec:
           - name: output
             value: "{{steps.build-image.outputs.parameters.build_output}}"
     - - name: notify-deploy-start
-        when: "{{workflow.parameters.type}} != 'build'"
+        when: >-
+            ( {{workflow.parameters.type}} != build && {{workflow.parameters.strategy}} == rolling-update )
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -204,6 +205,42 @@ spec:
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
             value: "DEPLOYING"
+          - name: output
+            value: ""
+    - - name: notify-bluegreen-deploy-start
+        when: >-
+            ( {{workflow.parameters.type}} != build && {{workflow.parameters.strategy}} == blue-green )
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "BLUEGREEN_DEPLOYING"
+          - name: output
+            value: ""
+    - - name: notify-canary-deploy-start
+        when: >-
+            ( {{workflow.parameters.type}} != build && {{workflow.parameters.strategy}} == canary )
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "CANARY_DEPLOYING"
           - name: output
             value: ""
     - - name: deploy-app
@@ -470,7 +507,7 @@ spec:
 
           if [ "$ready" = false ]; then
             echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
-            #echo "BLUEGREEN_FAILED" > /mnt/out/deploy_status
+            #echo "BLUEGREEN_DEPLOY_FAILED" > /mnt/out/deploy_status
             exit 1
           fi
         }
@@ -652,6 +689,8 @@ spec:
           check_rollout_replicas
         elif [[ "$strategy" == "blue-green" ]]; then
           check_rollout_phase "Paused" "Paused"
+        elif [[ "$strategy" == "canary" ]]; then
+          check_rollout_phase "Paused" "Paused"
         fi
 
 
@@ -673,7 +712,10 @@ spec:
           echo "DEPLOY_SUCCESS" > /mnt/out/deploy_status
         elif [[ "$strategy" == "blue-green" ]]; then
           # Write deployment status to file for next step
-          echo "WAIT_FOR_PROMOTE" > /mnt/out/deploy_status
+          echo "BLUEGREEN_WAIT" > /mnt/out/deploy_status
+        elif [[ "$strategy" == "canary" ]]; then
+          # Write deployment status to file for next step
+          echo "CANARY_WAIT" > /mnt/out/deploy_status
         fi
 
 

@@ -20,6 +20,8 @@ spec:
       value: ""
     - name: organization_id
       value: "ose4j7p39"
+    - name: strategy
+      value: "blue-green"
     # tks_info service URL
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
@@ -27,7 +29,7 @@ spec:
   templates:
   - name: exit-handler
     steps:
-    - - name: notify-abort-failure
+    - - name: notify-bluegreen-abort-failure
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -40,17 +42,35 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "ABORT_FAILED"
+            value: "BLUEGREEN_ABORT_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.abort_output_global}}"
-        when: "{{workflow.status}} != Succeeded"
+        when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == blue-green"
+    - - name: notify-canary-abort-failure
+          templateRef:
+            name: update-tks-asa-status
+            template: updateTksAsaStatus
+          arguments:
+            parameters:
+            - name: organization_id
+              value: "{{workflow.parameters.organization_id}}"
+            - name: asa_id
+              value: "{{workflow.parameters.asa_id}}"
+            - name: asa_task_id
+              value: "{{workflow.parameters.asa_task_id}}"
+            - name: status
+              value: "CANARY_ABORT_FAILED"
+            - name: output
+              value: "{{workflow.outputs.parameters.abort_output_global}}"
+          when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == canary"
 
   - name: main
     steps:
-    - - name: notify-abort-start
+    - - name: notify-bluegreen-abort-start
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
+        when: "{{workflow.parameters.strategy}} == blue-green"
         arguments:
           parameters:
           - name: organization_id
@@ -60,7 +80,24 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "ABORTING"
+            value: "BLUEGREEN_ABORTING"
+          - name: output
+            value: ""
+    - - name: notify-canary-abort-start
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        when: "{{workflow.parameters.strategy}} == canary"
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "CANARY_ABORTING"
           - name: output
             value: ""
     - - name: abort-app
@@ -132,6 +169,7 @@ spec:
         ABORT_LOG='/mnt/out/abort_output.log'
         app_name={{workflow.parameters.app_name}}
         ns={{workflow.parameters.namespace}}
+        strategy={{workflow.parameters.strategy}}
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $ABORT_LOG
@@ -295,4 +333,8 @@ spec:
         # write information
         #==========================================================
         # Write deployment status to file for next step
-        echo "ABORT_SUCCESS" > /mnt/out/abort_status
+        if [[ "$strategy" == "blue-green" ]]; then
+          echo "BLUEGREEN_ABORT_SUCCESS" > /mnt/out/abort_status
+        elif [[ "$strategy" == "canary" ]]; then
+          echo "CANARY_ABORT_SUCCESS" > /mnt/out/abort_status
+        fi
