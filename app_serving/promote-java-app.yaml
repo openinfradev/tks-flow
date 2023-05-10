@@ -45,7 +45,7 @@ spec:
             value: "BLUEGREEN_PROMOTE_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.promote_output_global}}"
-        when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == blue-green"
+        when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == 'blue-green'"
     - - name: notify-canary-promote-failure
         templateRef:
           name: update-tks-asa-status
@@ -70,7 +70,7 @@ spec:
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
-        when: "{{workflow.parameters.strategy}} == blue-green"
+        when: "{{workflow.parameters.strategy}} == 'blue-green'"
         arguments:
           parameters:
           - name: organization_id

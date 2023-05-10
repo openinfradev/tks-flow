@@ -191,7 +191,7 @@ spec:
             value: "{{steps.build-image.outputs.parameters.build_output}}"
     - - name: notify-deploy-start
         when: >-
-            ( {{workflow.parameters.type}} != build && {{workflow.parameters.strategy}} == rolling-update )
+            ( {{workflow.parameters.type}} != 'build' && {{workflow.parameters.strategy}} == 'rolling-update' )
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -209,7 +209,7 @@ spec:
             value: ""
     - - name: notify-bluegreen-deploy-start
         when: >-
-            ( {{workflow.parameters.type}} != build && {{workflow.parameters.strategy}} == blue-green )
+            ( {{workflow.parameters.type}} != 'build' && {{workflow.parameters.strategy}} == 'blue-green' )
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -227,7 +227,7 @@ spec:
             value: ""
     - - name: notify-canary-deploy-start
         when: >-
-            ( {{workflow.parameters.type}} != build && {{workflow.parameters.strategy}} == canary )
+            ( {{workflow.parameters.type}} != 'build' && {{workflow.parameters.strategy}} == 'canary' )
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
