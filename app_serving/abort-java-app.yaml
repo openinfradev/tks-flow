@@ -47,22 +47,22 @@ spec:
             value: "{{workflow.outputs.parameters.abort_output_global}}"
         when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == blue-green"
     - - name: notify-canary-abort-failure
-          templateRef:
-            name: update-tks-asa-status
-            template: updateTksAsaStatus
-          arguments:
-            parameters:
-            - name: organization_id
-              value: "{{workflow.parameters.organization_id}}"
-            - name: asa_id
-              value: "{{workflow.parameters.asa_id}}"
-            - name: asa_task_id
-              value: "{{workflow.parameters.asa_task_id}}"
-            - name: status
-              value: "CANARY_ABORT_FAILED"
-            - name: output
-              value: "{{workflow.outputs.parameters.abort_output_global}}"
-          when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == canary"
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "CANARY_ABORT_FAILED"
+          - name: output
+            value: "{{workflow.outputs.parameters.abort_output_global}}"
+        when: "{{workflow.status}} != Succeeded && {{workflow.parameters.strategy}} == canary"
 
   - name: main
     steps:
