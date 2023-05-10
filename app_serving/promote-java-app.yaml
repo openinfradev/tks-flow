@@ -20,6 +20,8 @@ spec:
       value: ""
     - name: organization_id
       value: "ose4j7p39"
+    - name: strategy
+      value: "blue-green"
     # tks_info service URL
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
@@ -27,7 +29,7 @@ spec:
   templates:
   - name: exit-handler
     steps:
-    - - name: notify-promote-failure
+    - - name: notify-bluegreen-promote-failure
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -40,17 +42,35 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "PROMOTE_FAILED"
+            value: "BLUEGREEN_PROMOTE_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.promote_output_global}}"
-        when: "{{workflow.status}} != Succeeded"
+        when: "{{workflow.status}} != Succeeded && '{{workflow.parameters.strategy}}' == 'blue-green'"
+    - - name: notify-canary-promote-failure
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "CANARY_PROMOTE_FAILED"
+          - name: output
+            value: "{{workflow.outputs.parameters.promote_output_global}}"
+        when: "{{workflow.status}} != Succeeded && '{{workflow.parameters.strategy}}' == canary"
 
   - name: main
     steps:
-    - - name: notify-promote-start
+    - - name: notify-bluegreen-promote-start
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
+        when: "'{{workflow.parameters.strategy}}' == 'blue-green'"
         arguments:
           parameters:
           - name: organization_id
@@ -60,7 +80,24 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "PROMOTING"
+            value: "BLUEGREEN_PROMOTING"
+          - name: output
+            value: ""
+    - - name: notify-canary-promote-start
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        when: "'{{workflow.parameters.strategy}}' == canary"
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "CANARY_PROMOTING"
           - name: output
             value: ""
     - - name: promote-app
@@ -134,6 +171,7 @@ spec:
       - |
         PROMOTE_LOG='/mnt/out/promote_output.log'
         app_name={{workflow.parameters.app_name}}
+        strategy={{workflow.parameters.strategy}}
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $PROMOTE_LOG
@@ -273,4 +311,8 @@ spec:
         # write information
         #==========================================================
         # Write deployment status to file for next step
-        echo "PROMOTE_SUCCESS" > /mnt/out/promote_status
+        if [[ "$strategy" == "blue-green" ]]; then
+          echo "BLUEGREEN_PROMOTE_SUCCESS" > /mnt/out/promote_status
+        elif [[ "$strategy" == "canary" ]]; then
+          echo "CANARY_PROMOTE_SUCCESS" > /mnt/out/promote_status
+        fi
