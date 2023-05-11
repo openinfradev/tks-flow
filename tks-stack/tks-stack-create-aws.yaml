@@ -21,6 +21,8 @@ spec:
       value: "aws-reference"
     - name: creator
       value: ""
+    - name: infra_conf
+      value: ""
 
   templates:
   - name: main
@@ -43,6 +45,8 @@ spec:
             value: "{{workflow.parameters.creator}}"
           - name: description
             value: "{{workflow.parameters.description}}"
+          - name: infra_conf
+            value: "{{workflow.parameters.infra_conf}}"
 
     - - name: call-create-appgroup-for-LMA
         templateRef:
