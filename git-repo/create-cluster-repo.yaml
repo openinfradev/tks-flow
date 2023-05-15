@@ -24,7 +24,7 @@ spec:
       - name: cluster_info
     container:
       name: 'createClusterRepo'
-      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.1
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:3.0.1
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -38,8 +38,27 @@ spec:
         }
 
         function gitea_create_repo() {
-            curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'"}' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos
-            curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'-manifests"}' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos
+            curl -X 'POST' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos?token=${TOKEN} -H 'accept: application/json' -H 'Content-Type: application/json' -d "{ \"name\": \"${CLUSTER_ID}\"}"
+            curl -X 'POST' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos?token=${TOKEN} -H 'accept: application/json' -H 'Content-Type: application/json' -d "{ \"name\": \"${CLUSTER_ID}-manifests\"}"
+
+            export ARGO_TOKEN="Bearer $(kubectl -n argo get secret $SA_TOKEN -o=jsonpath='{.data.token}' | base64 --decode)"
+            curl -X 'POST' \
+              "${GIT_SVC_HTTP}://${GIT_SVC_BASE_URL}/api/v1/repos/${USERNAME}/${CLUSTER_ID}/hooks?token=${TOKEN}" \
+              -H 'accept: application/json' \
+              -H 'Content-Type: application/json' \
+              -d "{
+              \"active\": true,
+              \"branch_filter\": \"main\",
+              \"config\": {
+                  \"content_type\": \"json\",
+                  \"url\": \"http://argo-workflows-operator-server.argo:2746/api/v1/events/argo/gitea-webhook\"
+              },
+              \"events\": [
+                \"push\"
+              ],
+              \"type\": \"gitea\",
+              \"authorization_header\": \"${ARGO_TOKEN}\"
+            }"
         }
 
         GIT_SVC_HTTP=${GIT_SVC_URL%://*}
@@ -121,15 +140,6 @@ spec:
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
 
-        cd ${CLUSTER_ID}
-        git add *
-        git commit -m "add new ${CLUSTER_ID} site"
-        git branch -M main
-        git remote set-url origin $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CLUSTER_ID}
-        git remote -v
-        git push -u origin main
-        cd ..
-
         cd ${CLUSTER_ID}-manifests
         touch README
         git add README
@@ -140,9 +150,19 @@ spec:
         git push -u origin main
         cd ..
 
+        cd ${CLUSTER_ID}
+        git add *
+        git commit -m "add new ${CLUSTER_ID} site"
+        git branch -M main
+        git remote set-url origin $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CLUSTER_ID}
+        git remote -v
+        git push -u origin main
+        cd ..
+
       envFrom:
         - secretRef:
             name: "git-svc-token"
+
       env:
       - name: CONTRACT_ID
         value: "{{workflow.parameters.contract_id}}"
@@ -154,6 +174,11 @@ spec:
         value: "{{workflow.parameters.cloud_account_id}}"
       - name: CLUSTER_INFO
         value: "{{inputs.parameters.cluster_info}}"
+      - name: ARGO_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: gitea-webhook.service-account-token
+            key: token
       volumeMounts:
         - name: out
           mountPath: /mnt/out
