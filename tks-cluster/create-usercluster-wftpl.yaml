@@ -339,7 +339,7 @@ spec:
 
               for node in $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.status.nodeRefs}'| jq -r '.[].name')
               do
-                kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
+                kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled tks-ingressgateway=enabled tks-egressgateway=enabled tks-msa=enabled --overwrite
               done
               ;;
 
