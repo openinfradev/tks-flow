@@ -15,6 +15,7 @@ spec:
     inputs:
       parameters:
       - name: decapod_site_repo
+        value: "{{workflow.parameters.decapod_site_repo}}"
     steps:
     - - name: prepare-rendering
         template: prepare-rendering-template
