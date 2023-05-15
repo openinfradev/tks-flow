@@ -5,7 +5,7 @@ metadata:
   namespace: argo
 spec:
   event:
-    selector: payload.full_name != "" && metadata["x-github-event"] == ["push"] && discriminator == "gitea-webhook"
+    selector: payload.repository.full_name != "" && metadata["x-github-event"] == ["push"] && discriminator == "gitea-webhook"
   submit:
     workflowTemplateRef:
       name: event-gitea-render-manifests
@@ -13,5 +13,5 @@ spec:
       parameters:
       - name: decapod_site_repo
         valueFrom:
-          event: payload.full_name
+          event: payload.repository.full_name
 
