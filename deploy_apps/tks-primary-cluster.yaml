@@ -39,6 +39,9 @@ spec:
 
   templates:
   - name: set-primary-cluster
+    synchronization:
+      mutex:
+        name: primary-cluster-{{workflow.parameters.organization_id}}
     inputs:
       parameters:
       - name: primary_cluster
@@ -517,6 +520,9 @@ spec:
     activeDeadlineSeconds: 900
 
   - name: sub-get-cluster
+    synchronization:
+      mutex:
+        name: primary-cluster-{{workflow.parameters.organization_id}}
     volumes:
     - name: out
       emptyDir: {}
