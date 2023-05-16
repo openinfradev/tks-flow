@@ -12,6 +12,8 @@ spec:
     # Revision for decapod-base and decapod-site repo
     - name: revision
       value: "main"
+    - name: keycloak_url
+      value: ""
   templates:
   - name: createContractRepo
     activeDeadlineSeconds: 120
@@ -68,6 +70,18 @@ spec:
         rm -rf aws-reference/openstack aws-reference/decapod-controller aws-reference/admin-tools
         rm -rf byoh-reference/openstack byoh-reference/decapod-controller byoh-reference/admin-tools
 
+        # Append Keycloak URL and Realm info
+        keycloak_url={{workflow.parameters.keycloak_url}}
+        realm={{workflow.parameters.realm}}
+        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' aws-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' eks-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' eks-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' aws-msa-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' eks-msa-reference/lma/site-values.yaml
+        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
+
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
         git add .
@@ -85,7 +99,8 @@ spec:
           value: "{{workflow.parameters.contract_id}}"
         - name: REVISION
           value: "{{workflow.parameters.revision}}"
-
+        - name: KEYCLOAK_URL
+          value: "{{workflow.parameters.keycloak_url}}"
   - name: main
     steps:
       - - name: createContractRepository
