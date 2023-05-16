@@ -73,15 +73,15 @@ spec:
         # Append Keycloak URL and Realm info
         keycloak_url={{workflow.parameters.keycloak_url}}
         realm={{workflow.parameters.contract_id}}
-        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' aws-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' eks-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' eks-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' aws-msa-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' eks-msa-reference/lma/site-values.yaml
-        sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
-
+        sed -i '/global:/a \  realms: '"${CONTRACT_ID}"'' aws-reference/lma/site-values.yaml
+        sed -i '/global:/a \  keycloakDomain: '"${KEYCLOAK_URL}"'' aws-reference/lma/site-values.yaml
+        sed -i '/global:/a \  realms: '"${CONTRACT_ID}"'' eks-reference/lma/site-values.yaml
+        sed -i '/global:/a \  keycloakDomain: '"${KEYCLOAK_URL}"'' eks-reference/lma/site-values.yaml
+        sed -i '/global:/a \  realms: '"${CONTRACT_ID}"'' aws-msa-reference/lma/site-values.yaml
+        sed -i '/global:/a \  keycloakDomain: '"${KEYCLOAK_URL}"'' aws-msa-reference/lma/site-values.yaml
+        sed -i '/global:/a \  realms: '"${CONTRACT_ID}"'' eks-msa-reference/lma/site-values.yaml
+        sed -i '/global:/a \  keycloakDomain: '"${KEYCLOAK_URL}"'' eks-msa-reference/lma/site-values.yaml
+        
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
         git add .
