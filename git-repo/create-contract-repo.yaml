@@ -72,7 +72,7 @@ spec:
 
         # Append Keycloak URL and Realm info
         keycloak_url={{workflow.parameters.keycloak_url}}
-        realm={{workflow.parameters.realm}}
+        realm={{workflow.parameters.contract_id}}
         sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' aws-reference/lma/site-values.yaml
         sed -i '' -e '/global:/a\'$'\n\\'"  keycloakDomain: ${KEYCLOAK_URL}"$'\n' aws-reference/lma/site-values.yaml
         sed -i '' -e '/global:/a\'$'\n\\'"  realms: ${CONTRACT_ID}"$'\n' eks-reference/lma/site-values.yaml
