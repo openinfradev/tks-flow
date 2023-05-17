@@ -21,6 +21,8 @@ spec:
       value: "o086tb3zc"
     - name: app_prefix
       value: "{{workflow.parameters.site_name}}"
+    - name: keycloak_url
+      value: ""
     ##########################
     # For tks-info task #
     ##########################
@@ -100,6 +102,39 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
+
+    - - name: create-keycloak-client
+        template: create-keycloak-client
+        arguments:
+          parameters:
+          - name: organization_id
+            value: '{{workflow.parameters.organization_id}}'
+          - name: cluster_id
+            value: '{{workflow.parameters.cluster_id}}'
+          - name: keycloak_url
+            value: '{{workflow.parameters.keycloak_url}}'
+
+    - - name: update-auth-oidc-grafana
+        template: update-auth-oidc-grafana
+        arguments:
+          parameters:
+          - name: organization_id
+            value: '{{workflow.parameters.organization_id}}'
+          - name: cluster_id
+            value: '{{workflow.parameters.cluster_id}}'
+          - name: keycloak_client_secret
+            value: '{{steps.create-keycloak-client.outputs.parameters.keycloak_client_secret}}'
+          - name: grafana_endpoint
+            value: '{{steps.create-keycloak-client.outputs.parameters.grafana_endpoint}}'
+
+    - - name: render-auth-oidc-grafana
+        templateRef:
+          name: event-gitea-render-manifests
+          template: main
+        arguments:
+          parameters:
+          - name: decapod_site_repo
+            value: "{{workflow.parameters.github_account}}/{{workflow.parameters.cluster_id}}"
 
   #######################
   # Template Definition #
@@ -401,3 +436,161 @@ spec:
 
         with open("/mnt/out/cur_cluster_name.txt", "w") as f:
           f.write(cur_cluster_name)
+
+  - name: create-keycloak-client
+    inputs:
+      parameters:
+      - name: organization_id
+      - name: cluster_id
+      - name: keycloak_url
+    outputs:
+      parameters:
+        - name: keycloak_client_secret
+          valueFrom:
+            path: /mnt/out/keycloak_client_secret.txt
+        - name: grafana_endpoint
+          valueFrom:
+            path: /mnt/out/grafana_endpoint.txt
+    volumes:
+      - name: out
+        emptyDir: {}
+    container:
+      name: create-keycloak-client
+      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          organization_id={{inputs.parameters.organization_id}}
+          cluster_id={{inputs.parameters.cluster_id}}
+          keycloak_url={{inputs.parameters.keycloak_url}}
+
+          #################
+          # Get endpoints
+          #################
+
+          endpoint=\"grafa\"
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+            do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of grafana(3s)"
+              sleep 3
+            done
+
+            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          else
+            log "WARN" "Cluster(${cluster_id}) has no grafana"
+          fi
+
+
+          # Login to keycloak
+          admin_username=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_USERNAME}" | base64 -d)
+          admin_password=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_PASSWORD}" | base64 -d)
+          TOKEN=$(curl -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=${admin_username} -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
+
+          # Create client json file
+          printf '{
+              "clientId" : "grafana",
+              "directAccessGrantsEnabled": true,
+              "standardFlowEnabled": true,
+              "redirectUris": ["%s/*"]
+          }\n' "$endpoint" > client.json
+          
+          client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
+          if [ -z "$client_uuid" ]; then
+            # Create client
+            curl -s -k POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @client.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients
+            sleep 5
+            client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
+          else
+            # Reuse client
+            echo "client already exist"
+          fi
+
+          # Get client secret
+          secret=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"type":"secret"}' ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}/client-secret | jq -r '.value')
+
+          echo ${secret} > /mnt/out/keycloak_client_secret.txt
+          echo ${endpoint} > /mnt/out/grafana_endpoint.txt
+
+      envFrom:
+        - secretRef:
+            name: tks-api-secret
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+
+  - name: update-auth-oidc-grafana
+    inputs:
+      parameters:
+        - name: organization_id
+        - name: cluster_id
+        - name: keycloak_client_secret
+        - name: grafana_endpoint
+
+    container:
+      name: update-auth-oidc-grafana
+      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+          
+          organization_id={{inputs.parameters.organization_id}}
+          cluster_id={{inputs.parameters.cluster_id}}
+          keycloak_client_secret={{inputs.parameters.keycloak_client_secret}}
+          grafana_endpoint={{inputs.parameters.grafana_endpoint}}
+
+          #################
+          # updates
+          #################
+          GIT_ACCOUNT={{workflow.parameters.github_account}}
+          if  [[ $GIT_SVC_URL == https://* ]]; then
+            repository_base=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+          else
+            repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+          fi
+          
+          GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+          GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+          git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${cluster_id}.git
+          cd ${cluster_id}
+          
+          # Update grafana client secret
+          yq -i e  ".global.grafanaDomain=\"${grafana_endpoint}\"" ${cluster_id}/lma/site-values.yaml
+          yq -i e  ".global.grafanaClientSecret=\"${keycloak_client_secret}\"" ${cluster_id}/lma/site-values.yaml
+          
+          git config --global user.name "tks"
+          git config --global user.email "tks@sktelecom.com"
+
+          log "INFO" "##### commit changes grafana domain and root_url on ${cluster_id} to ${grafana_endpoint} and ${grafana_endpoint}/grafana"
+          cmessage="changes grafana domain and root_url on ${cluster_id} to ${grafana_endpoint} and ${grafana_endpoint}/grafana"
+          git add ${cluster_id}/lma/site-values.yaml
+          git commit -m "change values on grafana.ini.server." -m "$cmessage"
+          git push
+
+      envFrom:
+        - secretRef:
+            name: "git-svc-token"
+        - secretRef:
+            name: "tks-api-secret"

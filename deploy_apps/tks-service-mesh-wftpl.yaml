@@ -16,6 +16,8 @@ spec:
       value: "main"
     - name: app_prefix
       value: "{{workflow.parameters.site_name}}"
+    - name: keycloak_url
+      value: ""
     #===============================
     # For tks-info task
     #===============================
@@ -29,7 +31,7 @@ spec:
   # - name: tks-proto-vol
   #   configMap:
   #     name: tks-proto
-  
+
   templates:
   #=========================================================
   # Template Pipeline

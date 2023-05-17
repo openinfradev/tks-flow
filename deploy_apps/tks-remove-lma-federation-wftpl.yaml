@@ -19,6 +19,9 @@ spec:
       value: "c750jgmy8"
     - name: app_group_id
       value: "aey4niy0a"
+    - name: keycloak_url
+      value: ""
+
     ##########################
     # For removeLMA task #
     ##########################
@@ -70,6 +73,15 @@ spec:
           - name: cluster_id
             value: ""
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
+    - - name: remove-keycloak-client
+        template: remove-keycloak-client
+        arguments:
+          parameters:
+          - name: organization_id
+            value: '{{workflow.parameters.organization_id}}'
+          - name: keycloak_url
+            value: '{{workflow.parameters.keycloak_url}}'
 
   #######################
   # Template Definition #
@@ -251,3 +263,45 @@ spec:
                     f.write(',')
             f.write(']')
 
+  - name: remove-keycloak-client
+    inputs:
+      parameters:
+        - name: organization_id
+        - name: keycloak_url
+    volumes:
+      - name: out
+        emptyDir: { }
+    container:
+      name: remove-keycloak-client
+      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          organization_id={{inputs.parameters.organization_id}}
+          keycloak_url={{inputs.parameters.keycloak_url}}
+          
+          # Login to keycloak
+          admin_username=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_USERNAME}" | base64 -d)
+          admin_password=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_PASSWORD}" | base64 -d)
+          TOKEN=$(curl -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=${admin_username} -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
+
+          # Get client uuid
+          client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
+          if [ -z "$client_uuid" ]; then
+            echo "client already not exist"
+          else
+            # Remove client
+            curl -s -k -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+          fi
+
+      envFrom:
+        - secretRef:
+            name: tks-api-secret

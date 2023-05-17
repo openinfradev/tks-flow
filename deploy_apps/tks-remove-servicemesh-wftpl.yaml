@@ -9,6 +9,8 @@ spec:
     parameters:
     - name: app_group
       value: "service-mesh"
+    - name: keycloak_url
+      value: ""
     #===============================
     # For tks-info task
     #===============================
