@@ -1,0 +1,7 @@
+FROM quay.io/argoproj/argocli as argocli
+FROM alpine/git
+
+RUN apk update && apk add --no-cache curl bash jq github-cli
+COPY --from=argocli /bin/argo /bin/
+
+ENTRYPOINT [ "gh" ]
