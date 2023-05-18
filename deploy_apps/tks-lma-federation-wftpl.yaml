@@ -127,6 +127,17 @@ spec:
           - name: grafana_endpoint
             value: '{{steps.create-keycloak-client.outputs.parameters.grafana_endpoint}}'
 
+    - - name: update-appgroup-grafana-eps
+        templateRef:
+          name: tks-update-appgroup
+          template: updateTksAppGroup
+        arguments:
+          parameters:
+          - name: endpoint
+            value: '{{steps.create-keycloak-client.outputs.parameters.grafana_endpoint}}'
+          - name: app_type
+            value: grafana
+
     - - name: render-auth-oidc-grafana
         templateRef:
           name: event-gitea-render-manifests
