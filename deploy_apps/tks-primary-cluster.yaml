@@ -317,6 +317,8 @@ spec:
           # 2. grafana datasource on primay_cluster
           if [ $i = ${primary_cluster} ]; then
             yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${i}/lma/site-values.yaml
+            yq -i e  ".global.TksWebhookUrl=\"{{workflow.parameters.alert_tks}}\"" ${i}/lma/site-values.yaml
+            yq -i e  ".global.SlackUrl=\"{{workflow.parameters.alert_slack}}\"" ${i}/lma/site-values.yaml
           else
             yq -i e  ".global.grafanaDatasourceMetric=\"lma-prometheus.lma:9090\"" ${i}/lma/site-values.yaml
           fi
