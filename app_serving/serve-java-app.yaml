@@ -246,23 +246,6 @@ spec:
     - - name: deploy-app
         when: "{{workflow.parameters.type}} != 'build'"
         template: deploy-app
-    - - name: notify-deploy-success
-        when: "{{workflow.parameters.type}} != 'build'"
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "{{steps.deploy-app.outputs.parameters.status}}"
-          - name: output
-            value: "{{steps.deploy-app.outputs.parameters.deploy_output}}"
     - - name: update-endpoint-url
         when: "{{workflow.parameters.type}} != 'build'"
         templateRef:
@@ -282,6 +265,23 @@ spec:
             value: "{{steps.deploy-app.outputs.parameters.preview_endpoint}}"
           - name: helm_revision
             value: "{{steps.deploy-app.outputs.parameters.revision}}"
+    - - name: notify-deploy-success
+        when: "{{workflow.parameters.type}} != 'build'"
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "{{steps.deploy-app.outputs.parameters.status}}"
+          - name: output
+            value: "{{steps.deploy-app.outputs.parameters.deploy_output}}"
 
   #######################
   # Template Definition #
