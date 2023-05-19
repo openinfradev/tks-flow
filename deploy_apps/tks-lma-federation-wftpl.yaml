@@ -23,6 +23,10 @@ spec:
       value: "{{workflow.parameters.site_name}}"
     - name: keycloak_url
       value: ""
+    - name: alert_tks
+      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/alerts"
+    - name: alert_slack
+      value: "https://hooks.slack.com/services/fixme"
     ##########################
     # For tks-info task #
     ##########################
@@ -509,7 +513,7 @@ spec:
               "standardFlowEnabled": true,
               "redirectUris": ["%s/*"]
           }\n' "$endpoint" > client.json
-          
+
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
           if [ -z "$client_uuid" ]; then
             # Create client
@@ -555,7 +559,7 @@ spec:
             date=$(date '+%F %H:%M:%S')
             echo "[$date] $level     $msg"
           }
-          
+
           organization_id={{inputs.parameters.organization_id}}
           cluster_id={{inputs.parameters.cluster_id}}
           keycloak_client_secret={{inputs.parameters.keycloak_client_secret}}
@@ -570,16 +574,16 @@ spec:
           else
             repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
           fi
-          
+
           GIT_SVC_HTTP=${GIT_SVC_URL%://*}
           GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
           git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${cluster_id}.git
           cd ${cluster_id}
-          
+
           # Update grafana client secret
           yq -i e  ".global.grafanaDomain=\"${grafana_endpoint}\"" ${cluster_id}/lma/site-values.yaml
           yq -i e  ".global.grafanaClientSecret=\"${keycloak_client_secret}\"" ${cluster_id}/lma/site-values.yaml
-          
+
           git config --global user.name "tks"
           git config --global user.email "tks@sktelecom.com"
 
