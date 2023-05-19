@@ -522,7 +522,7 @@ spec:
               "clientId" : "grafana",
               "directAccessGrantsEnabled": true,
               "standardFlowEnabled": true,
-              "redirectUris": ["http://%s/*"],
+              "redirectUris": ["http://%s/*"]
           }\n' "$endpoint" > client.json
 
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
