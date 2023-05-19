@@ -151,6 +151,20 @@ spec:
           - name: decapod_site_repo
             value: "{{workflow.parameters.github_account}}/{{workflow.parameters.cluster_id}}"
 
+    - - name: argocd-sync-wait
+        template: argocd-sync-wait
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: '{{workflow.parameters.cluster_id}}'
+
+    - - name: grafana-restart
+        template: grafana-restart
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: '{{workflow.parameters.cluster_id}}'
+
   #######################
   # Template Definition #
   #######################
@@ -617,3 +631,67 @@ spec:
             name: "git-svc-token"
         - secretRef:
             name: "tks-api-secret"
+
+  - name: argocd-sync-wait
+    inputs:
+      parameters:
+        - name: cluster_id
+    container:
+      name: argocd-sync-wait
+      image: harbor-cicd.taco-cat.xyz/tks/argocd-cli:v2.2.5
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          # log into Argo CD server
+          ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
+          --password $ARGO_PASSWORD
+          
+          app_name={{inputs.parameters.cluster_id}}-grafana
+          
+          # sync app
+          echo "sync app $app_name"
+          ./argocd app sync $app_name
+          
+          # wait for sync
+          ./argocd app wait $app_name --sync 
+
+      envFrom:
+        - secretRef:
+            name: "decapod-argocd-config"
+    activeDeadlineSeconds: 900
+
+  - name: grafana-restart
+    inputs:
+      parameters:
+        - name: cluster_id
+    container:
+      name: grafana-restart
+      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          cluster_id={{inputs.parameters.cluster_id}}
+
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+          pods=$(kubectl --kubeconfig kubeconfig get pods -n lma | grep grafana | awk '{print $1}')
+  
+          for pod in $pods
+          do
+            echo "Deleting pod $pod"
+            kubectl --kubeconfig kubeconfig delete pod $pod -n lma
+          done
+
+      envFrom:
+        - secretRef:
+            name: tks-api-secret
+    activeDeadlineSeconds: 900
