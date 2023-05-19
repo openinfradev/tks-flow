@@ -15,16 +15,17 @@ spec:
   - name: updateTksAppGroup
     inputs:
       parameters:
-      - name: endpoints # Dict type
+      - name: endpoint
+      - name: app_type
     script:
       image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       env:
       - name: PYTHONPATH
-        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"      
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       envFrom:
       - secretRef:
-          name: "tks-api-secret"       
+          name: "tks-api-secret"
       source: |
         import sys
         import requests
@@ -32,7 +33,9 @@ spec:
 
         TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
         APPGROUP_ID = "{{workflow.parameters.app_group_id}}"
-        ENDPOINTS = "{{inputs.parameters.endpoints}}"
+        ENDPOINT = "{{inputs.parameters.endpoint}}"
+        APPTYPE = "{{inputs.parameters.app_type}}"
+         
 
         def getToken() :
             data = {
@@ -47,15 +50,14 @@ spec:
             resJson = res.json()
             return resJson['user']['token']
 
-        print( ENDPOINTS )
-        for appType, endpoint in {{inputs.parameters.endpoints}}.items() :
-            data = {
-                'appGroupId' : APPGROUP_ID,
-                'applicationType' : appType,
-                'endpoint' : endpoint
-            }
-            res = requests.post(TKS_API_URL + '/api/1.0/app-groups/' + APPGROUP_ID + '/applications' , headers={'Authorization': 'Bearer ' + getToken()}, json = data )
-            print("Response code from UpdateApplication : %d" % res.status_code)
+        print( ENDPOINT )
+        data = {
+            'appGroupId' : APPGROUP_ID,
+            'applicationType' : APPTYPE,
+            'endpoint' : ENDPOINT
+        }
+        res = requests.post(TKS_API_URL + '/api/1.0/app-groups/' + APPGROUP_ID + '/applications' , headers={'Authorization': 'Bearer ' + getToken()}, json = data )
+        print("Response code from UpdateApplication : %d" % res.status_code)
 
 
 
