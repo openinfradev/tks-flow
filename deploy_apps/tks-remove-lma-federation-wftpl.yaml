@@ -36,6 +36,17 @@ spec:
   templates:
   - name: removeLMA
     steps:
+    - - name: remove-keycloak-client
+        template: remove-keycloak-client
+        arguments:
+          parameters:
+          - name: organization_id
+            value: '{{workflow.parameters.organization_id}}'
+          - name: cluster_id
+            value: '{{workflow.parameters.cluster_id}}'
+          - name: keycloak_url
+            value: '{{workflow.parameters.keycloak_url}}'
+
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation
@@ -74,14 +85,6 @@ spec:
             value: ""
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
-    - - name: remove-keycloak-client
-        template: remove-keycloak-client
-        arguments:
-          parameters:
-          - name: organization_id
-            value: '{{workflow.parameters.organization_id}}'
-          - name: keycloak_url
-            value: '{{workflow.parameters.keycloak_url}}'
 
   #######################
   # Template Definition #
@@ -267,6 +270,7 @@ spec:
     inputs:
       parameters:
         - name: organization_id
+        - name: cluster_id
         - name: keycloak_url
     volumes:
       - name: out
@@ -278,15 +282,33 @@ spec:
         - /bin/bash
         - '-c'
         - |
-          function log() {
-            level=$1
-            msg=$2
-            date=$(date '+%F %H:%M:%S')
-            echo "[$date] $level     $msg"
-          }
-
           organization_id={{inputs.parameters.organization_id}}
+          cluster_id={{inputs.parameters.cluster_id}}
           keycloak_url={{inputs.parameters.keycloak_url}}
+
+          #################
+          # Get endpoints
+          #################
+
+          endpoint=\"grafa\"
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+            do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of grafana(3s)"
+              sleep 3
+            done
+
+            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          else
+            log "WARN" "Cluster(${cluster_id}) has no grafana"
+          fi
           
           # Login to keycloak
           admin_username=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_USERNAME}" | base64 -d)
@@ -298,10 +320,21 @@ spec:
           if [ -z "$client_uuid" ]; then
             echo "client already not exist"
           else
-            # Remove client
-            curl -s -k -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+            JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
+            # Convert the array to a JSON array
+            num_redirect_uris=$(echo $JSON_DATA | jq '.[0].redirectUris | length')
+            if [ $num_redirect_uris -gt 1 ]
+            then
+                # Remove endpoint from client redirectUris
+                MODIFIED_JSON=$(echo $JSON_DATA | jq --arg value "$endpoint" '.[0] | { "redirectUris": (.redirectUris | map(select(. != $value))) }' )
+                # Write the JSON array to a new file
+                echo "$MODIFIED_JSON" > modified_data.json
+                curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 
+            else
+                # Remove client
+                curl -s -k -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+            fi
           fi
-
       envFrom:
         - secretRef:
             name: tks-api-secret
