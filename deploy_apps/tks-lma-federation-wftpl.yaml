@@ -552,6 +552,7 @@ spec:
             JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
 
             # Convert the array to a JSON array
+            endpoint="http://${endpoint}/*"
             MODIFIED_JSON=$(echo "$JSON_DATA" | jq --arg endpoint "$endpoint" 'map(.redirectUris += [$endpoint] | {redirectUris: .redirectUris})')
             MODIFIED_JSON=$(echo $MODIFIED_JSON | jq '.[0]')
             # Write the JSON array to a new file
