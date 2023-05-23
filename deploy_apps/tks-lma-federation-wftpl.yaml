@@ -688,7 +688,7 @@ spec:
           for pod in $pods
           do
             echo "Deleting pod $pod"
-            kubectl --kubeconfig kubeconfig delete pod $pod -n lma
+            kubectl --kubeconfig kubeconfig delete pod $pod -n lma --ignore-not-found=true
           done
 
       envFrom:
