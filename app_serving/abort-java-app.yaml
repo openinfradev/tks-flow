@@ -29,7 +29,7 @@ spec:
   templates:
   - name: exit-handler
     steps:
-    - - name: notify-bluegreen-abort-failure
+    - - name: notify-abort-failure
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -42,35 +42,17 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "BLUEGREEN_ABORT_FAILED"
+            value: "ABORT_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.abort_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{workflow.parameters.strategy}}' == 'blue-green'"
-    - - name: notify-canary-abort-failure
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "CANARY_ABORT_FAILED"
-          - name: output
-            value: "{{workflow.outputs.parameters.abort_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{workflow.parameters.strategy}}' == 'canary'"
+        when: "{{workflow.status}} != Succeeded"
 
   - name: main
     steps:
-    - - name: notify-bluegreen-abort-start
+    - - name: notify-abort-start
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
-        when: "'{{workflow.parameters.strategy}}' == 'blue-green'"
         arguments:
           parameters:
           - name: organization_id
@@ -80,44 +62,14 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "BLUEGREEN_ABORTING"
-          - name: output
-            value: ""
-    - - name: notify-canary-abort-start
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        when: "'{{workflow.parameters.strategy}}' == canary"
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "CANARY_ABORTING"
+            value: "ABORTING"
           - name: output
             value: ""
     - - name: abort-app
         template: abort-app
-    - - name: notify-abort-success
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "{{steps.abort-app.outputs.parameters.status}}"
-          - name: output
-            value: "{{steps.abort-app.outputs.parameters.abort_output}}"
+    ## Stage for updating preview endpoint to 'N/A'
+    ## All other values shouldn't be updated.
+    ## (These values for endpoint & helm_revision are discarded by the API)
     - - name: update-endpoint-url
         templateRef:
           name: update-tks-asa-endpoint
@@ -135,7 +87,23 @@ spec:
           - name: preview_endpoint
             value: "N/A"
           - name: helm_revision
-            value: "{{steps.abort-app.outputs.parameters.revision}}"
+            value: 0
+    - - name: notify-abort-success
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "ABORT_SUCCESS"
+          - name: output
+            value: "{{steps.abort-app.outputs.parameters.abort_output}}"
 
   #######################
   # Template Definition #
@@ -151,12 +119,6 @@ spec:
         valueFrom:
           path: /mnt/out/abort_output.log
         globalName: abort_output_global
-      - name: status
-        valueFrom:
-          path: /mnt/out/abort_status
-      - name: revision
-        valueFrom:
-          path: /mnt/out/revision
     container:
       image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
@@ -288,8 +250,6 @@ spec:
           exit 1
         fi
 
-        # write revision
-        write_revision
 
         # Perform abort
         kubectl argo rollouts abort ${app_name} -n $ns
@@ -309,7 +269,7 @@ spec:
         check_rollout_replicas
 
 
-
+        # TODO: Is just "undoing without revision" not enough?
         #==========================================================
         # undo to the latest active revision
         #==========================================================
@@ -327,14 +287,3 @@ spec:
         #==========================================================
         check_rollout_phase "Healthy" "Healthy"
 
-
-
-        #==========================================================
-        # write information
-        #==========================================================
-        # Write deployment status to file for next step
-        if [[ "$strategy" == "blue-green" ]]; then
-          echo "BLUEGREEN_ABORT_SUCCESS" > /mnt/out/abort_status
-        elif [[ "$strategy" == "canary" ]]; then
-          echo "CANARY_ABORT_SUCCESS" > /mnt/out/abort_status
-        fi

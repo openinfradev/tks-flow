@@ -29,7 +29,7 @@ spec:
   templates:
   - name: exit-handler
     steps:
-    - - name: notify-bluegreen-promote-failure
+    - - name: notify-promote-failure
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
@@ -42,35 +42,17 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "BLUEGREEN_PROMOTE_FAILED"
+            value: "PROMOTE_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.promote_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{workflow.parameters.strategy}}' == 'blue-green'"
-    - - name: notify-canary-promote-failure
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "CANARY_PROMOTE_FAILED"
-          - name: output
-            value: "{{workflow.outputs.parameters.promote_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{workflow.parameters.strategy}}' == canary"
+        when: "{{workflow.status}} != Succeeded"
 
   - name: main
     steps:
-    - - name: notify-bluegreen-promote-start
+    - - name: notify-promote-start
         templateRef:
           name: update-tks-asa-status
           template: updateTksAsaStatus
-        when: "'{{workflow.parameters.strategy}}' == 'blue-green'"
         arguments:
           parameters:
           - name: organization_id
@@ -80,44 +62,14 @@ spec:
           - name: asa_task_id
             value: "{{workflow.parameters.asa_task_id}}"
           - name: status
-            value: "BLUEGREEN_PROMOTING"
-          - name: output
-            value: ""
-    - - name: notify-canary-promote-start
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        when: "'{{workflow.parameters.strategy}}' == canary"
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "CANARY_PROMOTING"
+            value: "PROMOTING"
           - name: output
             value: ""
     - - name: promote-app
         template: promote-app
-    - - name: notify-promote-success
-        templateRef:
-          name: update-tks-asa-status
-          template: updateTksAsaStatus
-        arguments:
-          parameters:
-          - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
-          - name: asa_id
-            value: "{{workflow.parameters.asa_id}}"
-          - name: asa_task_id
-            value: "{{workflow.parameters.asa_task_id}}"
-          - name: status
-            value: "{{steps.promote-app.outputs.parameters.status}}"
-          - name: output
-            value: "{{steps.promote-app.outputs.parameters.promote_output}}"
+    ## Stage for updating preview endpoint to 'N/A'
+    ## All other values shouldn't be updated.
+    ## (These values for endpoint & helm_revision are discarded by the API)
     - - name: update-endpoint-url
         templateRef:
           name: update-tks-asa-endpoint
@@ -135,7 +87,23 @@ spec:
           - name: preview_endpoint
             value: "N/A"
           - name: helm_revision
-            value: "{{steps.promote-app.outputs.parameters.revision}}"
+            value: 0
+    - - name: notify-promote-success
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          - name: status
+            value: "PROMOTE_SUCCESS"
+          - name: output
+            value: "{{steps.promote-app.outputs.parameters.promote_output}}"
 
   #######################
   # Template Definition #
@@ -154,12 +122,6 @@ spec:
       # - name: endpoint
       #   valueFrom:
       #     path: /mnt/out/endpoint
-      - name: status
-        valueFrom:
-          path: /mnt/out/promote_status
-      - name: revision
-        valueFrom:
-          path: /mnt/out/revision
     container:
       image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
@@ -272,7 +234,6 @@ spec:
         }
 
 
-
         #==========================================================
         # Start promoting Rollout
         #==========================================================
@@ -285,9 +246,6 @@ spec:
           echo "Error: Rollout is NOT in Paused state. Exiting.." | tee -a $PROMOTE_LOG
           exit 1
         fi
-
-        # write revision
-        write_revision
 
         # Perform promotion
         kubectl argo rollouts promote ${app_name} -n {{workflow.parameters.namespace}}
@@ -305,14 +263,3 @@ spec:
         #==========================================================
         check_rollout_replicas
 
-
-
-        #==========================================================
-        # write information
-        #==========================================================
-        # Write deployment status to file for next step
-        if [[ "$strategy" == "blue-green" ]]; then
-          echo "BLUEGREEN_PROMOTE_SUCCESS" > /mnt/out/promote_status
-        elif [[ "$strategy" == "canary" ]]; then
-          echo "CANARY_PROMOTE_SUCCESS" > /mnt/out/promote_status
-        fi
