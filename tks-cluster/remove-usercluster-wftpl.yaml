@@ -60,6 +60,21 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+    - - name: deleteClusterAutoscalerApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-k8s-cluster-autoscaler"
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
 
     - - name: deleteClusterAutoscalerRbacApp
         templateRef:
@@ -69,6 +84,17 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler-rbac"
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+    - - name: delete-aws-cluster-autoscaler-iam
+        templateRef:
+          name: aws-cluster-autoscaler-iam
+          template: deleteIAMRole
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
 
     - - name: deleteMetricsServerApp
         templateRef:

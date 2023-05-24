@@ -119,6 +119,14 @@ spec:
             - name: cloud_account_id
               value: "{{ workflow.parameters.cloud_account_id }}"
 
+    - - name: create-aws-cluster-autoscaler-iam
+        templateRef:
+          name: aws-cluster-autoscaler-iam
+          template: createIAMRole
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+
     - - name: install-cluster-autoscaler-rbac
         templateRef:
           name: create-application
