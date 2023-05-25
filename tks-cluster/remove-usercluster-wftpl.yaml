@@ -13,6 +13,8 @@ spec:
       value: "tks-info.tks.svc"
     - name: cluster_id
       value: "Cabbead61"
+    - name: cloud_account_id # will be not NULL if the cluster is multitenancy
+      value: "NULL"
     - name: infra_provider
       value: "aws"
     - name: app_prefix
@@ -92,6 +94,10 @@ spec:
         templateRef:
           name: aws-cluster-autoscaler-iam
           template: deleteIAMRole
+        arguments:
+          parameters:
+            - name: cloud_account_id
+              value: "{{ workflow.parameters.cloud_account_id }}"
         when: >-
             {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
               {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true

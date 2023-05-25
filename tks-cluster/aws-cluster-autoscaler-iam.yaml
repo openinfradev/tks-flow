@@ -9,23 +9,45 @@ spec:
     parameters:
     - name: cluster_id
       value: "Cc81dd656"
+    - name: cloud_account_id # will be not NULL if the cluster is multitenancy
+      value: "NULL"
 
   volumes:
-    - name: awsconfig
-      secret:
-        secretName: awsconfig-secret
+  - name: awsconfig
+    secret:
+      secretName: awsconfig-secret
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
 
   templates:
   - name: createIAMRole
     activeDeadlineSeconds: 1800
+    inputs:
+      parameters:
+      - name: cloud_account_id
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3
       command:
       - /bin/bash
       - -exc
       - |
+        cp /kube/value kubeconfig_adm
+        export KUBECONFIG=kubeconfig_adm
         mkdir ~/.aws
         cp /aws/* ~/.aws/
+
+        # Use AWS STS temporary security credential if multi-tenancy
+        if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+          ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+          aws sts assume-role --role-arn $ROLE_ARN --role-session-name "TKS-ClusterAutoscaler-$CLUSTER_ID" --output json | tee ~/assume-role-sts-credential.txt
+          export AWS_ACCESS_KEY_ID=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
+
+          ROLE_ARN_REMOVED_SUFFIX=${ROLE_ARN%:*}
+          ACCOUNT_ID=${ROLE_ARN_REMOVED_SUFFIX#*::}
+        fi
 
         echo "{
             \"Version\": \"2012-10-17\",
@@ -68,7 +90,7 @@ spec:
         eksctl create iamserviceaccount \
           --name cluster-autoscaler \
           --namespace kube-system \
-          --cluster $CLUSTER_ID
+          --cluster $CLUSTER_ID \
           --role-name "cluster-autoscaler-$CLUSTER_ID" \
           --attach-policy-arn arn:aws:iam::$ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID \
           --override-existing-serviceaccounts \
@@ -77,25 +99,48 @@ spec:
       env:
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
       volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
       - name: awsconfig
         mountPath: "/aws"
 
   - name: deleteIAMRole
     activeDeadlineSeconds: 1800
+    inputs:
+      parameters:
+      - name: cloud_account_id
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.0
+      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3
       command:
       - /bin/bash
       - -exc
       - |
+        cp /kube/value kubeconfig_adm
+        export KUBECONFIG=kubeconfig_adm
         mkdir ~/.aws
         cp /aws/* ~/.aws/
+
+        # Use AWS STS temporary security credential if multi-tenancy
+        if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+          ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+          aws sts assume-role --role-arn $ROLE_ARN --role-session-name "TKS-ClusterAutoscaler-$CLUSTER_ID" --output json | tee ~/assume-role-sts-credential.txt
+          export AWS_ACCESS_KEY_ID=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
+        fi
+
         eksctl delete iamserviceaccount --cluster $CLUSTER_ID --name cluster-autoscaler --namespace kube-system
 
       env:
       - name: CLUSTER_ID
         value: "{{workflow.parameters.cluster_id}}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
       volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
       - name: awsconfig
         mountPath: "/aws"
