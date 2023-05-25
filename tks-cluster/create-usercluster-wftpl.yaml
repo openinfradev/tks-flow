@@ -446,18 +446,29 @@ spec:
               echo "Warning: $1 is already registered on argo-cd server. If unintended, it may occure woring operations."
           fi
 
-          # Create a kubeconfig secret for TKS internal use from ArgoCD cluster secret.
+          # Create a kubeconfig secret for TKS internal use from ArgoCD cluster secret and for TKS user
           export KUBECONFIG=kubeconfig_adm
           if [ $kcp_count = 1 ]; then
             TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           elif [ $awsmcp_count = 1 ]; then
-            TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-            cat <<< $TKS_KUBECONFIG_WORKLOAD | sed '/exec:/,+15d' > tmp_tks_kubeconfig_workload
+            CAPA_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+
+            # tks-kubeconfig
+            cat <<< $CAPA_USER_KUBECONFIG_WORKLOAD | sed '/exec:/,+15d' > tmp_tks_kubeconfig_workload
             API_SERVER=$(grep server tmp_tks_kubeconfig_workload | awk '{print tolower($2)}')
             ARGOCD_CLUSTER_SECRET=$(kubectl get secret -n argo | grep ${API_SERVER#*\/\/} | awk '{print $1}')
             CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
             echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
             TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
+
+            # tks-user-kubeconfig
+            if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then # multitenancy cluster
+              cat <<< $CAPA_USER_KUBECONFIG_WORKLOAD | sed "24 i \ \ \ \ \  - --role\n\ \ \ \ \ \ - $IDENTITY_ROLE_ARN" > tmp_tks_user_kubeconfig_workload
+              TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_tks_user_kubeconfig_workload)
+            else
+              TKS_USER_KUBECONFIG_WORKLOAD=$CAPA_USER_KUBECONFIG_WORKLOAD
+            fi
 
             cat <<EOF > sc-taco-storage.yaml
           apiVersion: storage.k8s.io/v1
@@ -478,6 +489,8 @@ spec:
           fi
           cat <<< $TKS_KUBECONFIG_WORKLOAD > tks_kubeconfig_workload
           kubectl create secret generic -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig --from-file=value=tks_kubeconfig_workload
+          cat <<< $TKS_USER_KUBECONFIG_WORKLOAD > tks_user_kubeconfig_workload
+          kubectl create secret generic -n $CLUSTER_ID $CLUSTER_ID-tks-user-kubeconfig --from-file=value=tks_user_kubeconfig_workload
 
       volumeMounts:
       - name: kubeconfig-adm
