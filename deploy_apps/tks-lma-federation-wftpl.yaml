@@ -140,7 +140,7 @@ spec:
           - name: endpoint
             value: '{{steps.create-keycloak-client.outputs.parameters.grafana_endpoint}}'
           - name: app_type
-            value: grafana
+            value: GRAFANA
 
     - - name: render-auth-oidc-grafana
         templateRef:
