@@ -405,7 +405,7 @@ spec:
           rollout_status=$2
           app_name={{workflow.parameters.app_name}}
           rollout_finish=false
-          for i in `seq 1 10`
+          for i in `seq 1 15`
           do
             phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
             ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
