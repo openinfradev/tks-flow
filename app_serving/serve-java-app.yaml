@@ -377,9 +377,11 @@ spec:
         function deploy_rollout() {
           strategy={{workflow.parameters.strategy}}
           replicas={{workflow.parameters.replicas}}
+          app_type={{workflow.parameters.app_type}}
 
           echo "Deploying rollout resources..." | tee -a $DEPLOY_LOG
           cd /apps/app-serve-template/canary-manifests
+          cp rollout-${app_type}.yaml rollout.yaml
           sed -i "s/APP_NAME/{{workflow.parameters.app_name}}/g" ./rollout.yaml
           sed -i "s/PORT_NUM/{{workflow.parameters.port}}/g" ./rollout.yaml
           sed -i "s/REPLICAS/${replicas}/g" ./rollout.yaml
