@@ -35,7 +35,7 @@ spec:
 
         echo $AWS_SESSION_TOKEN
         if [ "$AWS_SESSION_TOKEN" = "NULL" ]; then
-            unset $AWS_SESSION_TOKEN
+            unset AWS_SESSION_TOKEN
         fi
         echo $AWS_SESSION_TOKEN || true
 
