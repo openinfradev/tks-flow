@@ -326,8 +326,7 @@ spec:
             if [ $num_redirect_uris -gt 1 ]
             then
                 # Remove endpoint from client redirectUris
-                endpoint="http://${endpoint}/*"
-                MODIFIED_JSON=$(echo $JSON_DATA | jq --arg value "$endpoint" '.[0] | { "redirectUris": (.redirectUris | map(select(. != $value))) }' )
+                MODIFIED_JSON=$(echo $JSON_DATA | jq --arg value "http://$endpoint/*" '.[0] | { "redirectUris": (.redirectUris | map(select(. != $value))) }' )
                 # Write the JSON array to a new file
                 echo "$MODIFIED_JSON" > modified_data.json
                 curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 

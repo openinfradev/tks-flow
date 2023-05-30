@@ -531,19 +531,20 @@ spec:
           admin_password=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_PASSWORD}" | base64 -d)
           TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=${admin_username} -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
 
-          # Create client json file
-          printf '{
-              "clientId" : "grafana",
-              "directAccessGrantsEnabled": true,
-              "standardFlowEnabled": true,
-              "redirectUris": ["http://%s/*"]
-          }\n' "$endpoint" > client.json
+          
 
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
           if [ -z "$client_uuid" ]; then
             # Create client
+          
+            printf '{
+                "clientId" : "grafana",
+                "directAccessGrantsEnabled": true,
+                "standardFlowEnabled": true,
+                "redirectUris": ["http://%s/*"]
+            }\n' "$endpoint" > client.json
+            
             curl -s -k POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @client.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients
-            sleep 5
             client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
             secret=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"type":"secret"}' ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}/client-secret | jq -r '.value')
           else
@@ -552,13 +553,12 @@ spec:
             JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
 
             # Convert the array to a JSON array
-            endpoint="http://${endpoint}/*"
-            MODIFIED_JSON=$(echo "$JSON_DATA" | jq --arg endpoint "$endpoint" 'map(.redirectUris += [$endpoint] | {redirectUris: .redirectUris})')
+            MODIFIED_JSON=$(echo "$JSON_DATA" | jq --arg endpoint "http://$endpoint/*" 'map(.redirectUris += [$endpoint] | {redirectUris: .redirectUris})')
             MODIFIED_JSON=$(echo $MODIFIED_JSON | jq '.[0]')
+          
             # Write the JSON array to a new file
             echo "$MODIFIED_JSON" > modified_data.json
             curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 
-          
             secret=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}/client-secret | jq -r '.value')
           fi
 
