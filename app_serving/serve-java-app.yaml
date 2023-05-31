@@ -649,7 +649,14 @@ spec:
         kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
 
         # Writing endpoint to file
-        kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/endpoint
+        ep=$(kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+        if [ -z "$ep" ]; then
+          echo "Couldn't get endpoint url. Exiting.." | tee -a $DEPLOY_LOG
+          exit 1
+        else
+          echo $ep > /mnt/out/endpoint
+        fi
 
         if [[ "$strategy" == "rolling-update" ]]; then
           # Prevent output param from being null
