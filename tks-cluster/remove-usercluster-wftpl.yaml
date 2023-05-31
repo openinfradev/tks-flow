@@ -63,10 +63,10 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
         when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
 
-    - - name: deleteClusterAutoscalerApp
+    - - name: deleteClusterAutoscalerApp-managed
         templateRef:
           name: delete-apps
           template: DeleteAppsByName
@@ -75,8 +75,8 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-k8s-cluster-autoscaler"
         when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == true
 
     - - name: deleteClusterAutoscalerRbacApp
         templateRef:
@@ -87,8 +87,8 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler-rbac"
         when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
 
     - - name: delete-aws-cluster-autoscaler-iam
         templateRef:
@@ -99,8 +99,8 @@ spec:
             - name: cloud_account_id
               value: "{{ workflow.parameters.cloud_account_id }}"
         when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
-              {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == true
 
     - - name: deleteMetricsServerApp
         templateRef:
