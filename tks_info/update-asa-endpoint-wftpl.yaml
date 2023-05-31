@@ -72,6 +72,7 @@ spec:
                             headers={"Authorization": "Bearer " + TOKEN},
                             json=data)
         if res.status_code != 200:
+          print('text: {}\n'.format(res.text))
           sys.exit('Failed to update endpoint')
 
         res_json = res.json()
