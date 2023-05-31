@@ -46,7 +46,9 @@ spec:
           export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
 
           ROLE_ARN_REMOVED_SUFFIX=${ROLE_ARN%:*}
-          ACCOUNT_ID=${ROLE_ARN_REMOVED_SUFFIX#*::}
+          AWS_ACCOUNT_ID=${ROLE_ARN_REMOVED_SUFFIX#*::}
+        else
+          AWS_ACCOUNT_ID=$(kubectl  get secret -n argo aws-account-id -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d)
         fi
 
         echo "{
@@ -92,7 +94,7 @@ spec:
           --namespace kube-system \
           --cluster $CLUSTER_ID \
           --role-name "cluster-autoscaler-$CLUSTER_ID" \
-          --attach-policy-arn arn:aws:iam::$ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID \
+          --attach-policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID \
           --override-existing-serviceaccounts \
           --approve
 
