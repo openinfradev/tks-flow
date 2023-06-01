@@ -131,7 +131,7 @@ spec:
             value: "DEPLOY_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.deploy_output_global}}"
-        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app'"
+        when: "{{workflow.status}} != Succeeded && ('{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app' || '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'update-endpoint-url')"
 
   - name: main
     steps:
@@ -702,9 +702,9 @@ spec:
         for step in wf_failure_list:
           print("Processing str: {}".format(step))
           # step is 'dict' type now.
-          if step["templateName"] == 'build-image' or step["templateName"] == 'deploy-app':
-            print("found failed step {}".format(step["templateName"]))
-            failed_step = step["templateName"]
+          if step["displayName"] in ['build-image', 'deploy-app', 'update-endpoint-url']:
+            print("found failed step {}".format(step["displayName"]))
+            failed_step = step["displayName"]
             break
 
         if failed_step:
