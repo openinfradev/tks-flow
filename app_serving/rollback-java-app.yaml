@@ -243,9 +243,9 @@ spec:
 
         # For rolling-update, change autoPromotionEnabled to true
         # TODO: considering canary strategy 
-        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}'
+        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}' | tee -a $ROLLBACK_LOG
 
-        helm rollback $app_name -n $namespace $helm_revision
+        helm rollback $app_name -n $namespace $helm_revision | tee -a $ROLLBACK_LOG
 
 
 
