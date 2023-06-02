@@ -71,7 +71,7 @@ spec:
 
           res = requests.post(TKS_API_URL + '/api/1.0/auth/login', json=data)
           if res.status_code != 200:
-            logStr='response text: {}\n'.format(res.text))
+            logStr='response text: {}\n'.format(res.text)
             with open(UPDATE_LOG, "a") as f:
               f.write(logStr)
               f.write(loginErrStr)
@@ -93,7 +93,7 @@ spec:
                             headers={"Authorization": "Bearer " + TOKEN},
                             json=data)
         if res.status_code != 200:
-          logStr='response text: {}\n'.format(res.text))
+          logStr='response text: {}\n'.format(res.text)
           with open(UPDATE_LOG, "a") as f:
             f.write(logStr)
             f.write(errStr)
