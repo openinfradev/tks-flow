@@ -131,7 +131,25 @@ spec:
             value: "DEPLOY_FAILED"
           - name: output
             value: "{{workflow.outputs.parameters.deploy_output_global}}"
-        when: "{{workflow.status}} != Succeeded && ('{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app' || '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'update-endpoint-url')"
+        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'deploy-app'"
+    - - name: notify-update-failure
+        templateRef:
+          name: update-tks-asa-status
+          template: updateTksAsaStatus
+        arguments:
+          parameters:
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: asa_id
+            value: "{{workflow.parameters.asa_id}}"
+          - name: asa_task_id
+            value: "{{workflow.parameters.asa_task_id}}"
+          # TODO: this can be changed to "UPDATE_FAILED" once the API's pipeline structure is updated.
+          - name: status
+            value: "DEPLOY_FAILED"
+          - name: output
+            value: "{{workflow.outputs.parameters.update_output_global}}"
+        when: "{{workflow.status}} != Succeeded && '{{steps.parse-failed-step.outputs.parameters.step_name}}' == 'update-endpoint-url'"
 
   - name: main
     steps:

@@ -12,6 +12,15 @@ spec:
       value: "http://tks-api.tks.svc:9110"
   templates:
   - name: updateTksAsaEndpoint
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: update_output
+        valueFrom:
+          path: /mnt/out/update_output.log
+        globalName: update_output_global
     inputs:
       parameters:
       - name: organization_id
@@ -22,6 +31,9 @@ spec:
       - name: helm_revision
     script:
       image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
       command: ["python"]
       env:
       - name: PYTHONPATH
@@ -44,6 +56,10 @@ spec:
         ENDPOINT_URL = '{{inputs.parameters.endpoint}}'
         PREVIEW_ENDPOINT_URL = '{{inputs.parameters.preview_endpoint}}'
         HELM_REVISION = '{{inputs.parameters.helm_revision}}'
+        UPDATE_LOG='/mnt/out/update_output.log'
+        logStr = ""
+        errStr = "Failed to update endpoint!"
+        loginErrStr = "Failed to login to TKS API!"
 
 
         def getToken():
@@ -55,7 +71,12 @@ spec:
 
           res = requests.post(TKS_API_URL + '/api/1.0/auth/login', json=data)
           if res.status_code != 200:
-            sys.exit('Failed to login')
+            logStr='response text: {}\n'.format(res.text))
+            with open(UPDATE_LOG, "a") as f:
+              f.write(logStr)
+              f.write(loginErrStr)
+            print(logStr)
+            sys.exit(loginErrStr)
           res_json = res.json()
           return res_json['user']['token']
 
@@ -72,8 +93,14 @@ spec:
                             headers={"Authorization": "Bearer " + TOKEN},
                             json=data)
         if res.status_code != 200:
-          print('text: {}\n'.format(res.text))
-          sys.exit('Failed to update endpoint')
+          logStr='response text: {}\n'.format(res.text))
+          with open(UPDATE_LOG, "a") as f:
+            f.write(logStr)
+            f.write(errStr)
+          print(logStr)
+          sys.exit(errStr)
 
         res_json = res.json()
         print(res_json)
+        with open(UPDATE_LOG, "a") as f:
+          f.write(res_json)
