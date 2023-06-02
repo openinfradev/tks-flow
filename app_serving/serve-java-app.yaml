@@ -283,6 +283,7 @@ spec:
       - '-exc'
       - |
         BUILD_LOG='/mnt/out/build_output.log'
+        echo "*workflow name: {{workflow.name}}\n-----" | tee -a $BUILD_LOG
         mkdir -p /apps && cd /apps/
 
         echo "Fetching app artifact.." | tee -a $BUILD_LOG
@@ -364,6 +365,8 @@ spec:
       - '-exc'
       - |
         DEPLOY_LOG='/mnt/out/deploy_output.log'
+        echo "*workflow name: {{workflow.name}}\n-----" | tee -a $DEPLOY_LOG
+
         strategy={{workflow.parameters.strategy}}
         mkdir -p /apps/
 
@@ -622,7 +625,7 @@ spec:
         kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
 
         # Writing helm release info to file.
-        revision=$( (helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1) 2> >(tee -a $DEPLOY_LOG >&2) )
+        revision=$(helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1)
 
         # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
         if [ -z "$revision" ]; then

@@ -136,6 +136,8 @@ spec:
         namespace={{workflow.parameters.namespace}}
         helm_revision={{workflow.parameters.helm_revision}}
 
+        echo "*workflow name: {{workflow.name}}\n-----" | tee -a $ROLLBACK_LOG
+
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $ROLLBACK_LOG
         KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
@@ -221,7 +223,7 @@ spec:
         #==========================================================
         function write_revision() {
           # Writing helm release info to file.
-          revision=$( (helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1) 2> >(tee -a $ROLLBACK_LOG >&2) )
+          revision=$(helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1)
           
           # Cmds with pipe doesn't catch correct exit code, so we need to check it somehow.
           if [ -z "$revision" ]; then

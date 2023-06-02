@@ -48,7 +48,6 @@ spec:
         import requests
         import sys
 
-
         TKS_API_URL = '{{workflow.parameters.tks_info_host}}'
         ORG_ID = '{{inputs.parameters.organization_id}}'
         APP_ID = '{{inputs.parameters.asa_id}}'
@@ -56,11 +55,13 @@ spec:
         ENDPOINT_URL = '{{inputs.parameters.endpoint}}'
         PREVIEW_ENDPOINT_URL = '{{inputs.parameters.preview_endpoint}}'
         HELM_REVISION = '{{inputs.parameters.helm_revision}}'
+
         UPDATE_LOG='/mnt/out/update_output.log'
         logStr = ""
         errStr = "Failed to update endpoint!"
         loginErrStr = "Failed to login to TKS API!"
 
+        echo "*workflow name: {{workflow.name}}\n-----" | tee -a $UPDATE_LOG
 
         def getToken():
           data = {
