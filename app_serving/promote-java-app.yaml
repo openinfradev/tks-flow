@@ -135,6 +135,8 @@ spec:
         app_name={{workflow.parameters.app_name}}
         strategy={{workflow.parameters.strategy}}
 
+        echo "*workflow name: {{workflow.name}}\n-----" | tee -a $PROMOTE_LOG
+
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $PROMOTE_LOG
         KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
