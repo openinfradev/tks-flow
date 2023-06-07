@@ -610,7 +610,7 @@ spec:
           cd /apps/helm-charts/tomcat
           ## TODO: this might be temporary. Once everything is confirmed,
           ## the helm chart can be pulled from internal helm repo.
-          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -f /apps/app-serve-template/chart/values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
         ## For springboot app case ##
         else
           cd /apps/app-serve-template/chart
