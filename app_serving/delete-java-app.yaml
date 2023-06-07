@@ -128,15 +128,17 @@ spec:
         if [[ $? =~ 0 ]]; then
           echo "App {{workflow.parameters.app_name}} was deleted successfully."
         else
-          echo "Error occurred while deleting app."
+          echo "Error occurred while deleting app." | tee -a $DELETE_LOG
           exit 1
         fi
 
         # Delete preview svc and namespace
         kubectl delete service --all -n {{workflow.parameters.namespace}} 2> >(tee -a $DELETE_LOG >&2) || true
-        kubectl delete ns {{workflow.parameters.namespace}}
+        kubectl delete ns {{workflow.parameters.namespace}} || true
+        
+        echo "App {{workflow.parameters.app_name}} was deleted successfully." | tee -a $DELETE_LOG
 
         # Just for debug
         # If there's any case where the release is not deleted normally,
         # then extra validation will be required.
-        helm list --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}}
+        # helm list --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}}
