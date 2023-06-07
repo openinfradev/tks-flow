@@ -170,6 +170,15 @@ spec:
               value: "{{workflow.parameters.app_prefix}}-tigera-operator"
         when: "{{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false"
 
+    - - name: deleteClusterArgoRolloutsApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-argo-rollouts"
+
     - - name: deleteClusterCR
         template: deleteClusterCR
         arguments:
