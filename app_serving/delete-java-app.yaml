@@ -126,11 +126,15 @@ spec:
         # If make this strict, use asa_id as prefix to guarantee uniqueness of helm release.
         helm delete --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} 2> >(tee -a $DELETE_LOG >&2) || true
         if [[ $? =~ 0 ]]; then
-          echo "App was deleted successfully."
+          echo "App {{workflow.parameters.app_name}} was deleted successfully."
         else
           echo "Error occurred while deleting app."
           exit 1
         fi
+
+        # Delete preview svc and namespace
+        kubectl delete service --all -n {{workflow.parameters.namespace}} 2> >(tee -a $DELETE_LOG >&2) || true
+        kubectl delete ns {{workflow.parameters.namespace}}
 
         # Just for debug
         # If there's any case where the release is not deleted normally,
