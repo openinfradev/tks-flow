@@ -60,8 +60,7 @@ spec:
         logStr = ""
         errStr = "Failed to update endpoint!"
         loginErrStr = "Failed to login to TKS API!"
-
-        echo "*workflow name: {{workflow.name}}\n-----" | tee -a $UPDATE_LOG
+        wfRefStr = "*workflow name: {{workflow.name}}\n-----"
 
         def getToken():
           data = {
@@ -74,6 +73,7 @@ spec:
           if res.status_code != 200:
             logStr='response text: {}\n'.format(res.text)
             with open(UPDATE_LOG, "a") as f:
+              f.write(wfRefStr)
               f.write(logStr)
               f.write(loginErrStr)
             print(logStr)
@@ -96,6 +96,7 @@ spec:
         if res.status_code != 200:
           logStr='response text: {}\n'.format(res.text)
           with open(UPDATE_LOG, "a") as f:
+            f.write(wfRefStr)
             f.write(logStr)
             f.write(errStr)
           print(logStr)
