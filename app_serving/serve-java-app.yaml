@@ -432,17 +432,17 @@ spec:
             ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
 
             if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
-              echo "Rollout is finished." | tee -a $DEPLOY_LOG
+              echo "Rollout phase is $rollout_phase now." | tee -a $DEPLOY_LOG
               rollout_finish=true
               break
             else
-              echo "Waiting for rollout to be ready.. sleeping 3 secs.."
+              echo "Waiting for desired rollout phase.. sleeping 3 secs.."
               sleep 3
             fi
           done
 
           if [ "$rollout_finish" = false ]; then
-            echo "Timed out waiting for rollout to be finished.." | tee -a $DEPLOY_LOG
+            echo "Timed out waiting for rollout to reach the desired phase." | tee -a $DEPLOY_LOG
             exit 1
           fi
         }
