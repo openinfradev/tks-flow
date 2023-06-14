@@ -661,11 +661,13 @@ spec:
           check_rollout_phase "Paused" "Paused"
         fi
 
-
+        # Wait a little for endpoint allocation
+        sleep 3
 
         #==========================================================
-        # write complete log
+        # write endpoints to file
         #==========================================================
+        # TODO: only do this in blue-green case??
         # Writing preview-svc endpoint to file
         kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
 
@@ -679,6 +681,31 @@ spec:
           echo $ep > /mnt/out/endpoint
         fi
 
+        #==========================================================
+        # Check if endpoint is actually reachable
+        #==========================================================
+        ep_ready=false
+        for i in `seq 1 20`
+        do
+          stat_code=$(curl -o /dev/null -w "%{http_code}" http://${ep})
+          if [ $stat_code -eq 200 ]; then
+            echo "Confirmed that endpoint is reachable." | tee -a $DEPLOY_LOG
+            ep_ready=true
+            break
+          else
+            echo "Waiting for endpoint to be reachable.. sleeping 3 secs.." | tee -a $DEPLOY_LOG
+            sleep 3
+          fi
+        done
+
+        if [ "$ep_ready" = false ]; then
+          echo "Timed out waiting for endpoint to be reachable.." | tee -a $DEPLOY_LOG
+          exit 1
+        fi
+
+        #==========================================================
+        # Write deploy status to file
+        #==========================================================
         if [[ "$strategy" == "rolling-update" ]]; then
           # Prevent output param from being null
           # echo "N/A" > /mnt/out/preview_endpoint
