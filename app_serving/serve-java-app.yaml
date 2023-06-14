@@ -687,7 +687,7 @@ spec:
         ep_ready=false
         for i in `seq 1 20`
         do
-          stat_code=$(curl -o /dev/null -w "%{http_code}" http://${ep})
+          stat_code=$(curl -o /dev/null -w "%{http_code}" http://${ep} || true)
           if [ $stat_code -eq 200 ]; then
             echo "Confirmed that endpoint is reachable." | tee -a $DEPLOY_LOG
             ep_ready=true
