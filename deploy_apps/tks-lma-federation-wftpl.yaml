@@ -23,6 +23,8 @@ spec:
       value: "{{workflow.parameters.site_name}}"
     - name: keycloak_url
       value: ""
+    - name: console_url
+      value: ""
     - name: alert_tks
       value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/alerts"
     - name: alert_slack
@@ -126,6 +128,8 @@ spec:
             value: '{{workflow.parameters.organization_id}}'
           - name: cluster_id
             value: '{{workflow.parameters.cluster_id}}'
+          - name: console_url
+            value: '{{workflow.parameters.console_url}}'
           - name: keycloak_client_secret
             value: '{{steps.create-keycloak-client.outputs.parameters.keycloak_client_secret}}'
           - name: grafana_endpoint
@@ -579,6 +583,7 @@ spec:
         - name: cluster_id
         - name: keycloak_client_secret
         - name: grafana_endpoint
+        - name: console_url
 
     container:
       name: update-auth-oidc-grafana
@@ -617,6 +622,7 @@ spec:
           # Update grafana client secret
           yq -i e  ".global.grafanaDomain=\"${grafana_endpoint}\"" ${cluster_id}/lma/site-values.yaml
           yq -i e  ".global.grafanaClientSecret=\"${keycloak_client_secret}\"" ${cluster_id}/lma/site-values.yaml
+          yq -i e  ".global.consoleUrl=\"${console_url}\"" ${cluster_id}/lma/site-values.yaml
 
           git config --global user.name "tks"
           git config --global user.email "tks@sktelecom.com"
