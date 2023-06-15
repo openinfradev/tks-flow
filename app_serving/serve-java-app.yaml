@@ -432,24 +432,24 @@ spec:
             ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
 
             if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
-              echo "Rollout is finished." | tee -a $DEPLOY_LOG
+              echo "Rollout phase is $rollout_phase now." | tee -a $DEPLOY_LOG
               rollout_finish=true
               break
             else
-              echo "Waiting for rollout to be ready.. sleeping 3 secs.."
+              echo "Waiting for desired rollout phase.. sleeping 3 secs.."
               sleep 3
             fi
           done
 
           if [ "$rollout_finish" = false ]; then
-            echo "Timed out waiting for rollout to be finished.." | tee -a $DEPLOY_LOG
+            echo "Timed out waiting for rollout to reach the desired phase." | tee -a $DEPLOY_LOG
             exit 1
           fi
         }
 
 
         #==========================================================
-        # function: check_rollout_replicas (when rolling-update)
+        # function: check_rollout_replicas (for rolling-update)
         #==========================================================
         function check_rollout_replicas() {
           # Check num of replicas
@@ -476,6 +476,33 @@ spec:
 
           if [ "$ready" = false ]; then
             echo "Timed out waiting for deployment to be done.." | tee -a $DEPLOY_LOG
+            exit 1
+          fi
+        }
+
+        #==========================================================
+        # function: check_endpoint
+        #==========================================================
+        function check_endpoint() {
+          ep=$1
+          ep_ready=false
+          echo "Checking if endpoint ${ep} is reachable.." | tee -a $DEPLOY_LOG
+
+          for i in `seq 1 20`
+          do
+            stat_code=$(curl -o /dev/null -w "%{http_code}" http://${ep} || true)
+            if [ $stat_code -eq 200 ]; then
+              echo "Confirmed that the endpoint is reachable." | tee -a $DEPLOY_LOG
+              ep_ready=true
+              break
+            else
+              echo "Waiting for endpoint to be reachable.. sleeping 3 secs.." | tee -a $DEPLOY_LOG
+              sleep 3
+            fi
+          done
+
+          if [ "$ep_ready" = false ]; then
+            echo "Timed out waiting for endpoint to be reachable.." | tee -a $DEPLOY_LOG
             exit 1
           fi
         }
@@ -623,6 +650,7 @@ spec:
         echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
 
         kubectl wait --for=condition=Available --timeout=300s -n {{workflow.parameters.namespace}} deploy/{{workflow.parameters.app_name}} 2> >(tee -a $DEPLOY_LOG >&2)
+        echo "The deployment is ready now." | tee -a $DEPLOY_LOG
 
         # Writing helm release info to file.
         revision=$(helm history {{workflow.parameters.app_name}} --kubeconfig /etc/kubeconfig_temp -n {{workflow.parameters.namespace}} | grep deployed | cut -d' ' -f1)
@@ -655,20 +683,16 @@ spec:
           check_rollout_phase "Healthy" "Healthy"
           echo "Rollout status has changed to 'Healthy'. Checking replicas.." | tee -a $DEPLOY_LOG
           check_rollout_replicas
-        elif [[ "$strategy" == "blue-green" ]]; then
-          check_rollout_phase "Paused" "Paused"
-        elif [[ "$strategy" == "canary" ]]; then
+        elif [[ "$strategy" == "blue-green" ]] || [[ "$strategy" == "canary" ]]; then
           check_rollout_phase "Paused" "Paused"
         fi
 
-
+        # Wait a little for endpoint allocation
+        sleep 3
 
         #==========================================================
-        # write complete log
+        # write endpoints to file
         #==========================================================
-        # Writing preview-svc endpoint to file
-        kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' > /mnt/out/preview_endpoint
-
         # Writing endpoint to file
         ep=$(kubectl get svc {{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
@@ -678,14 +702,29 @@ spec:
         else
           echo $ep > /mnt/out/endpoint
         fi
+        check_endpoint $ep
 
+        #==========================================================
+        # Write deploy status to file
+        #==========================================================
         if [[ "$strategy" == "rolling-update" ]]; then
           # Prevent output param from being null
-          # echo "N/A" > /mnt/out/preview_endpoint
+          echo "N/A" > /mnt/out/preview_endpoint
 
           # Write deployment status to file for next step
           echo "DEPLOY_SUCCESS" > /mnt/out/deploy_status
         elif [[ "$strategy" == "blue-green" ]]; then
+          # Writing preview-svc endpoint to file
+          prv_ep=$(kubectl get svc ${app_name}-preview -n {{workflow.parameters.namespace}} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          if [ -z "$prv_ep" ]; then
+            echo "Couldn't get preview-endpoint url. Exiting.." | tee -a $DEPLOY_LOG
+            exit 1
+          else
+            echo $ep > /mnt/out/preview_endpoint
+          fi
+          echo "Checking preview endpoint.." | tee -a $DEPLOY_LOG
+          check_endpoint $prv_ep
+
           # Write deployment status to file for next step
           echo "PROMOTE_WAIT" > /mnt/out/deploy_status
         elif [[ "$strategy" == "canary" ]]; then
