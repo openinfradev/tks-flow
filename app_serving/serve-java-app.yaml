@@ -720,7 +720,7 @@ spec:
             echo "Couldn't get preview-endpoint url. Exiting.." | tee -a $DEPLOY_LOG
             exit 1
           else
-            echo $ep > /mnt/out/preview_endpoint
+            echo $prv_ep > /mnt/out/preview_endpoint
           fi
           echo "Checking preview endpoint.." | tee -a $DEPLOY_LOG
           check_endpoint $prv_ep
