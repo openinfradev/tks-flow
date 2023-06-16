@@ -117,7 +117,7 @@ spec:
             --tks-node-cnt $TKS_NODE_CNT \
             --user-node-cnt $USER_NODE_CNT
 
-          threshold=30
+          threshold=60
           for i in $(seq 1 $threshold)
           do
             CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{ print $4 }')
