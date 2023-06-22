@@ -486,9 +486,11 @@ spec:
         function check_endpoint() {
           ep=$1
           ep_ready=false
+          SLEEP_INTERVAL=5
           echo "Checking if endpoint ${ep} is reachable.." | tee -a $DEPLOY_LOG
 
-          for i in `seq 1 20`
+          # Wait up to 3 minutes(5s X 36) for the LB to be registered to DNS
+          for i in `seq 1 36`
           do
             stat_code=$(curl -o /dev/null -w "%{http_code}" http://${ep} || true)
             if [ $stat_code -eq 200 ]; then
@@ -497,7 +499,7 @@ spec:
               break
             else
               echo "Waiting for endpoint to be reachable.. sleeping 3 secs.." | tee -a $DEPLOY_LOG
-              sleep 3
+              sleep $SLEEP_INTERVAL
             fi
           done
 
