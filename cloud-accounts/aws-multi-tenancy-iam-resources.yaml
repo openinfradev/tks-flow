@@ -43,7 +43,7 @@ spec:
         kind: AWSIAMConfiguration
         spec:
           eks:
-            iamRoleCreation: false
+            iamRoleCreation: true
             managedMachinePool:
               disable: false
               extraPolicyAttachments:
@@ -70,6 +70,7 @@ spec:
               - \"iam:CreateOpenIDConnectProvider\"
               - \"iam:TagOpenIDConnectProvider\"
               - \"iam:CreatePolicy\"
+              - \"iam:GetPolicy\"
               - \"iam:AttachRolePolicy\"
               - \"iam:DetachRolePolicy\"
               - \"iam:CreateRole\"
