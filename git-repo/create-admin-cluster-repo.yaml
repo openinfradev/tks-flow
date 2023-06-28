@@ -1,0 +1,105 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-create-admin-cluster-repo
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: admin_cluster_name
+      value: "tks-admin"
+    - name: template_name
+      value: "eks-reference"
+    # Revision for decapod-base and decapod-site repo
+    - name: revision
+      value: "main"
+  templates:
+  - name: main
+    activeDeadlineSeconds: 120
+    container:
+      name: 'createRepo'
+      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
+      imagePullPolicy: IfNotPresent
+      command:
+      - /bin/bash
+      - -ecx
+      - |
+
+        function gh_create_repo() {
+            echo $TOKEN | gh auth login --with-token
+            echo "===== Current repo list ====="
+            gh repo list openinfradev | grep decapod-site
+            gh repo list ${USERNAME}
+
+            echo "===== Create and initialize ${USERNAME}/${ADMIN_CLUSTER_NAME} site and manifests repositories ====="
+            gh repo create ${USERNAME}/${ADMIN_CLUSTER_NAME} --public --confirm
+
+            cd ${ADMIN_CLUSTER_NAME}
+            echo -n ${TOKEN} | gh secret set API_TOKEN_GITHUB
+        }
+
+        function gitea_create_repo() {
+            curl -X 'POST' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos?token=${TOKEN} -H 'accept: application/json' -H 'Content-Type: application/json' -d "{ \"name\": \"${ADMIN_CLUSTER_NAME}\"}"
+            curl -X 'POST' $GIT_SVC_HTTP://${GIT_SVC_BASE_URL}/api/v1/orgs/${USERNAME}/repos?token=${TOKEN} -H 'accept: application/json' -H 'Content-Type: application/json' -d "{ \"name\": \"${ADMIN_CLUSTER_NAME}-manifests\"}"
+
+            export ARGO_TOKEN="Bearer $(kubectl -n argo get secret $SA_TOKEN -o=jsonpath='{.data.token}' | base64 --decode)"
+            curl -X 'POST' \
+              "${GIT_SVC_HTTP}://${GIT_SVC_BASE_URL}/api/v1/repos/${USERNAME}/${ADMIN_CLUSTER_NAME}/hooks?token=${TOKEN}" \
+              -H 'accept: application/json' \
+              -H 'Content-Type: application/json' \
+              -d "{
+              \"active\": true,
+              \"branch_filter\": \"main\",
+              \"config\": {
+                  \"content_type\": \"json\",
+                  \"url\": \"http://argo-workflows-operator-server.argo:2746/api/v1/events/argo/gitea-webhook\"
+              },
+              \"events\": [
+                \"push\"
+              ],
+              \"type\": \"gitea\",
+              \"authorization_header\": \"${ARGO_TOKEN}\"
+            }"
+        }
+
+        GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+        GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+
+        if [ "$GIT_SVC_TYPE" = "gitea" ];then
+            gitea_create_repo
+        else
+            gh_create_repo
+        fi
+
+        git clone -b ${REVISION} $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/decapod-site.git
+        cd decapod-site
+        echo "Decapod Site Repo Revision: "${REVISION} > META
+        echo "Decapod Site Repo Commit: "$(git rev-parse HEAD) >> META
+
+        rm -rf .github
+
+        for dir in *-reference; do
+            [ "$dir" = "$TEMPLATE_NAME" ] && continue
+            rm $dir
+        done
+
+        git config --global user.email "taco_support@sk.com"
+        git config --global user.name "SKTelecom TACO"
+        git add .
+        git commit -m "new repo for${ADMIN_CLUSTER_NAME}"
+
+        git remote add new_admin $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${ADMIN_CLUSTER_NAME}
+        git push new_admin ${REVISION}:main
+        cd ..
+
+      envFrom:
+        - secretRef:
+            name: "git-svc-token"
+      env:
+        - name: ADMIN_CLUSTER_NAME
+          value: "{{workflow.parameters.admin_cluster_name}}"
+        - name: TEMPLATE_NAME
+          value: "{{workflow.parameters.template_name}}"
+        - name: REVISION
+          value: "{{workflow.parameters.revision}}"
