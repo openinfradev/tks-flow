@@ -163,7 +163,7 @@ spec:
           rollback_done=false
           for i in `seq 1 10`
           do
-            phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
+            phase=$( (kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}') 2> >(tee -a $ROLLBACK_LOG >&2) )
             ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
 
             if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
@@ -193,7 +193,7 @@ spec:
           SLEEP_INTERVAL=5
           for i in `seq 1 15`
           do
-            replicas=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
+            replicas=$( (kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}') 2> >(tee -a $ROLLBACK_LOG >&2) )
             available_repls=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
 
             if [ -z "$replicas" ]; then
@@ -241,13 +241,13 @@ spec:
         #==========================================================
         # Start Rollback
         #==========================================================
-        echo "Starting rollback..." | tee -a $ROLLBACK_LOG
+        echo "Starting rollback to revision $helm_revision.." | tee -a $ROLLBACK_LOG
 
         # For rolling-update, change autoPromotionEnabled to true
         # TODO: considering canary strategy 
-        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}' | tee -a $ROLLBACK_LOG
+        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}' 2> >(tee -a $ROLLBACK_LOG >&2)
 
-        helm rollback $app_name -n $namespace $helm_revision | tee -a $ROLLBACK_LOG
+        helm rollback $app_name -n $namespace $helm_revision 2> >(tee -a $ROLLBACK_LOG >&2)
 
 
 
