@@ -426,6 +426,8 @@ spec:
           rollout_status=$2
           app_name={{workflow.parameters.app_name}}
           rollout_finish=false
+          echo "Checking rollout phase.." | tee -a $DEPLOY_LOG
+
           for i in `seq 1 20`
           do
             phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
@@ -455,6 +457,8 @@ spec:
           # Check num of replicas
           ready=false
           SLEEP_INTERVAL=5
+          echo "Checking rollout replicas.." | tee -a $DEPLOY_LOG
+
           for i in `seq 1 15`
           do
             replicas=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
@@ -683,7 +687,6 @@ spec:
         #==========================================================
         if [[ "$strategy" == "rolling-update" ]]; then
           check_rollout_phase "Healthy" "Healthy"
-          echo "Rollout status has changed to 'Healthy'. Checking replicas.." | tee -a $DEPLOY_LOG
           check_rollout_replicas
         elif [[ "$strategy" == "blue-green" ]] || [[ "$strategy" == "canary" ]]; then
           check_rollout_phase "Paused" "Paused"

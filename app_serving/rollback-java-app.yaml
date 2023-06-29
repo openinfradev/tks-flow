@@ -140,7 +140,7 @@ spec:
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $ROLLBACK_LOG
-        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        KUBECONFIG_=$(kubectl get secret -n {{workflow.parameters.target_cluster_id}} {{workflow.parameters.target_cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         if [[ -z "$KUBECONFIG_" ]]; then
           echo "Couldn't get kubeconfig for cluster {{workflow.parameters.target_cluster_id}}" | tee -a $ROLLBACK_LOG
           exit 1
@@ -161,23 +161,27 @@ spec:
           rollout_status=$2
           app_name={{workflow.parameters.app_name}}
           rollback_done=false
+          SLEEP_INTERVAL=6
+
+          echo "Checking rollout phase.." | tee -a $ROLLBACK_LOG
+
           for i in `seq 1 10`
           do
-            phase=$(kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}')
+            phase=$( (kubectl get rollout ${app_name} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.phase}') 2> >(tee -a $ROLLBACK_LOG >&2) )
             ro_stat=$(kubectl argo rollouts status ${app_name} -n {{workflow.parameters.namespace}} --timeout 2s | cut -d' ' -f1 || true)
 
             if [ "$phase" == "$rollout_phase" ] && [ "$ro_stat" == "$rollout_status" ]; then
-              echo "'Rollback' request completed successfully." | tee -a $ROLLBACK_LOG
+              echo "Rollout phase is $rollout_phase now." | tee -a $ROLLBACK_LOG
               rollback_done=true
               break
             else
-              echo "Waiting for 'rollback' to be done.. sleeping 3 secs.."
-              sleep 3
+              echo "Waiting for desired rollout phase.. sleeping $SLEEP_INTERVAL secs.."
+              sleep $SLEEP_INTERVAL
             fi
           done
 
           if [ "$rollback_done" = false ]; then
-            echo "Timed out waiting for 'rollback' to be done.." | tee -a $ROLLBACK_LOG
+            echo "Timed out waiting for rollout to reach the desired phase." | tee -a $ROLLBACK_LOG
             exit 1
           fi
         }
@@ -190,10 +194,13 @@ spec:
         function check_rollout_replicas() {
           # Check num of replicas
           ready=false
-          SLEEP_INTERVAL=5
-          for i in `seq 1 15`
+          SLEEP_INTERVAL=10
+
+          echo "Checking rollout replicas.." | tee -a $ROLLBACK_LOG
+
+          for i in `seq 1 10`
           do
-            replicas=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}')
+            replicas=$( (kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.replicas}') 2> >(tee -a $ROLLBACK_LOG >&2) )
             available_repls=$(kubectl get rollout/{{workflow.parameters.app_name}} -n {{workflow.parameters.namespace}} -o jsonpath='{.status.availableReplicas}')
 
             if [ -z "$replicas" ]; then
@@ -241,13 +248,13 @@ spec:
         #==========================================================
         # Start Rollback
         #==========================================================
-        echo "Starting rollback..." | tee -a $ROLLBACK_LOG
+        echo "Starting rollback to revision $helm_revision.." | tee -a $ROLLBACK_LOG
 
         # For rolling-update, change autoPromotionEnabled to true
         # TODO: considering canary strategy 
-        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}' | tee -a $ROLLBACK_LOG
+        kubectl patch rollout $app_name -n $namespace --type='merge' -p '{"spec": {"strategy": {"blueGreen": {"autoPromotionEnabled": true}}}}' 2> >(tee -a $ROLLBACK_LOG >&2)
 
-        helm rollback $app_name -n $namespace $helm_revision | tee -a $ROLLBACK_LOG
+        eval "helm rollback $app_name -n $namespace $helm_revision" 2> >(tee -a $ROLLBACK_LOG >&2)
 
 
 
