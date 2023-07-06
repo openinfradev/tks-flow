@@ -27,8 +27,6 @@ spec:
       value: "{{workflow.parameters.cluster_id}}"
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
-    - name: base_repo_branch
-      value: "main"
 
   volumes:
   - name: kubeconfig-adm
@@ -73,8 +71,6 @@ spec:
           parameters:
             - name: decapod_site_repo
               value: "{{ workflow.parameters.git_account }}/{{ workflow.parameters.cluster_id }}"
-            - name: base_repo_branch
-              value: "{{ workflow.parameters.base_repo_branch }}"
 
     - - name: k8s-by-aws
         templateRef:

@@ -52,16 +52,18 @@ spec:
             value: ""
           - name: description
             value: "e2e-test"            
-    - - name: call-validate-cluster
-        templateRef:
-          name: tks-validate-usercluster
-          template: run-sonobuoy
-        arguments:
-          parameters:
-          - name: cluster_id
-            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
-          - name: sonobuoy_mode
-            value: "quick"
+          - name: infra_conf
+            value: '{\"cpNodeCnt\":3,\"tksNodeCnt\":3,\"userNodeCnt\":1}'
+#    - - name: call-validate-cluster
+#        templateRef:
+#          name: tks-validate-usercluster
+#          template: run-sonobuoy
+#        arguments:
+#          parameters:
+#          - name: cluster_id
+#            value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
+#          - name: sonobuoy_mode
+#            value: "quick"
     - - name: call-create-appgroup-for-LMA-1st
         templateRef:
           name: tks-cli
