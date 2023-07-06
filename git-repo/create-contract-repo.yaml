@@ -10,7 +10,7 @@ spec:
     - name: contract_id
       value: "contract_uuid"
     # Revision for decapod-base and decapod-site repo
-    - name: revision
+    - name: base_repo_branch
       value: "main"
     - name: keycloak_url
       value: ""
@@ -97,7 +97,7 @@ spec:
         - name: CONTRACT_ID
           value: "{{workflow.parameters.contract_id}}"
         - name: REVISION
-          value: "{{workflow.parameters.revision}}"
+          value: "{{workflow.parameters.base_repo_branch}}"
         - name: KEYCLOAK_URL
           value: "{{workflow.parameters.keycloak_url}}"
   - name: main

@@ -38,6 +38,8 @@ spec:
       value: "c3c16juq5"
     - name: app_group_id
       value: "a60sfxh4v"
+    - name: base_repo_branch
+      value: "main"
 
   volumes:
   - name: tks-proto-vol
@@ -154,6 +156,8 @@ spec:
           parameters:
           - name: decapod_site_repo
             value: "{{workflow.parameters.github_account}}/{{workflow.parameters.cluster_id}}"
+          - name: base_repo_branch
+            value: "{{ workflow.parameters.base_repo_branch }}"
 
     - - name: argocd-sync-wait
         template: argocd-sync-wait
