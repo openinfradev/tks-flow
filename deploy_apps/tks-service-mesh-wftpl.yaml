@@ -27,6 +27,9 @@ spec:
       value: "Cabbead61"
     - name: app_group_id
       value: "Aabbead61"
+    - name: base_repo_branch
+      value: "main"
+      
   # volumes:
   # - name: tks-proto-vol
   #   configMap:
