@@ -21,6 +21,8 @@ spec:
       value: "aey4niy0a"
     - name: keycloak_url
       value: ""
+    - name: base_repo_branch
+      value: "main"
 
     ##########################
     # For removeLMA task #
