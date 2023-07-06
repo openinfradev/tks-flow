@@ -31,6 +31,8 @@ spec:
     # 아마도 site_name과 동일하게 사용하면 될듯하다.
     - name: cluster_id
       value: "{{workflow.parameters.site_name}}"
+    - name: base_repo_branch
+      value: main
 
   volumes:
   - name: tks-proto-vol
@@ -124,6 +126,8 @@ spec:
           parameters:
           - name: decapod_site_repo
             value: "{{ workflow.parameters.github_account }}/{{item}}"
+          - name: base_repo_branch
+            value: "{{ workflow.parameters.base_repo_branch }}"
         withParam: "{{ steps.change-target.outputs.parameters.modified_cluster_list}}"
 
     - - name: federation-components-postinstall
@@ -170,6 +174,8 @@ spec:
           parameters:
           - name: decapod_site_repo
             value: "{{ workflow.parameters.github_account }}/{{item}}"
+          - name: base_repo_branch
+            value: "{{ workflow.parameters.base_repo_branch }}"
         withParam: "{{ steps.change-target.outputs.parameters.modified_cluster_list}}"
 
   - name: update-eps-for-thanos
@@ -195,6 +201,8 @@ spec:
           parameters:
           - name: decapod_site_repo
             value: "{{ workflow.parameters.github_account }}/{{steps.change-thanos-store.outputs.parameters.primary_cluster}}"
+          - name: base_repo_branch
+            value: "{{ workflow.parameters.base_repo_branch }}"
         when: "{{steps.change-thanos-store.outputs.parameters.primary_cluster}} != 'NO_CHANGE_HERE'"
 
   #######################

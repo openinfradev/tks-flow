@@ -9,6 +9,8 @@ spec:
     parameters:
     - name: decapod_site_repo
       value: "org/cluster_id"
+    - name: base_repo_branch
+      value: "main"
 
   templates:
   - name: main
@@ -16,6 +18,8 @@ spec:
       parameters:
       - name: decapod_site_repo
         value: "{{workflow.parameters.decapod_site_repo}}"
+      - name: base_repo_branch
+        value: "{{workflow.parameters.base_repo_branch}}"
     steps:
     - - name: prepare-rendering
         template: prepare-rendering-template
@@ -23,6 +27,8 @@ spec:
           parameters:
           - name: decapod_site_repo
             value: "{{inputs.parameters.decapod_site_repo}}"
+          - name: base_repo_branch
+            value: "{{inputs.parameters.base_repo_branch}}"
 
     - - name: call-render-manifests
         templateRef:
@@ -56,6 +62,7 @@ spec:
     inputs:
       parameters:
       - name: decapod_site_repo
+      - name: base_repo_branch
     container:
       image: harbor-cicd.taco-cat.xyz/tks/bash:latest
       volumeMounts:
@@ -97,12 +104,13 @@ spec:
         fi
 
         DECAPOD_SITE_REPO={{inputs.parameters.decapod_site_repo}}
+        BASE_REPO_BRANCH={{inputs.parameters.base_repo_branch}}
 
         gitea_org=${DECAPOD_SITE_REPO%\/*}
 
         cluster_id=${DECAPOD_SITE_REPO#*\/}
         base_repo_url="$GIT_SVC_BASE_URL/$gitea_org/decapod-base-yaml"
-        base_repo_branch="main"
+        base_repo_branch="$BASE_REPO_BRANCH"
         site_repo_url="$GIT_SVC_BASE_URL/$gitea_org/$cluster_id"
         site_repo_branch="main"
         manifest_repo_url="$GIT_SVC_BASE_URL/$gitea_org/$cluster_id-manifests"
