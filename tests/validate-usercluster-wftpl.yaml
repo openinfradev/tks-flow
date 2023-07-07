@@ -42,11 +42,12 @@ spec:
 
           kubectl get po -A
 
-          sonobuoy run --mode {{inputs.parameters.sonobuoy_mode}} --e2e-parallel 30 --wait
+          sonobuoy run --mode {{inputs.parameters.sonobuoy_mode}} --kubernetes-version latest --e2e-parallel 30 --wait
           sonobuoy retrieve
           result_file=$(ls *sonobuoy*.tar.gz)
           sonobuoy results $result_file
-          sonobuoy results --mode detailed _$result_file
+          echo "\n***** Detailed results *****\n"
+          sonobuoy results --mode detailed $result_file
 
           status=$(sonobuoy status)
           if grep -q "failed" <<< "$status"; then
