@@ -40,13 +40,16 @@ spec:
           cat <<< "$KUBECONFIG_" > /etc/kubeconfig_temp
           export KUBECONFIG='/etc/kubeconfig_temp'
 
-          sonobuoy run --mode {{inputs.parameters.sonobuoy_mode}} --e2e-parallel 30 --wait
-          sonobuoy retrieve && mkdir ./results
-          tar xzf ./*.tar.gz -C ./results
-          cat ./results/plugins/e2e/results/global/e2e.log
+          kubectl get po -A
+
+          sonobuoy run --mode {{inputs.parameters.sonobuoy_mode}} --kubernetes-version latest --e2e-parallel 30 --wait
+          sonobuoy retrieve
+          result_file=$(ls *sonobuoy*.tar.gz)
+          sonobuoy results $result_file
+          echo "\n***** Detailed results *****\n"
+          sonobuoy results --mode detailed $result_file
 
           status=$(sonobuoy status)
-
           if grep -q "failed" <<< "$status"; then
             echo "Sonobuoy e2e test failed!"
             exit 1
