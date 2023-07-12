@@ -320,14 +320,16 @@ spec:
         image_name="{{workflow.parameters.image_url}}"
         docker build --network host -t $image_name . 2> >(tee -a $BUILD_LOG >&2)
 
+        echo "Fetching harbor password..." | tee -a $BUILD_LOG
         # Get harbor admin password from secret
         harbor_password=$(kubectl get secret -n harbor {{workflow.parameters.harbor_pw_secret}} -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
 
         # Extract registry URL from image URL
         registry_url=$(echo $image_name | awk -F/ '{ print $1 }')
 
+        echo "Logging into harbor registry..." | tee -a $BUILD_LOG
         # Login to harbor registry
-        docker login -u admin -p $harbor_password $registry_url
+        docker login -u admin -p $harbor_password $registry_url 2> >(tee -a $BUILD_LOG >&2)
 
         # Push image
         echo "Pushing container image..." | tee -a $BUILD_LOG
