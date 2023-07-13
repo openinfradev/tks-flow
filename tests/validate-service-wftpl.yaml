@@ -89,13 +89,13 @@ spec:
           sleep 1m
           
           # check status of pods
-          kubectl get ns | grep istio-system | grep -v NAME
+          kubectl get ns | grep tks-msa | grep -v NAME
           if [[ $? != 0 ]]; then
-             echo "ERROR - no namespace 'istio-system'"
+             echo "ERROR - no namespace 'tks-msa'"
              exit 1
           fi
 
-          kubectl get po -n istio-system | grep -Ev "Running|Completed|NAME"
+          kubectl get po -n tks-msa | grep -Ev "Running|Completed|NAME"
           if [[ $? != 1 ]]; then
             echo "ERROR - invalid pod status"
             exit 1
@@ -112,6 +112,6 @@ spec:
             fi
           }
 
-          check_status http://kiali.istio-system.svc:20001/kiali/console/overview
+          check_status http://kiali.tks-msa.svc:20001/kiali/console/overview
 
           echo "servicemesh verification completed."
