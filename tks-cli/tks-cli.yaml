@@ -12,7 +12,7 @@ spec:
   - name: login-tks-api
     container:
       name: login-tks-api
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -31,7 +31,7 @@ spec:
       - name: description
     container:
       name: create-organization
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -43,7 +43,7 @@ spec:
 
           CT_NAME="{{inputs.parameters.organization_name}}"
           echo "* Create $CT_NAME organization"
-          OUTPUT=$(tks organization create ${CT_NAME} --description "{{inputs.parameters.description}}" | grep Success)
+          OUTPUT=$(tks organization create ${CT_NAME} --description "{{inputs.parameters.description}}" --email "tks-dev@sktelecom.com" | grep Success)
           if [ "$OUTPUT" = "" ]; then
             exit 1
           fi
@@ -52,7 +52,8 @@ spec:
           CT_ID=$(echo $OUTPUT | cut -d ':' -f3 | cut -d ']' -f1)
           echo $CT_ID | tee /mnt/out/organization_id.txt
 
-          OUTPUT=$(tks cloud-account create ${CT_NAME}-ca --access-key-id TODO_CICD_AWS_ACCESS_KEY_ID --secret-access-key TODO_CICD_AWS_SECRET_KEY_ID -o ${CT_ID} | grep cloudAccountId)
+          AWS_ACCOUNT_ID=$(date +%s)
+          OUTPUT=$(tks cloud-account create ${CT_NAME}-INCLUSTER-ca --aws-account-id "${AWS_ACCOUNT_ID}00" --access-key-id FIXED_CICD_AWS_ACCESS_KEY_ID --secret-access-key FIXED_CICD_AWS_SECRET_KEY_ID -o ${CT_ID} | grep cloudAccountId)
           if [ "$OUTPUT" = "" ]; then
             exit 1
           fi
@@ -90,7 +91,7 @@ spec:
       - name: infra_conf
     container:
       name: create-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -155,7 +156,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -198,7 +199,7 @@ spec:
       - name: description
     container:
       name: create-appgroup
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -248,7 +249,7 @@ spec:
       - name: appgroup_id
     container:
       name: delete-appgroup
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -288,7 +289,7 @@ spec:
       - name: name
     container:
       name: get-appgroup-id
-      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.5
+      image: harbor-cicd.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
       envFrom:
       - secretRef:
           name: "tks-api-secret"       

@@ -9,7 +9,7 @@ spec:
   arguments:
     parameters:
     - name: tks_api_url
-      value: "http://tks-api-cicd.taco-cat.xyz"
+      value: "https://tks-api-cicd.taco-cat.xyz"
 
   templates:
   - name: main
@@ -22,20 +22,18 @@ spec:
           parameters:
           - name: postfix
             value: "aws"
-#    - - name: call-create-contract
-#        templateRef:
-#          name: tks-cli
-#          template: create-contract
-#        arguments:
-#          parameters:
-#          - name: tks_client_conf
-#            value: "{{steps.call-create-tks-client-conf.outputs.parameters.tks_client_conf}}"
-#          - name: contract_name
-#            value: "{{steps.call-generate-names.outputs.parameters.contract-name}}"
-#          - name: creator
-#            value: ""
-#          - name: description
-#            value: "e2e-test"
+    - - name: call-create-organization
+        templateRef:
+          name: tks-cli
+          template: create-organization
+        arguments:
+          parameters:
+          - name: organization_name
+            value: "{{steps.call-generate-names.outputs.parameters.organization-name}}"
+          - name: creator
+            value: ""
+          - name: description
+            value: "e2e-test"
     - - name: call-create-usercluster
         templateRef:
           name: tks-cli
@@ -45,15 +43,17 @@ spec:
           - name: cluster_name
             value: "{{steps.call-generate-names.outputs.parameters.cluster-name}}"
           - name: stack_template_id
-            value: "aws-reference"
+            value: "{{workflow.parameters.stack_template_id}}"
           - name: organization_id 
-            value: "{{workflow.parameters.organization_id}}"
+            value: "{{steps.call-create-organization.outputs.parameters.organization-id}}"
           - name: cloud_account_id
-            value: "{{workflow.parameters.cloud_account_id}}"
+            value: "{{steps.call-create-organization.outputs.parameters.cloud-account-id}}"
           - name: creator
             value: ""
           - name: description
-            value: "e2e-test"            
+            value: "e2e-test"
+          - name: infra_conf
+            value: '{\"cpNodeCnt\":3,\"tksNodeCnt\":3,\"userNodeCnt\":1}'
     - - name: call-validate-cluster
         templateRef:
           name: tks-validate-usercluster
@@ -145,7 +145,7 @@ spec:
           - name: cluster_id
             value: "{{steps.call-create-usercluster.outputs.parameters.cluster-id}}"
           - name: organization_id
-            value: "{{workflow.parameters.organization_id}}"
+            value: "{{steps.call-create-organization.outputs.parameters.organization-id}}"
     # TODO: cleaup remaining AWS resources
 
   - name: notify-slack

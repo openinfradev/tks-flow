@@ -24,6 +24,9 @@ spec:
       value: "{{workflow.parameters.cluster_id)}}"
     - name: filter
       value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group}}"
+    - name: base_repo_branch
+      value: "main"
+      
   # volumes:
   # - name: tks-proto-vol
   #   configMap:
