@@ -363,7 +363,7 @@ spec:
       - name: out
         mountPath: /mnt/out
       command:
-      - /bin/sh
+      - /bin/bash
       - '-exc'
       - |
         DEPLOY_LOG='/mnt/out/deploy_output.log'
