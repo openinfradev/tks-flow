@@ -372,10 +372,10 @@ spec:
         strategy={{workflow.parameters.strategy}}
         mkdir -p /apps/
 
-        # temporary debug
-        echo "===== Application Config =====\n"
-        echo "{{workflow.parameters.app_config}}"
-        echo "==============================\n"
+        # temporary debug (this'll be necessary later)
+        #echo "===== Application Config =====\n"
+        #echo "{{workflow.parameters.app_config}}"
+        #echo "==============================\n"
 
         # fetch manifests from git
         cd /apps
