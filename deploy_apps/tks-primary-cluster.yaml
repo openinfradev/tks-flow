@@ -81,6 +81,19 @@ spec:
     #           [
     #             { "app_group": "tks-cluster", "path": "ack-resources", "namespace": "taco-system", "target_cluster": "" }
     #           ]
+    - - name: create-buckets-on-s3
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" }
+              ]
+        when: >-
+            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws
 
     # 개별 클러스터에 설치됀 loki와 grafana는 지우자
     # - - name: remove-individual-loki-and-grafana
@@ -184,8 +197,8 @@ spec:
       - name: primary_cluster
       - name: member_clusters
     steps:
-    - - name: change-thanos-store
-        template: sub-change-thanos-store
+    - - name: sync-organization-changes
+        template: sub-sync-organization-changes
         arguments:
           parameters:
           - name: primary_cluster
@@ -476,6 +489,268 @@ spec:
         valueFrom:
           path: /mnt/out/primary_cluster.txt
     activeDeadlineSeconds: 900
+
+  - name: sub-change-iamroles
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    container:
+      name: logging-thanos-store-changer
+      image: harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        #/bin/bash
+
+        set -ex
+
+        function log() {
+          level=$1
+          msg=$2
+          date=$(date '+%F %H:%M:%S')
+          echo "[$date] $level  $msg"
+        }
+
+        current_cluster={{workflow.parameters.cluster_id}}
+        primary_cluster={{inputs.parameters.primary_cluster}}
+        member_clusters="{{inputs.parameters.member_clusters}}"
+        # empty_char=
+
+        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+          primary_cluster=${current_cluster}
+        fi
+
+        #################
+        # Gather iams
+        #################
+        # Use AWS STS temporary security credential if multi-tenancy
+        if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+          ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+          iamPrefix=${ROLE_ARN%/*}
+        else
+          iamPrefix="arn:aws:iam::$(kubectl  get secret -n argo aws-account-id -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d):role"
+        fi
+        
+        iamPrefix="arn:aws:iam::{{inputs.parameters.primary_cluster}}:role/"
+        iamRoles=\"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${primary_cluster} ${primary_cluster}-mp-taco  -o jsonpath='{.spec.roleName}')\"
+        
+        for member_cluster in $member_clusters
+        do
+          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member_cluster} ${member_cluster}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+          else
+            log "WARN" "Cluster(${member_cluster}) has no node role for taco-lma"
+          fi
+        done
+
+        #################
+        # updates
+        #################
+        GIT_ACCOUNT={{workflow.parameters.github_account}}
+        if  [[ $GIT_SVC_URL == https://* ]]; then
+          repository_url=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/${primary_cluster}
+        else
+          repository_url=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/${primary_cluster}
+        fi
+
+        git clone ${repository_url}
+        cd ${primary_cluster}
+        git config --global user.name "tks"
+        git config --global user.email "tks@sktelecom.com"
+
+        yq -i e  ".global.iamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
+
+        if [[ `git status --porcelain` ]]; then
+          log "INFO" "##### commit changes iamRoles for the s3 on ${primay_cluster} "
+          cmessage="changes iamRoles for the s3 on ${primay_cluster}"
+          git add ${primary_cluster}/lma/site-values.yaml
+          git commit -m "change iamRoles(s3). (by set-primary workflow)" -m "$cmessage"
+          git push
+          echo ${primary_cluster} > /mnt/out/primary_cluster.txt
+        else
+          log "INFO" "No change on the cluster $i"
+          echo NO_CHANGE_HERE > /mnt/out/primary_cluster.txt
+        fi
+        cd -
+        rm -rf ${primary_cluster}
+
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
+      env:
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.cluster_id}}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
+      - name: OBJECT_STORE
+        value: "{{workflow.parameters.object_store}}"
+    activeDeadlineSeconds: 900
+
+  - name: sub-sync-organization-changes
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    container:
+      name: logging-thanos-store-changer
+      image: harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        #/bin/bash
+
+        set -ex
+
+        function log() {
+          level=$1
+          msg=$2
+          date=$(date '+%F %H:%M:%S')
+          echo "[$date] $level  $msg"
+        }
+
+        current_cluster={{workflow.parameters.cluster_id}}
+        primary_cluster={{inputs.parameters.primary_cluster}}
+        member_clusters="{{inputs.parameters.member_clusters}}"
+        # empty_char=
+
+        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+          primary_cluster=${current_cluster}
+        fi
+
+        #################
+        # Gather endpoints
+        #################
+        # Use AWS STS temporary security credential if multi-tenancy
+        eplist=\"thanos-storegateway:10901\"
+        for member_cluster in $member_clusters
+        do
+          # IAM ROLE
+          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member_cluster} ${member_cluster}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+          else
+            log "WARN" "Cluster(${member_cluster}) has no node role for taco-lma"
+          fi
+
+          # Thanos Endpoints
+          kube_secret=$(kubectl get secret -n ${member_cluster} ${member_cluster}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+            do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+                log "FAIL" "A service for the thanos-sidcar in ${member_cluster} is not cofigured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of Prometheus thanos-sidecar(3s)"
+              sleep 3
+            done
+
+            eplist="${eplist}, \"$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[0].hostname}"):$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.spec.ports[0].port}")\""
+          else
+            log "WARN" "Cluster(${member_cluster}) has no prometheus sidecar"
+          fi
+        done
+
+        if [ "$OBJECT_SOTRE" != "S3" ]; then
+          #################
+          # Gather iams
+          #################
+          # Use AWS STS temporary security credential if multi-tenancy
+          if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+            ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+            iamPrefix=${ROLE_ARN%/*}
+          else
+            iamPrefix="arn:aws:iam::$(kubectl  get secret -n argo aws-account-id -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d):role"
+          fi
+          
+          iamPrefix="arn:aws:iam::{{inputs.parameters.primary_cluster}}:role/"
+          iamRoles=\"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${primary_cluster} ${primary_cluster}-mp-taco  -o jsonpath='{.spec.roleName}')\"
+          
+          for member_cluster in $member_clusters
+          do
+            if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+              iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member_cluster} ${member_cluster}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+            else
+              log "WARN" "Cluster(${member_cluster}) has no node role for taco-lma"
+            fi
+          done
+        fi
+
+
+        #################
+        # updates
+        #################
+        GIT_ACCOUNT={{workflow.parameters.github_account}}
+        if  [[ $GIT_SVC_URL == https://* ]]; then
+          repository_url=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/${primary_cluster}
+        else
+          repository_url=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/${primary_cluster}
+        fi
+
+        git clone ${repository_url}
+        cd ${primary_cluster}
+        git config --global user.name "tks"
+        git config --global user.email "tks@sktelecom.com"
+
+        yq -i e  ".global.thanosQueryStores=[${eplist}]" ${primary_cluster}/lma/site-values.yaml
+
+        if [[ `git status --porcelain` ]]; then
+          log "INFO" "##### commit changes endpoints for the thanos query on ${primay_cluster} "
+          cmessage="changes endpoints for the thanos query on ${primay_cluster}"
+          git add ${primary_cluster}/lma/site-values.yaml
+          git commit -m "change thanos-query stores. (by set-primary workflow)" -m "$cmessage"
+          git push
+          echo ${primary_cluster} > /mnt/out/primary_cluster.txt
+        else
+          log "INFO" "No change on the cluster $i"
+          echo NO_CHANGE_HERE > /mnt/out/primary_cluster.txt
+        fi
+
+        if [ "$OBJECT_SOTRE" != "S3" ]; then
+          yq -i e  ".global.iamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
+
+          if [[ `git status --porcelain` ]]; then
+            log "INFO" "##### commit changes iamRoles for the s3 on ${primay_cluster} "
+            cmessage="changes iamRoles for the s3 on ${primay_cluster}"
+            git add ${primary_cluster}/lma/site-values.yaml
+            git commit -m "change iamRoles(s3). (by set-primary workflow)" -m "$cmessage"
+            git push
+            echo ${primary_cluster} > /mnt/out/primary_cluster.txt
+          else
+            log "INFO" "(iamRoles) No change on the cluster $i"
+          fi
+        fi
+
+        cd -
+        rm -rf ${primary_cluster}
+
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
+      env:
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.cluster_id}}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
+      - name: OBJECT_STORE
+        value: "{{workflow.parameters.object_store}}"
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: primary_cluster
+        valueFrom:
+          path: /mnt/out/primary_cluster.txt
+    activeDeadlineSeconds: 900
+
 
   - name: sub-remove-individual-loki-and-grafana
     inputs:

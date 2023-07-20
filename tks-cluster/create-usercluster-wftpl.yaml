@@ -29,6 +29,8 @@ spec:
       value: "http://tks-api.tks.svc:9110"
     - name: base_repo_branch
       value: "main"
+    - name: object_store
+      value: "s3"
 
   volumes:
   - name: kubeconfig-adm
@@ -298,25 +300,6 @@ spec:
         when: >-
             {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
               {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
-
-    - - name: create-aws-resources
-        templateRef:
-          name: create-application
-          template: installApps
-        arguments:
-          parameters:
-          - name: list
-            value: |
-              [
-                {
-                  "app_group": "tks-cluster",
-                  "path": "ack-resources,
-                  "namespace": "taco-system",
-                  "target_cluster": ""
-                }
-              ]
-        when: >-
-            {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws
 
     - - name: create-internal-communication
         templateRef:

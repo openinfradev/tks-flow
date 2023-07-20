@@ -11,6 +11,8 @@ spec:
       value: "decapod-refrence"
     - name: logging_component
       value: "loki"
+    - name: object_store
+      value: "s3"
     - name: github_account
       value: "decapod10"
     - name: manifest_repo_url
