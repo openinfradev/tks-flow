@@ -29,8 +29,6 @@ spec:
       value: "http://tks-api.tks.svc:9110"
     - name: base_repo_branch
       value: "main"
-    - name: object_store
-      value: "s3"
 
   volumes:
   - name: kubeconfig-adm

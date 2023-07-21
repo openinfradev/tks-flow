@@ -25,6 +25,8 @@ spec:
       value: ""
     - name: object_store
       value: "s3"
+    - name: base_repo_branch
+      value: develop
 
   templates:
   - name: main
