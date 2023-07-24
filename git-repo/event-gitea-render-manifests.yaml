@@ -10,7 +10,7 @@ spec:
     - name: decapod_site_repo
       value: "org/cluster_id"
     - name: base_repo_branch
-      value: "main"
+      value: ""
 
   templates:
   - name: main
@@ -103,8 +103,12 @@ spec:
             https_enabled="false"
         fi
 
-        DECAPOD_SITE_REPO={{inputs.parameters.decapod_site_repo}}
         BASE_REPO_BRANCH={{inputs.parameters.base_repo_branch}}
+        if [ "$BASE_REPO_BRANCH" = "" ];then
+            BASE_REPO_BRANCH=${GIT_BASE_BRANCH%:*}
+        fi
+
+        DECAPOD_SITE_REPO={{inputs.parameters.decapod_site_repo}}
 
         gitea_org=${DECAPOD_SITE_REPO%\/*}
 
