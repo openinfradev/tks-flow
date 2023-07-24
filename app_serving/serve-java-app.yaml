@@ -363,7 +363,7 @@ spec:
       - name: out
         mountPath: /mnt/out
       command:
-      - /bin/sh
+      - /bin/bash
       - '-exc'
       - |
         DEPLOY_LOG='/mnt/out/deploy_output.log'
@@ -372,10 +372,10 @@ spec:
         strategy={{workflow.parameters.strategy}}
         mkdir -p /apps/
 
-        # temporary debug
-        echo "===== Application Config =====\n"
-        echo "{{workflow.parameters.app_config}}"
-        echo "==============================\n"
+        # temporary debug (this'll be necessary later)
+        #echo "===== Application Config =====\n"
+        #echo "{{workflow.parameters.app_config}}"
+        #echo "==============================\n"
 
         # fetch manifests from git
         cd /apps
@@ -521,7 +521,10 @@ spec:
         # Replace values
         #==========================================================
         app_type={{workflow.parameters.app_type}}
+        extra_env_str=""
+        ################################
         ## For legacy spring app case ##
+        ################################
         if [[ "$app_type" == "spring" ]]; then
           # Clone tomcat chart
           git clone https://{{workflow.parameters.git_repo_url}}/helm-charts.git
@@ -551,7 +554,27 @@ spec:
           # Debug
           cat tomcat-vo.yaml
 
+          # Construct string to override extraEnvVars in tomcat chart.
+          # Strip both parentheses, convert to an array (by comma as delimiter), and separate key and value again.
+          orig_env={{workflow.parameters.extra_env}}
+          temp_str=$(echo $orig_env | sed 's/\({\|}\)//g')
+          kv_array=($(echo "$temp_str" | tr ',' '\n'))
+
+          for i in ${!kv_array[@]}
+          do
+            echo "processing: ${kv_array[${i}]}"
+            key=$(echo ${kv_array[${i}]} | cut -d':' -f 1)
+            val=$(echo ${kv_array[${i}]} | cut -d':' -f 2)
+
+            extra_env_str+=" --set extraEnvVars[$i].name=$key"
+            extra_env_str+=" --set extraEnvVars[$i].value=$val"
+          done
+
+          echo "extra_env_str: $extra_env_str"
+
+        #############################
         ## For springboot app case ##
+        #############################
         else
           cd /apps/app-serve-template/chart
 
@@ -591,7 +614,6 @@ spec:
             sed -i "s/SECRET_ENABLED/false/g" ./values.yaml
           fi
 
-          extra_env_str=""
           if [[ -n "{{workflow.parameters.extra_env}}" ]]; then
             extra_env_str="--set-json 'extraEnv={{workflow.parameters.extra_env}}'"
           fi
@@ -625,14 +647,12 @@ spec:
         kubectl create ns {{workflow.parameters.namespace}} || true
 
 
-
         #==========================================================
         # Deploy rollout when exist
         #==========================================================
         if is_rollout_exist; then
           deploy_rollout
         fi
-
 
 
         #==========================================================
@@ -645,14 +665,13 @@ spec:
           cd /apps/helm-charts/tomcat
           ## TODO: this might be temporary. Once everything is confirmed,
           ## the helm chart can be pulled from internal helm repo.
-          helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -f /apps/app-serve-template/chart/values-{{workflow.parameters.resource_spec}}.yaml -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} . 2> >(tee -a $DEPLOY_LOG >&2)
+          eval "helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f /apps/app-serve-template/tomcat-vo.yaml -f /apps/app-serve-template/chart/values-{{workflow.parameters.resource_spec}}.yaml $extra_env_str -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} ." 2> >(tee -a $DEPLOY_LOG >&2)
         ## For springboot app case ##
         else
           cd /apps/app-serve-template/chart
           helm template test . --debug
           eval "helm upgrade --install --kubeconfig /etc/kubeconfig_temp -f values-{{workflow.parameters.resource_spec}}.yaml $extra_env_str -n {{workflow.parameters.namespace}} {{workflow.parameters.app_name}} ." 2> >(tee -a $DEPLOY_LOG >&2)
         fi
-
 
         # Wait for deployment to be ready
         echo "Waiting for the deployment to be finished..." | tee -a $DEPLOY_LOG
