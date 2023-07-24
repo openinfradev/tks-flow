@@ -77,7 +77,7 @@ spec:
     - name: git_repo_url
       value: "github.com/openinfradev"
     - name: app-serve-template_branch
-      value: "main"
+      value: "release"
     - name: harbor_pw_secret
       value: "harbor-core"
 
