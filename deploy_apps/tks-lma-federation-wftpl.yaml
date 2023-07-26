@@ -49,6 +49,9 @@ spec:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
   templates:
   - name: deployLMA
     steps:
