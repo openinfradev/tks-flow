@@ -14,15 +14,19 @@ spec:
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
     - name: organization_id
-      value: "ohxwkh7iy"
+      value: "ovbxm7jvf"
     - name: cluster_id
-      value: "c750jgmy8"
+      value: "cs7r4tu4d"
     - name: app_group_id
-      value: "aey4niy0a"
+      value: "acq1x8rcb"
     - name: keycloak_url
-      value: ""
+      value: "https://tks-console-dev.taco-cat.xyz"
     - name: base_repo_branch
-      value: "main"
+      value: "develop"
+    - name: cloud_account_id
+      value: ""
+    - name: object_store
+      value: "s3"
 
     ##########################
     # For removeLMA task #
@@ -35,6 +39,9 @@ spec:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
   templates:
   - name: removeLMA
     steps:
