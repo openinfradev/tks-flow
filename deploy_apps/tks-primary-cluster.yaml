@@ -896,3 +896,23 @@ spec:
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
+
+  - name: sub-remove-objects-in-buckets
+    container:
+      name: remove-objects-in-buckets
+      image: harbor-cicd.taco-cat.xyz/tks/aws-cli:2.13.5
+      command:
+      - /bin/bash
+      - '-c'
+      - |
+        #/bin/bash
+
+        set -ex
+        CLUSTER_ID = "{{inputs.parameters.cluster_id}}"
+
+        aws s3 rm s3://${CLUSTER_ID}-tks-thanos --recursive
+        aws s3 rm s3://${CLUSTER_ID}-tks-loki --recursive
+
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2

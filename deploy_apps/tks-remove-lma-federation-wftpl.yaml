@@ -56,6 +56,17 @@ spec:
           - name: keycloak_url
             value: '{{workflow.parameters.keycloak_url}}'
 
+    - - name: get-clusters-in-contract
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-get-cluster
+
+    - - name: remove-objects-in-buckets
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-remove-objects-in-buckets
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation
@@ -67,11 +78,6 @@ spec:
           parameters:
             - name: target_namespace
               value: "lma"
-
-    - - name: get-clusters-in-contract
-        templateRef:
-          name: tks-primary-cluster
-          template: sub-get-cluster
 
     - - name: update-eps-for-thanos
         templateRef:
