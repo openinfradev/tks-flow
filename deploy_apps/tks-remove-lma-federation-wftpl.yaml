@@ -14,15 +14,15 @@ spec:
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
     - name: organization_id
-      value: "ovbxm7jvf"
+      value: "oxgpyp293"
     - name: cluster_id
-      value: "cs7r4tu4d"
+      value: "ckdnejbhz"
     - name: app_group_id
-      value: "acq1x8rcb"
+      value: "a0ud54n4j"
     - name: keycloak_url
       value: "https://tks-console-dev.taco-cat.xyz"
     - name: base_repo_branch
-      value: "develop"
+      value: "release"
     - name: cloud_account_id
       value: ""
     - name: object_store
@@ -61,11 +61,29 @@ spec:
           name: tks-primary-cluster
           template: sub-get-cluster
 
+    - - name: remove-loki
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+          - name: app_name
+            value: "{{workflow.parameters.cluster_id}}-loki"
+
     - - name: remove-objects-in-buckets
         templateRef:
           name: tks-primary-cluster
           template: sub-remove-objects-in-buckets
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
+    - - name: remove-lma-bucket
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+          - name: app_name
+            value: "{{workflow.parameters.cluster_id}}-lma-bucket"
 
     - - name: removeAppGroup
         templateRef:
@@ -99,7 +117,6 @@ spec:
           - name: cluster_id
             value: ""
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
-
 
   #######################
   # Template Definition #
