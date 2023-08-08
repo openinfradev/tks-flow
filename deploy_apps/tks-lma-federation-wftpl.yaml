@@ -77,7 +77,10 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''"
+        when: >-
+            ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''
+            ) || (
+            {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}} )
 
     - - name: organization-level-update
         templateRef:
