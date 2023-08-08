@@ -8,23 +8,25 @@ spec:
   arguments:
     parameters:
     - name: site_name
-      value: "decapod-refrence"
+      value: "coyar0qx1"
     - name: logging_component
       value: "loki"
+    - name: object_store
+      value: "s3"
     - name: github_account
       value: "decapod10"
     - name: manifest_repo_url
-      value: "https://github.com/decapod10/c3c16juq5-manifests"
+      value: "https://github.com/decapod10/coyar0qx1-manifests"
     - name: revision
       value: "main"
     - name: organization_id
-      value: "o086tb3zc"
+      value: "ovbxm7jvf"
     - name: app_prefix
       value: "{{workflow.parameters.site_name}}"
     - name: keycloak_url
-      value: ""
+      value: "https://tks-console-dev.taco-cat.xyz"
     - name: console_url
-      value: ""
+      value: "https://tks-console-dev.taco-cat.xyz"
     - name: alert_tks
       value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/alerts"
     - name: alert_slack
@@ -35,16 +37,21 @@ spec:
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
     - name: cluster_id
-      value: "c3c16juq5"
+      value: "coyar0qx1"
     - name: app_group_id
-      value: "a60sfxh4v"
+      value: "a4z9mqwew"
     - name: base_repo_branch
-      value: "main"
+      value: develop
+    - name: cloud_account_id
+      value: ""
 
   volumes:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
   templates:
   - name: deployLMA
     steps:

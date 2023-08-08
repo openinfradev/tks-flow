@@ -27,7 +27,7 @@ spec:
       parameters:
       - name: cloud_account_id
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3
+      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.1.0
       command:
       - /bin/bash
       - -exc

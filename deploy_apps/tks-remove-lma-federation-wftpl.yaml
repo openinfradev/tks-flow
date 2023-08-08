@@ -14,15 +14,19 @@ spec:
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
     - name: organization_id
-      value: "ohxwkh7iy"
+      value: "oxgpyp293"
     - name: cluster_id
-      value: "c750jgmy8"
+      value: "ckdnejbhz"
     - name: app_group_id
-      value: "aey4niy0a"
+      value: "a0ud54n4j"
     - name: keycloak_url
-      value: ""
+      value: "https://tks-console-dev.taco-cat.xyz"
     - name: base_repo_branch
-      value: "main"
+      value: "release"
+    - name: cloud_account_id
+      value: ""
+    - name: object_store
+      value: "s3"
 
     ##########################
     # For removeLMA task #
@@ -35,6 +39,9 @@ spec:
   - name: tks-proto-vol
     configMap:
       name: tks-proto
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
   templates:
   - name: removeLMA
     steps:
@@ -49,6 +56,35 @@ spec:
           - name: keycloak_url
             value: '{{workflow.parameters.keycloak_url}}'
 
+    - - name: get-clusters-in-contract
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-get-cluster
+
+    - - name: remove-loki
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+          - name: app_name
+            value: "{{workflow.parameters.cluster_id}}-loki"
+
+    - - name: remove-objects-in-buckets
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-remove-objects-in-buckets
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
+    - - name: remove-lma-bucket
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+          - name: app_name
+            value: "{{workflow.parameters.cluster_id}}-lma-bucket"
+
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation
@@ -60,11 +96,6 @@ spec:
           parameters:
             - name: target_namespace
               value: "lma"
-
-    - - name: get-clusters-in-contract
-        templateRef:
-          name: tks-primary-cluster
-          template: sub-get-cluster
 
     - - name: update-eps-for-thanos
         templateRef:
@@ -86,7 +117,6 @@ spec:
           - name: cluster_id
             value: ""
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
-
 
   #######################
   # Template Definition #

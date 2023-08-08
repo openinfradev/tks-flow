@@ -264,4 +264,3 @@ spec:
       env:
       - name: CLUSTER_ID
         value: "{{ inputs.parameters.cluster_id }}"
-
