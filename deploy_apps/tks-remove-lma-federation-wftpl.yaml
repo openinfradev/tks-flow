@@ -343,9 +343,8 @@ spec:
           fi
           
           # Login to keycloak
-          admin_username=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_USERNAME}" | base64 -d)
-          admin_password=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_PASSWORD}" | base64 -d)
-          TOKEN=$(curl -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=${admin_username} -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
+          admin_password=$(kubectl get secret -n keycloak keycloak -o jsonpath="{.data.admin-password}" | base64 -d)
+          TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=admin -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
 
           # Get client uuid
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
