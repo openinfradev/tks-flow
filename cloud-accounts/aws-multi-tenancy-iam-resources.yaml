@@ -97,10 +97,10 @@ spec:
       - name: TKS_AWS_ACCOUNT_ID
         valueFrom:
           secretKeyRef:
-            name: tks-aws-user
-            key: account_id
+            name: awsconfig-secret
+            key: AWS_ACCOUNT_ID
       - name: TKS_AWS_USER
         valueFrom:
           secretKeyRef:
-            name: tks-aws-user
-            key: user
+            name: awsconfig-secret
+            key: AWS_USER

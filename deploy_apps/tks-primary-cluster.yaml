@@ -322,7 +322,7 @@ spec:
 
         # Use AWS STS temporary security credential if multi-tenancy
         if [ -z $CLOUD_ACCOUNT_ID ]; then
-          iamPrefix="arn:aws:iam::$(kubectl get secret -n argo aws-account-id -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d):role"
+          iamPrefix="arn:aws:iam::$(kubectl get secret -n argo awsconfig-secret -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d):role"
         else
           ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
           iamPrefix=${ROLE_ARN%/*}
@@ -615,7 +615,7 @@ spec:
           #################
           # Use AWS STS temporary security credential if multi-tenancy
           if [ -z $CLOUD_ACCOUNT_ID ]; then
-            iamPrefix="arn:aws:iam::$(kubectl  get secret -n argo aws-account-id -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d):role"
+            iamPrefix="arn:aws:iam::$(kubectl  get secret -n argo awsconfig-secret -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d):role"
           else
             ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
             iamPrefix=${ROLE_ARN%/*}
