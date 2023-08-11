@@ -524,7 +524,7 @@ spec:
           #################
 
           endpoint=\"grafa\"
-          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
           if [ `kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
@@ -699,7 +699,7 @@ spec:
 
           cluster_id={{inputs.parameters.cluster_id}}
 
-          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
           pods=$(kubectl --kubeconfig kubeconfig get pods -n lma | grep grafana | awk '{print $1}')
   
