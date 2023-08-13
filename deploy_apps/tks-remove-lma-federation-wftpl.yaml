@@ -69,6 +69,7 @@ spec:
           parameters:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-loki"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
     - - name: remove-objects-in-buckets
         templateRef:
@@ -84,6 +85,7 @@ spec:
           parameters:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-lma-bucket"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
     - - name: removeAppGroup
         templateRef:
@@ -107,6 +109,7 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
     - - name: set-primary-cluster-on-tks-info
         templateRef:
