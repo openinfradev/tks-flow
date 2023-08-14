@@ -69,6 +69,7 @@ spec:
           parameters:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-loki"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
     - - name: remove-objects-in-buckets
         templateRef:
@@ -84,6 +85,7 @@ spec:
           parameters:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-lma-bucket"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
     - - name: removeAppGroup
         templateRef:
@@ -107,6 +109,7 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
     - - name: set-primary-cluster-on-tks-info
         templateRef:
@@ -299,6 +302,7 @@ spec:
             f.write(']')
 
   - name: remove-keycloak-client
+    activeDeadlineSeconds: 300
     inputs:
       parameters:
         - name: organization_id
@@ -322,25 +326,25 @@ spec:
           # Get endpoints
           #################
 
-          endpoint=\"grafa\"
-          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
-            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
-            do
-              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
-                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
-                exit -1
-              fi
-
-              echo "Waiting for generating the loadbalancer of grafana(3s)"
-              sleep 3
-            done
-
-            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          else
-            log "WARN" "Cluster(${cluster_id}) has no grafana"
-          fi
+          
+          while ! kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found; do
+            echo "Waiting for the grafana service to appear in cluster ${cluster_id} (5s)"
+            sleep 5
+          done
+          
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+              log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+              exit -1
+            fi
+          
+            echo "Waiting for generating the loadbalancer of grafana(3s)"
+            sleep 3
+          done
+          
+          endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
           
           # Login to keycloak
           admin_password=$(kubectl get secret -n keycloak keycloak -o jsonpath="{.data.admin-password}" | base64 -d)

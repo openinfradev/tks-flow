@@ -586,7 +586,7 @@ spec:
         for member in $member_clusters
         do
           # Thanos Endpoints
-          kube_secret=$(kubectl get secret -n ${member} ${member}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${member} ${member}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
           if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
