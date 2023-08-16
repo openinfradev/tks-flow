@@ -20,7 +20,7 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: creator
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      image: harbor.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -57,7 +57,7 @@ spec:
     activeDeadlineSeconds: 120
     container:
       name: destroy
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      image: harbor.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash

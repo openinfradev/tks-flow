@@ -38,7 +38,7 @@ spec:
     - name: artifact_url
       value: "http://a650ce058f73a4ed287e1b8719d77530-1138849010.ap-northeast-2.elb.amazonaws.com:8081/repository/maven-releases/org/springframework/samples/spring-petclinic/3.0.0/spring-petclinic-3.0.0.jar"
     - name: image_url
-      value: "harbor-cicd.taco-cat.xyz/appserving/{{workflow.parameters.app_name}}-{{target_cluster_id}}:v1.0"
+      value: "harbor.taco-cat.xyz/appserving/{{workflow.parameters.app_name}}-{{target_cluster_id}}:v1.0"
     - name: replicas
       value: "1"
     - name: port
@@ -258,7 +258,7 @@ spec:
       emptyDir: {}
     sidecars:
     - name: dind
-      image: harbor-cicd.taco-cat.xyz/tks/docker:20.10.16-dind
+      image: harbor.taco-cat.xyz/tks/docker:20.10.16-dind
       volumeMounts:
       - mountPath: /var/run
         name: varrun
@@ -272,7 +272,7 @@ spec:
         globalName: build_output_global
     container:
       #TODO: split worker image
-      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
+      image: harbor.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: varrun
         mountPath: /var/run
@@ -358,7 +358,7 @@ spec:
         valueFrom:
           path: /mnt/out/deploy_status
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
+      image: harbor.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out
@@ -769,7 +769,7 @@ spec:
         valueFrom:
           path: /mnt/out/failed_step_name.txt
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/python:alpine3.8
+      image: harbor.taco-cat.xyz/tks/python:alpine3.8
       volumeMounts:
       - name: out
         mountPath: /mnt/out

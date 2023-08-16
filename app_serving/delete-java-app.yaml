@@ -95,7 +95,7 @@ spec:
           path: /mnt/out/delete_output.log
         globalName: delete_output_global
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
+      image: harbor.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out

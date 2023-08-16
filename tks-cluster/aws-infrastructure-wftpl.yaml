@@ -24,7 +24,7 @@ spec:
   - name: CreateAwsELB
     activeDeadlineSeconds: 1800
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
+      image: harbor.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -169,7 +169,7 @@ spec:
   - name: DeleteAwsELB
     activeDeadlineSeconds: 1800
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
+      image: harbor.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc
@@ -193,7 +193,7 @@ spec:
   - name: RegisterTACOapp2route53
     activeDeadlineSeconds: 1800
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
+      image: harbor.taco-cat.xyz/tks/python_kubectl_helm_argo:v1.0.1
       command:
       - /bin/bash
       - -exc

@@ -17,7 +17,7 @@ spec:
     activeDeadlineSeconds: 300
     container:
       name: 'curl'
-      image: harbor-cicd.taco-cat.xyz/tks/curl:latest
+      image: harbor.taco-cat.xyz/tks/curl:latest
       imagePullPolicy: IfNotPresent
       command:
       - /bin/sh
