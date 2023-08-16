@@ -1,7 +1,7 @@
 FROM weaveworks/eksctl AS eksctl
 #FROM amazon/aws-cli AS awscli
 
-#make a docker image with this CLI: docker build -t harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.1.0 -f Dockerfile.tks_aws .
+#make a docker image with this CLI: docker build -t harbor.taco-cat.xyz/tks/tks-aws:v1.1.0 -f Dockerfile.tks_aws .
 FROM alpine
 COPY --from=eksctl /usr/local/bin/eksctl /usr/bin/eksctl
 RUN apk update

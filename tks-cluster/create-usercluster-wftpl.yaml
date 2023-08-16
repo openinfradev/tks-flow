@@ -337,7 +337,7 @@ spec:
         - name: cloud_account_id
     container:
       name: cluster-init
-      image: harbor-cicd.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
+      image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
       command:
         - /bin/bash
         - '-exc'
@@ -511,7 +511,7 @@ spec:
   - name: prepare-cluster-autoscaler
     container:
       name: prepare-cluster-autoscaler
-      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-exc'
@@ -539,7 +539,7 @@ spec:
   - name: install-volumesnapshot-crds
     container:
       name: install-volumesnapshot-crds
-      image: harbor-cicd.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
+      image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-exc'

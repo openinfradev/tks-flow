@@ -201,7 +201,7 @@ spec:
       - name: cluster_id
     container:
       name: 'createClusterRepo'
-      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
+      image: harbor.taco-cat.xyz/tks/ghcli-alpine:2.0.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -246,7 +246,7 @@ spec:
   - name: disableAutoSync
     container:
       name: disable-auto-sync
-      image: harbor-cicd.taco-cat.xyz/tks/argocd-cli:v2.2.5
+      image: harbor.taco-cat.xyz/tks/argocd-cli:v2.2.5
       command:
         - /bin/bash
         - '-c'
@@ -268,7 +268,7 @@ spec:
   - name: cleanupPVCs
     container:
       name: cleanup-pvcs
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
         - '-c'
@@ -295,7 +295,7 @@ spec:
   - name: deleteCalicoController
     container:
       name: delete-calico
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
         - '-c'
@@ -328,7 +328,7 @@ spec:
         - name: target_namespace
     container:
       name: delete-cluster-cr
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
         - '-c'

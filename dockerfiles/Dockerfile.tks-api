@@ -1,4 +1,4 @@
-FROM harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0 AS base
+FROM harbor.taco-cat.xyz/tks/python-centos-wf-worker:v2.0 AS base
 USER root
 
 RUN yum install -y epel-release
@@ -10,4 +10,4 @@ RUN pip3 install requests
 #RUN tar -xzf ./tks-client.tar.gz
 COPY tks /usr/local/bin/tks
 
-#docker build -t harbor-cicd.taco-cat.xyz/tks/tks-api:v1.0 -f Dockerfile.tks-api .
+#docker build -t harbor.taco-cat.xyz/tks/tks-api:v1.0 -f Dockerfile.tks-api .
