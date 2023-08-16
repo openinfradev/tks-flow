@@ -30,7 +30,7 @@ spec:
       - name: preview_endpoint
       - name: helm_revision
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
       volumeMounts:
       - name: out
         mountPath: /mnt/out

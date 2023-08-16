@@ -3,7 +3,7 @@
 # - argocd
 # - aws
 # - jq
-# build command: docker build -t harbor-cicd.taco-cat.xyz/tks/tks-cluster-init:v1.0.0 -f Dockerfile.tks-cluster-init .
+# build command: docker build -t harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0 -f Dockerfile.tks-cluster-init .
 
 FROM alpine
 

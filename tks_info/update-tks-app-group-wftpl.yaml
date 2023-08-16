@@ -18,7 +18,7 @@ spec:
       - name: endpoint
       - name: app_type
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       env:
       - name: PYTHONPATH

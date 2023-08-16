@@ -28,7 +28,7 @@ spec:
       - name: kv_map_str
         value: ""
     script:
-      image: harbor-cicd.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
+      image: harbor.taco-cat.xyz/tks/python-centos-wf-worker:v2.0
       command: ["python"]
       envFrom:
         - secretRef:

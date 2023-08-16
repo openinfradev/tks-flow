@@ -70,6 +70,8 @@ spec:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-loki"
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+        continueOn:
+          failed: true
 
     - - name: remove-objects-in-buckets
         templateRef:
@@ -130,7 +132,7 @@ spec:
         - name: target_namespace
     container:
       name: delete-namespace
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
         - '-c'
@@ -179,7 +181,7 @@ spec:
       emptyDir: {}
     script:
       name: 'collect'
-      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       envFrom:
       - secretRef:
@@ -313,7 +315,7 @@ spec:
         emptyDir: { }
     container:
       name: remove-keycloak-client
-      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
       command:
         - /bin/bash
         - '-c'
@@ -358,6 +360,7 @@ spec:
             JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
             # Convert the array to a JSON array
             num_redirect_uris=$(echo $JSON_DATA | jq '.[0].redirectUris | length')
+            last_redirect_uri=$(echo $JSON_DATA | jq -r '.[0].redirectUris[-1]')
             if [ $num_redirect_uris -gt 1 ]
             then
                 # Remove endpoint from client redirectUris
@@ -365,9 +368,11 @@ spec:
                 # Write the JSON array to a new file
                 echo "$MODIFIED_JSON" > modified_data.json
                 curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 
-            else
+            elif [ $num_redirect_uris -eq 1 ] && [ "$last_redirect_uri" == "http://$endpoint/*" ]; then
                 # Remove client
                 curl -s -k -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+            else
+              echo "no redirect uri to remove"
             fi
           fi
       envFrom:

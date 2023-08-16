@@ -64,7 +64,7 @@ spec:
       - name: decapod_site_repo
       - name: base_repo_branch
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/bash:latest
+      image: harbor.taco-cat.xyz/tks/bash:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out
