@@ -70,6 +70,8 @@ spec:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-loki"
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+        continueOn:
+          failed: true
 
     - - name: remove-objects-in-buckets
         templateRef:

@@ -911,11 +911,13 @@ spec:
         kubectl --kubeconfig /kube/value get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d > ~/kubeconfig
         export KUBECONFIG=~/kubeconfig
 
+        kubectl delete job -n lma empty-buckets-before-delete-them --ignore-not-found=true
         cat <<EOF | kubectl apply -f -
         apiVersion: batch/v1
         kind: Job
         metadata:
           name: empty-buckets-before-delete-them
+          namespace: lma
           annotations:
             "helm.sh/hook": pre-delete
             "helm.sh/hook-delete-policy": hook-succeeded
@@ -939,12 +941,12 @@ spec:
           backoffLimit: 4
         EOF
 
-        while [ $(kubectl get job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}'|wc -c) -eq 0 ]; do
+        while [ $(kubectl get -n lma job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}'|wc -c) -eq 0 ]; do
           echo "A job is not completed. wait 10 seconds...."
           sleep 10
         done
 
-        if [ $(kubectl get job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}') = "Complete" ]; then
+        if [ $(kubectl get -n lma job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}') = "Complete" ]; then
           exit 0
         else
           exit -1
@@ -957,7 +959,7 @@ spec:
       - name: cluster_id
         value: "{{workflow.parameters.cluster_id}}"
       volumeMounts:
-      - name: config
+      - name: kubeconfig-adm
         mountPath: "/kube"
 
     activeDeadlineSeconds: 120
