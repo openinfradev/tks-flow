@@ -26,7 +26,7 @@ spec:
       - name: command # "create" or "delete"
     container:
       name: provisioner
-      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3
+      image: harbor.taco-cat.xyz/tks/tks-aws:v1.0.3
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -76,6 +76,35 @@ spec:
               - \"iam:CreateRole\"
               - \"iam:DeleteRole\"
               - \"cloudformation:*\"
+              - \"autoscaling:DescribeAccountLimits\"
+              - \"cloudformation:DescribeAccountLimits\"
+              - \"cloudwatch:DescribeAlarmsForMetric\"
+              - \"cloudwatch:DescribeAlarms\"
+              - \"cloudwatch:GetMetricData\"
+              - \"cloudwatch:GetMetricStatistics\"
+              - \"dynamodb:DescribeLimits\"
+              - \"elasticloadbalancing:DescribeAccountLimits\"
+              - \"iam:GetAccountSummary\"
+              - \"kinesis:DescribeLimits\"
+              - \"organizations:DescribeAccount\"
+              - \"organizations:DescribeOrganization\"
+              - \"organizations:ListAWSServiceAccessForOrganization\"
+              - \"rds:DescribeAccountAttributes\"
+              - \"route53:GetAccountLimit\"
+              - \"tag:GetTagKeys\"
+              - \"tag:GetTagValues\"
+              - \"servicequotas:GetAssociationForServiceQuotaTemplate\"
+              - \"servicequotas:GetAWSDefaultServiceQuota\"
+              - \"servicequotas:GetRequestedServiceQuotaChange\"
+              - \"servicequotas:GetServiceQuota\"
+              - \"servicequotas:GetServiceQuotaIncreaseRequestFromTemplate\"
+              - \"servicequotas:ListAWSDefaultServiceQuotas\"
+              - \"servicequotas:ListRequestedServiceQuotaChangeHistory\"
+              - \"servicequotas:ListRequestedServiceQuotaChangeHistoryByQuota\"
+              - \"servicequotas:ListServices\"
+              - \"servicequotas:ListServiceQuotas\"
+              - \"servicequotas:ListServiceQuotaIncreaseRequestsInTemplate\"
+              - \"servicequotas:ListTagsForResource\"
               Effect: \"Allow\"
               Resource:
               - \"*\"" | envsubst > bootstrap-manager-account.yaml
@@ -97,10 +126,10 @@ spec:
       - name: TKS_AWS_ACCOUNT_ID
         valueFrom:
           secretKeyRef:
-            name: tks-aws-user
-            key: account_id
+            name: awsconfig-secret
+            key: AWS_ACCOUNT_ID
       - name: TKS_AWS_USER
         valueFrom:
           secretKeyRef:
-            name: tks-aws-user
-            key: user
+            name: awsconfig-secret
+            key: AWS_USER

@@ -120,7 +120,7 @@ spec:
           path: /mnt/out/abort_output.log
         globalName: abort_output_global
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/appserving-worker:latest
+      image: harbor.taco-cat.xyz/tks/appserving-worker:latest
       volumeMounts:
       - name: out
         mountPath: /mnt/out

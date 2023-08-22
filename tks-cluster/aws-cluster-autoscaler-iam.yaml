@@ -27,7 +27,7 @@ spec:
       parameters:
       - name: cloud_account_id
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3
+      image: harbor.taco-cat.xyz/tks/tks-aws:v1.1.0
       command:
       - /bin/bash
       - -exc
@@ -48,7 +48,7 @@ spec:
           ROLE_ARN_REMOVED_SUFFIX=${ROLE_ARN%:*}
           AWS_ACCOUNT_ID=${ROLE_ARN_REMOVED_SUFFIX#*::}
         else
-          AWS_ACCOUNT_ID=$(kubectl  get secret -n argo aws-account-id -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d)
+          AWS_ACCOUNT_ID=$(kubectl  get secret -n argo awsconfig-secret -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d)
         fi
 
         echo "{
@@ -115,7 +115,7 @@ spec:
       parameters:
       - name: cloud_account_id
     container:
-      image: harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3
+      image: harbor.taco-cat.xyz/tks/tks-aws:v1.0.3
       command:
       - /bin/bash
       - -exc

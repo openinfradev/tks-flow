@@ -77,7 +77,10 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''"
+        when: >-
+            ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''
+            ) || (
+            {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}} )
 
     - - name: organization-level-update
         templateRef:
@@ -189,7 +192,7 @@ spec:
         - name: target_namespace
     container:
       name: create-namespace
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
         - '-c'
@@ -225,7 +228,7 @@ spec:
         - name: cluster_id
     container:
       name: cluster-init
-      image: harbor-cicd.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
+      image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
       command:
         - /bin/bash
         - '-exc'
@@ -280,7 +283,7 @@ spec:
       emptyDir: {}
     container:
       name: 'get-thanos-ep'
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       envFrom:
       - secretRef:
           name: "git-svc-token"
@@ -329,7 +332,7 @@ spec:
       emptyDir: {}
     script:
       name: 'collect'
-      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       envFrom:
       - secretRef:
@@ -482,6 +485,7 @@ spec:
           f.write(cur_cluster_name)
 
   - name: create-keycloak-client
+    activeDeadlineSeconds: 600
     inputs:
       parameters:
       - name: organization_id
@@ -500,7 +504,7 @@ spec:
         emptyDir: {}
     container:
       name: create-keycloak-client
-      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
       command:
         - /bin/bash
         - '-c'
@@ -520,33 +524,29 @@ spec:
           # Get endpoints
           #################
 
-          endpoint=\"grafa\"
-          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
-            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
-            do
-              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
-                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
-                exit -1
-              fi
-
-              echo "Waiting for generating the loadbalancer of grafana(3s)"
-              sleep 3
-            done
-
-            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          else
-            log "WARN" "Cluster(${cluster_id}) has no grafana"
-          fi
-
+          
+          while ! kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found; do
+            echo "Waiting for the grafana service to appear in cluster ${cluster_id} (5s)"
+            sleep 5
+          done
+          
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+              log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+              exit -1
+            fi
+        
+            echo "Waiting for generating the loadbalancer of grafana(3s)"
+            sleep 3
+          done
+          
+          endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
 
           # Login to keycloak
-          admin_username=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_USERNAME}" | base64 -d)
-          admin_password=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_PASSWORD}" | base64 -d)
-          TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=${admin_username} -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
-
-          
+          admin_password=$(kubectl get secret -n keycloak keycloak -o jsonpath="{.data.admin-password}" | base64 -d)
+          TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=admin -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')          
 
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
           if [ -z "$client_uuid" ]; then
@@ -598,7 +598,7 @@ spec:
 
     container:
       name: update-auth-oidc-grafana
-      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
       command:
         - /bin/bash
         - '-c'
@@ -656,7 +656,7 @@ spec:
         - name: cluster_id
     container:
       name: argocd-sync-wait
-      image: harbor-cicd.taco-cat.xyz/tks/argocd-cli:v2.2.5
+      image: harbor.taco-cat.xyz/tks/argocd-cli:v2.2.5
       command:
         - /bin/bash
         - '-c'
@@ -685,7 +685,7 @@ spec:
         - name: cluster_id
     container:
       name: grafana-restart
-      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
       command:
         - /bin/bash
         - '-c'
@@ -699,7 +699,7 @@ spec:
 
           cluster_id={{inputs.parameters.cluster_id}}
 
-          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
           pods=$(kubectl --kubeconfig kubeconfig get pods -n lma | grep grafana | awk '{print $1}')
   

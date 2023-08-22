@@ -100,7 +100,7 @@ spec:
       - name: git_org
     container:
       name: 'createClusterRepo'
-      image: harbor-cicd.taco-cat.xyz/tks/ghcli-alpine:2.0.0
+      image: harbor.taco-cat.xyz/tks/ghcli-alpine:2.0.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -173,7 +173,7 @@ spec:
         - name: kubeconfig
     container:
       name: cluster-init
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      image: harbor.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
       command:
         - /bin/bash
         - '-exc'
@@ -216,7 +216,7 @@ spec:
         - name: cluster_id
     container:
       name: cluster-init
-      image: harbor-cicd.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      image: harbor.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
       command:
         - /bin/bash
         - '-exc'

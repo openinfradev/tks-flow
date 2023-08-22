@@ -1,14 +1,12 @@
 FROM weaveworks/eksctl AS eksctl
 #FROM amazon/aws-cli AS awscli
 
-#make a docker image with this CLI: docker build -t harbor-cicd.taco-cat.xyz/tks/tks-aws:v1.0.3 -f Dockerfile.tks_aws .
+#make a docker image with this CLI: docker build -t harbor.taco-cat.xyz/tks/tks-aws:v1.1.0 -f Dockerfile.tks_aws .
 FROM alpine
 COPY --from=eksctl /usr/local/bin/eksctl /usr/bin/eksctl
 RUN apk update
 RUN apk add aws-cli curl bash gettext jq
-RUN curl -L https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/v2.0.2/clusterawsadm-linux-amd64 -o clusterawsadm
-RUN chmod +x clusterawsadm
-RUN mv clusterawsadm /usr/local/bin
-# Install kubectl
-RUN curl -Lo /usr/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-RUN chmod +x /usr/bin/kubectl
+RUN curl -Lo /usr/local/bin/clusterawsadm https://github.com/kubernetes-sigs/cluster-api-provider-aws/releases/download/v2.0.2/clusterawsadm-linux-amd64 -o clusterawsadm
+RUN curl -Lo /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN curl -Lo /usr/local/bin/aws-iam-authenticator https://github.com/kubernetes-sigs/aws-iam-authenticator/releases/download/v0.5.9/aws-iam-authenticator_0.5.9_linux_amd64
+RUN chmod +x /usr/local/bin/kubectl /usr/local/bin/aws-iam-authenticator /usr/local/bin/clusterawsadm

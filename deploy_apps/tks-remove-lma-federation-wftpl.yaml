@@ -14,15 +14,15 @@ spec:
     - name: tks_info_host
       value: "http://tks-api.tks.svc:9110"
     - name: organization_id
-      value: "ovbxm7jvf"
+      value: "oxgpyp293"
     - name: cluster_id
-      value: "cs7r4tu4d"
+      value: "ckdnejbhz"
     - name: app_group_id
-      value: "acq1x8rcb"
+      value: "a0ud54n4j"
     - name: keycloak_url
       value: "https://tks-console-dev.taco-cat.xyz"
     - name: base_repo_branch
-      value: "develop"
+      value: "release"
     - name: cloud_account_id
       value: ""
     - name: object_store
@@ -56,6 +56,39 @@ spec:
           - name: keycloak_url
             value: '{{workflow.parameters.keycloak_url}}'
 
+    - - name: get-clusters-in-contract
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-get-cluster
+
+    - - name: remove-loki
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+          - name: app_name
+            value: "{{workflow.parameters.cluster_id}}-loki"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+        continueOn:
+          failed: true
+
+    - - name: remove-objects-in-buckets
+        templateRef:
+          name: tks-primary-cluster
+          template: sub-remove-objects-in-buckets
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
+    - - name: remove-lma-bucket
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+          - name: app_name
+            value: "{{workflow.parameters.cluster_id}}-lma-bucket"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+
     - - name: removeAppGroup
         templateRef:
           name: remove-lma-federation
@@ -68,11 +101,6 @@ spec:
             - name: target_namespace
               value: "lma"
 
-    - - name: get-clusters-in-contract
-        templateRef:
-          name: tks-primary-cluster
-          template: sub-get-cluster
-
     - - name: update-eps-for-thanos
         templateRef:
           name: tks-primary-cluster
@@ -83,6 +111,7 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
     - - name: set-primary-cluster-on-tks-info
         templateRef:
@@ -94,7 +123,6 @@ spec:
             value: ""
         when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
 
-
   #######################
   # Template Definition #
   #######################
@@ -104,7 +132,7 @@ spec:
         - name: target_namespace
     container:
       name: delete-namespace
-      image: harbor-cicd.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
         - '-c'
@@ -153,7 +181,7 @@ spec:
       emptyDir: {}
     script:
       name: 'collect'
-      image: harbor-cicd.taco-cat.xyz/tks/centos-tks-api:v1.0
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       envFrom:
       - secretRef:
@@ -276,6 +304,7 @@ spec:
             f.write(']')
 
   - name: remove-keycloak-client
+    activeDeadlineSeconds: 300
     inputs:
       parameters:
         - name: organization_id
@@ -286,7 +315,7 @@ spec:
         emptyDir: { }
     container:
       name: remove-keycloak-client
-      image: 'harbor-cicd.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
       command:
         - /bin/bash
         - '-c'
@@ -299,30 +328,29 @@ spec:
           # Get endpoints
           #################
 
-          endpoint=\"grafa\"
-          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
-            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
-            do
-              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
-                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
-                exit -1
-              fi
-
-              echo "Waiting for generating the loadbalancer of grafana(3s)"
-              sleep 3
-            done
-
-            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          else
-            log "WARN" "Cluster(${cluster_id}) has no grafana"
-          fi
+          
+          while ! kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found; do
+            echo "Waiting for the grafana service to appear in cluster ${cluster_id} (5s)"
+            sleep 5
+          done
+          
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+              log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+              exit -1
+            fi
+          
+            echo "Waiting for generating the loadbalancer of grafana(3s)"
+            sleep 3
+          done
+          
+          endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
           
           # Login to keycloak
-          admin_username=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_USERNAME}" | base64 -d)
-          admin_password=$(kubectl get secret -n keycloak credential-tks-keycloak -o jsonpath="{.data.ADMIN_PASSWORD}" | base64 -d)
-          TOKEN=$(curl -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=${admin_username} -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
+          admin_password=$(kubectl get secret -n keycloak keycloak -o jsonpath="{.data.admin-password}" | base64 -d)
+          TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=admin -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
 
           # Get client uuid
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
@@ -332,6 +360,7 @@ spec:
             JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
             # Convert the array to a JSON array
             num_redirect_uris=$(echo $JSON_DATA | jq '.[0].redirectUris | length')
+            last_redirect_uri=$(echo $JSON_DATA | jq -r '.[0].redirectUris[-1]')
             if [ $num_redirect_uris -gt 1 ]
             then
                 # Remove endpoint from client redirectUris
@@ -339,9 +368,11 @@ spec:
                 # Write the JSON array to a new file
                 echo "$MODIFIED_JSON" > modified_data.json
                 curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 
-            else
+            elif [ $num_redirect_uris -eq 1 ] && [ "$last_redirect_uri" == "http://$endpoint/*" ]; then
                 # Remove client
                 curl -s -k -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+            else
+              echo "no redirect uri to remove"
             fi
           fi
       envFrom:
