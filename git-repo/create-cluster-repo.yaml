@@ -24,7 +24,7 @@ spec:
       - name: cluster_info
     container:
       name: 'createClusterRepo'
-      image: harbor.taco-cat.xyz/tks/ghcli-alpine:3.0.1
+      image: harbor.taco-cat.xyz/tks/ghcli-yq:1.0.0
       imagePullPolicy: IfNotPresent
       command:
       - /bin/bash
@@ -90,7 +90,8 @@ spec:
         cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
 
         ## Replace site-values with fetched params ##
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+        yq -i e ".global.clusterName=\"$CLUSTER_ID\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+        echo   $INFRA_PROVIDER
         case $INFRA_PROVIDER in
           aws)
             ## Fetch cluster params from cluster_info file ##
@@ -103,27 +104,26 @@ spec:
             val_mp_replicas=$(echo $CLUSTER_INFO | jq -r '.mpReplicas')
             val_mp_machine_type=$(echo $CLUSTER_INFO | jq -r '.mpNodeMachineType')
 
-            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/sshKeyName:\ CHANGEME/sshKeyName: $val_ssh_key/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/clusterRegion:\ CHANGEME/clusterRegion: $val_region/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/mdNumOfAz:\ CHANGEME/mdNumOfAz: $val_num_of_az/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/mdMinSizePerAz:\ CHANGEME/mdMinSizePerAz: $val_min_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/mdMaxSizePerAz:\ CHANGEME/mdMaxSizePerAz: $val_max_size/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/mdMachineType:\ CHANGEME/mdMachineType: $val_machine_type/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/cpReplicas:\ CHANGEME/cpReplicas: 3/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/mpReplicas:\ CHANGEME/mpReplicas: $val_mp_replicas/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            sed -i "s/mpMachineType:\ CHANGEME/mpMachineType: $val_mp_machine_type/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.sshKeyName=\"$val_ssh_key\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.clusterRegion=\"$val_region\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.mdNumOfAz=$val_num_of_az" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.mdMinSizePerAz=$val_min_size" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.mdMaxSizePerAz=$val_max_size" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.mdMachineType=\"$val_machine_type\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.cpReplicas=3" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.mpReplicas=$val_mp_replicas" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.mpMachineType=\"$val_mp_machine_type\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+
 
             ## multi-tenancy ##
             if [ "$CLOUD_ACCOUNT_ID" = "NULL" ]; then
               sed -i '/multitenancyId/,+2d' $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             else
-              sed -i "s/cloudAccountID:\ CHANGEME/cloudAccountID: $CLOUD_ACCOUNT_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+              yq -i e ".global.cloudAccountID=\"$CLOUD_ACCOUNT_ID\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             fi
             ;;
 
           byoh)
-            sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             echo "BYOH"
             ;;
 
