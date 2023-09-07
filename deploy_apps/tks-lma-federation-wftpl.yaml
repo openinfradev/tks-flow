@@ -34,7 +34,7 @@ spec:
     ##########################
     # For tks-info task #
     ##########################
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
     - name: cluster_id
       value: "coyar0qx1"
