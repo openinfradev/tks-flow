@@ -97,9 +97,8 @@ spec:
             ## Fetch cluster params from cluster_info file ##
             val_ssh_key=$(echo $CLUSTER_INFO | jq -r '.sshKeyName')
             val_region=$(echo $CLUSTER_INFO | jq -r '.clusterRegion')
-            val_num_of_az=$(echo $CLUSTER_INFO | jq -r '.mdNumOfAz')
-
-            val_cpReplicas=$(echo $CLUSTER_INFO | jq -r '.cpReplicas')
+            
+            val_tksCpNode=$(echo $CLUSTER_INFO | jq -r '.tksCpNode')
             val_tksInfraNode=$(echo $CLUSTER_INFO | jq -r '.tksInfraNode')
             val_tksInfraNodeMax=$(echo $CLUSTER_INFO | jq -r '.tksInfraNodeMax')
             val_tksInfraNodeType=$(echo $CLUSTER_INFO | jq -r '.tksInfraNodeType')
@@ -109,9 +108,8 @@ spec:
 
             yq -i e ".global.sshKeyName=\"$val_ssh_key\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             yq -i e ".global.clusterRegion=\"$val_region\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            yq -i e ".global.mdNumOfAz=$val_num_of_az" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
 
-            yq -i e ".global.cpReplicas=$val_cpReplicas" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.tksCpNode=$val_tksCpNode" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             yq -i e ".global.tksInfraNode=$val_tksInfraNode" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             yq -i e ".global.tksInfraNodeMax=$val_tksInfraNodeMax" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             yq -i e ".global.tksInfraNodeType=\"$val_tksInfraNodeType\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
