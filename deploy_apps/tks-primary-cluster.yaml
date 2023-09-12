@@ -26,7 +26,7 @@ spec:
     ##########################
     # For tks-info task #
     ##########################
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api-dev.taco-cat.xyz:9110"
     - name: organization_id
       value: "o086tb3zc"
@@ -875,7 +875,7 @@ spec:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       - name: TKS_API_URL
-        value: "{{workflow.parameters.tks_info_host}}"
+        value: "{{workflow.parameters.tks_api_url}}"
       envFrom:
       - secretRef:
           name: "tks-api-secret"
@@ -888,7 +888,7 @@ spec:
         import json
         import os
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
         CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
 
@@ -957,7 +957,7 @@ spec:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       - name: TKS_API_URL
-        value: "{{workflow.parameters.tks_info_host}}"
+        value: "{{workflow.parameters.tks_api_url}}"
       envFrom:
       - secretRef:
           name: "tks-api-secret"
@@ -967,7 +967,7 @@ spec:
         import json
         import os
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
         CLUSTER_ID = "{{inputs.parameters.cluster_id}}"
 

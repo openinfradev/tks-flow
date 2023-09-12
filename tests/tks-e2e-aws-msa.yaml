@@ -53,7 +53,7 @@ spec:
           - name: description
             value: "e2e-test"            
           - name: infra_conf
-            value: '{\"cpNodeCnt\":3,\"tksNodeCnt\":3,\"userNodeCnt\":1}'
+            value: '{\"tksCpNode\":1,\"tksInfraNode\":1,\"tksUserNode\":1}'
     - - name: call-validate-cluster
         templateRef:
           name: tks-validate-usercluster

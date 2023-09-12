@@ -7,7 +7,7 @@ spec:
   entrypoint: updateTksAppGroup
   arguments:
     parameters:
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
     - name: app_group_id
       value: "abcdefghi"
@@ -31,7 +31,7 @@ spec:
         import requests
         import os
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         APPGROUP_ID = "{{workflow.parameters.app_group_id}}"
         ENDPOINT = "{{inputs.parameters.endpoint}}"
         APPTYPE = "{{inputs.parameters.app_type}}"

@@ -11,7 +11,7 @@ spec:
       value: "lma"
     - name: github_account
       value: "decapod10"
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
     - name: organization_id
       value: "oxgpyp293"
@@ -169,7 +169,7 @@ spec:
   - name: collectClusterList
     inputs:
       parameters:
-      - name: tks_info_host
+      - name: tks_api_url
       - name: app_group_id
     outputs:
       parameters:
@@ -198,7 +198,7 @@ spec:
         import git
         import requests
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
 
 
