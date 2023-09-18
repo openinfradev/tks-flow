@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-get-stack-template-type
+  namespace: argo
+spec:
+  entrypoint: getTksGetStackTemplateType
+  arguments:
+    parameters:
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
+    - name: stack_template_id
+      value: "NULL"
+  templates:
+  - name: getTksGetStackTemplateType
+    outputs:
+      parameters:
+      - name: stack_template_type
+        valueFrom:
+          path: /mnt/out/stack_template_type.txt
+    volumes:
+    - name: out
+      emptyDir: {}
+    script:
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      - name: TKS_API_URL
+        value: "{{workflow.parameters.tks_api_url}}"
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+      source: |
+        import sys
+        import requests
+        import json
+        import os
+
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
+        STACK_TEMPLATE_ID = "{{workflow.parameters.stack_template_id}}"
+
+        def getToken() :
+            data = {
+                'organizationId' : os.environ['ORGANIZATION_ID'],
+                'accountId': os.environ['ACCOUNT_ID'],
+                'password' : os.environ['PASSWORD']
+            }
+
+            res = requests.post(TKS_API_URL+"/api/1.0/auth/login", json = data )
+            if res.status_code != 200 :
+                return ''
+            resJson = res.json()
+            return resJson['user']['token']
+
+
+        res = requests.get(TKS_API_URL+"/api/1.0/stack-templates/" + STACK_TEMPLATE_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get stackTemplate')
+
+        stackTemplate = res.json()['stackTemplate']
+        print(stackTemplate)
+
+        with open("/mnt/out/stack_template_type.txt", "w") as f:
+            f.write(stackTemplate['templateType'])
