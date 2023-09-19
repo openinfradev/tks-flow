@@ -83,6 +83,7 @@ spec:
     inputs:
       parameters:
       - name: cluster_name
+      - name: stack_id
       - name: stack_template_id
       - name: organization_id
       - name: cloud_account_id
@@ -110,6 +111,7 @@ spec:
           CL_NAME="{{inputs.parameters.cluster_name}}"
           echo "* Create $CL_NAME cluster"
           tks cluster create ${CL_NAME} \
+            --stack-id "{{inputs.parameters.stack_id}}" \
             --stack-template-id "{{inputs.parameters.stack_template_id}}" \
             --organization-id "{{inputs.parameters.organization_id}}" \
             --cloud-account-id "{{inputs.parameters.cloud_account_id}}" \

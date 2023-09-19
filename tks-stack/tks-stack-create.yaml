@@ -9,6 +9,8 @@ spec:
     parameters:
     - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
+    - name: stack_id
+      value: ""
     - name: cluster_name
       value: ""
     - name: description
@@ -44,6 +46,8 @@ spec:
           parameters:
           - name: cluster_name
             value: "{{workflow.parameters.cluster_name}}"
+          - name: stack_id
+            value: "{{workflow.parameters.stack_id}}"
           - name: stack_template_id
             value: "{{workflow.parameters.stack_template_id}}"
           - name: organization_id
