@@ -121,7 +121,7 @@ spec:
           threshold=60
           for i in $(seq 1 $threshold)
           do
-            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{ print $4 }')
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_NAME | awk '{ print $4 }')
             if [ "$CL_STATUS" = "RUNNING" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
@@ -135,7 +135,7 @@ spec:
             sleep 1m
           done
 
-          tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{print $3}' | tee /mnt/out/cluster_id.txt
+          tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_NAME | awk '{print $3}' | tee /mnt/out/cluster_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -213,7 +213,7 @@ spec:
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $5}')
+            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $5}')
             if [ "$STATUS" = "RUNNING" ]; then
               break
             elif [ "$STATUS" = "ERROR" ]; then
@@ -227,7 +227,7 @@ spec:
             sleep 1m
           done
 
-          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
+          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -268,7 +268,7 @@ spec:
               break
             fi
 
-            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $5}')
+            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $5}')
             if [ "$STATUS" = "DELETED" ]; then
               break
             elif [ "$STATUS" = "ERROR" ]; then
@@ -299,7 +299,7 @@ spec:
         - |
           tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
 
-          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
+          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
