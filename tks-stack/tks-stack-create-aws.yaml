@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-stack-create
+  name: tks-stack-create-aws
   namespace: argo
 spec:
   entrypoint: main
@@ -9,6 +9,8 @@ spec:
     parameters:
     - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
+    - name: cloud_service
+      value: "AWS"
     - name: cluster_name
       value: ""
     - name: description
@@ -56,6 +58,8 @@ spec:
             value: "{{workflow.parameters.description}}"
           - name: infra_conf
             value: "{{workflow.parameters.infra_conf}}"
+          - name: cloud_service
+            value: "{{workflow.parameters.cloud_service}}"
 
 
     - - name: call-create-appgroup-for-LMA

@@ -13,10 +13,40 @@ spec:
       value: "czr9ts9ug"
     - name: organization_id
       value: "o1bm5xjim"
+    - name: stack_template_id
+      value: "NULL"
 
   templates:
   - name: main
     steps:
+    - - name: tks-get-stack-template-type
+        templateRef:
+          name: tks-get-stack-template-type
+          template: getTksGetStackTemplateType
+    - - name: call-get-appgroup-id-of-SERVICEMESH
+        templateRef:
+          name: tks-cli
+          template: get-appgroup-id
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
+          - name: name
+            value: "{{ workflow.parameters.cluster_id }}_servicemesh"
+        when: "{{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA"
+    - - name: call-delete-appgroup-for-SERVICEMESH
+        templateRef:
+          name: tks-cli
+          template: delete-appgroup
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{ workflow.parameters.cluster_id }}"
+          - name: name
+            value: "{{ workflow.parameters.cluster_id }}_servicemesh"
+          - name: appgroup_id
+            value: "{{steps.call-get-appgroup-id-of-SERVICEMESH.outputs.parameters.appgroup_id}}"
+        when: "{{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA"
     - - name: call-get-appgroup-id-of-LMA
         templateRef:
           name: tks-cli
