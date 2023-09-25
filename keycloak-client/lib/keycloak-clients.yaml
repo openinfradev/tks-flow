@@ -182,7 +182,7 @@ spec:
               keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
           except Exception as e:
               print(e)
-              print(f"""create client role {role_name} in client "{input_params['target_client_id']}" failed""")
+              print(f"""create client role "{input_params['client_role_name']}" in client "{input_params['target_client_id']}" failed""")
               keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
               sys.exit(1)
     - name: append-client-redirect-uri
@@ -761,4 +761,3 @@ spec:
               print('create client failed')
               keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
               sys.exit(1)
-

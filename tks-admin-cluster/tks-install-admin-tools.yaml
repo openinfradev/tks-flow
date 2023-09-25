@@ -7,84 +7,86 @@ spec:
   entrypoint: main
   arguments:
     parameters:
-    - name: manifest_repo_url
-      value: ""
-    - name: revision
-      value: main
-    # This param is also used as default target cluster on Argo CD
-    - name: site_name
-      value: ""
-    - name: app_prefix
-      value: "tks-admin"
-    - name: install-nginx
-      value: false
+      - name: manifest_repo_url
+        value: ""
+      - name: revision
+        value: main
+      # This param is also used as default target cluster on Argo CD
+      - name: site_name
+        value: ""
+      - name: app_prefix
+        value: "tks-admin"
+      - name: install-nginx
+        value: false
+      - name: keycloak_url
+        value: ""
   volumes:
-  - name: config
-    secret:
-      secretName: tks-admin-kubeconfig-secret
+    - name: config
+      secret:
+        secretName: tks-admin-kubeconfig-secret
   templates:
-  - name: main
-    steps:
-    - - name: install-nginx-controller
-        templateRef:
-          name: create-application
-          template: installApps
-        arguments:
-          parameters:
-          - name: list
-            value: |
-              [
-                ## If value-override for admin-cluster is different from that of user-cluster,
-                ## then the ingress-nginx should be copied to tks-admin-tools group.
-                { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" },
-              ]
-        when: "{{workflow.parameters.install-nginx}} == true"
+    - name: main
+      steps:
+        - - name: install-nginx-controller
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      ## If value-override for admin-cluster is different from that of user-cluster,
+                      ## then the ingress-nginx should be copied to tks-admin-tools group.
+                      { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" },
+                    ]
+            when: "{{workflow.parameters.install-nginx}} == true"
 
-    - - name: install-keycloak
-        templateRef:
-          name: create-application
-          template: installApps
-        arguments:
-          parameters:
-          - name: list
-            value: |
-              [
-                { "app_group": "tks-admin-tools", "path": "keycloak", "namespace": "keycloak", "target_cluster": "" }
-              ]
+        - - name: install-keycloak
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      { "app_group": "tks-admin-tools", "path": "keycloak", "namespace": "keycloak", "target_cluster": "" }
+                    ]
 
-    - - name: configure-keycloak
-        templateRef:
-          name: set-admin-cluster
-          template: main
-        arguments:
-          parameters:
-            - name: server_url
-              value: "{{workflow.parameters.keycloak_url}}"
-            - name: target_realm_name
-              value: "master"
-            - name: target_client_id
-              value: "admin-cluster-k8s-api"
-            - name: keycloak_credential_secret_name
-              value: "keycloak"
-            - name: kecyloak_credential_secret_namespace
-              value: "keycloak"
-            - name: client_role_name
-              value: "system:masters"
-            - name: user_name
-              value: "admin"
+        - - name: configure-keycloak
+            templateRef:
+              name: set-admin-cluster
+              template: main
+            arguments:
+              parameters:
+                - name: server_url
+                  value: "{{workflow.parameters.keycloak_url}}"
+                - name: target_realm_name
+                  value: "master"
+                - name: target_client_id
+                  value: "admin-cluster-k8s-api"
+                - name: keycloak_credential_secret_name
+                  value: "keycloak"
+                - name: keycloak_credential_secret_namespace
+                  value: "keycloak"
+                - name: client_role_name
+                  value: "system:masters"
+                - name: user_names
+                  value: '["admin"]'
 
-    - - name: install-tks-api-and-harbor
-        templateRef:
-          name: create-application
-          template: installApps
-        arguments:
-          parameters:
-            - name: list
-              value: |
-                [
-                  { "app_group": "tks-admin-tools", "path": "tks-api", "namespace": "tks", "target_cluster": "" },
-                  { "app_group": "tks-admin-tools", "path": "harbor", "namespace": "harbor", "target_cluster": "" }
-                ]
+        - - name: install-tks-api-and-harbor
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      { "app_group": "tks-admin-tools", "path": "tks-api", "namespace": "tks", "target_cluster": "" },
+                      { "app_group": "tks-admin-tools", "path": "harbor", "namespace": "harbor", "target_cluster": "" }
+                    ]
 
 
 
