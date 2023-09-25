@@ -314,7 +314,7 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: configure-keycloak
+        - - name: set-keycloak-config
             templateRef:
               name: set-user-cluster
               template: main
