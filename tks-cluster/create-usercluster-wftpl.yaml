@@ -29,6 +29,8 @@ spec:
         value: "http://tks-api.tks.svc:9110"
       - name: base_repo_branch
         value: "main"
+      - name: keycloak_url
+        value: '{{workflow.parameters.keycloak_url}}'
 
   volumes:
     - name: kubeconfig-adm
@@ -311,6 +313,25 @@ spec:
                       }
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
+        - - name: configure-keycloak
+            templateRef:
+              name: set-user-cluster
+              template: main
+            arguments:
+              parameters:
+                - name: server_url
+                  value: "{{ workflow.parameters.keycloak_url }}"
+                - name: target_realm_name
+                  value: "{{ workflow.parameters.contract_id }}"
+                - name: target_client_id
+                  value: "{{ workflow.parameters.cluster_id}}-k8s-api"
+                - name: keycloak_credential_secret_name
+                  value: "keycloak"
+                - name: keycloak_credential_secret_namespace
+                  value: "keycloak"
+                - name: client_role_name
+                  value: "system:masters"
 
     #######################
     # Template Definition #
