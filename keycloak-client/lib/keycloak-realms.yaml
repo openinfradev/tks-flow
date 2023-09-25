@@ -42,6 +42,11 @@ spec:
               encoded_data = secret_obj.data.get('admin-password')
               decoded_data = base64.b64decode(encoded_data).decode('utf-8')
               return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
           k8s_client = get_kubernetes_api()
           try:
               secret_name = input_params['keycloak_credential_secret_name']
@@ -107,6 +112,11 @@ spec:
               encoded_data = secret_obj.data.get('admin-password')
               decoded_data = base64.b64decode(encoded_data).decode('utf-8')
               return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
           k8s_client = get_kubernetes_api()
           try:
               secret_name = input_params['keycloak_credential_secret_name']
@@ -135,3 +145,4 @@ spec:
               print('create realm failed')
               keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
               sys.exit(1)
+
