@@ -20,8 +20,13 @@ spec:
         value: false
       - name: keycloak_url
         value: ""
+      - name: db_host
+        value: "postgresql.tks-db"
+      - name: db_keycloak_password
+        value: ""
+  # TODO: check if this is necessary
   volumes:
-    - name: config
+    - name: admin-kubeconfig
       secret:
         secretName: tks-admin-kubeconfig-secret
   templates:
@@ -33,14 +38,23 @@ spec:
               template: installApps
             arguments:
               parameters:
+                ## If value-override for admin-cluster is different from that of user-cluster,
+                ## then the ingress-nginx should be copied to tks-admin-tools group.
                 - name: list
                   value: |
                     [
-                      ## If value-override for admin-cluster is different from that of user-cluster,
-                      ## then the ingress-nginx should be copied to tks-admin-tools group.
-                      { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" },
+                      { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" }
                     ]
             when: "{{workflow.parameters.install-nginx}} == true"
+
+        - - name: init-keycloak-db
+            template: init-keycloak-db
+            arguments:
+              parameters:
+                - name: db_keycloak_password
+                  value: "{{ workflow.parameters.db_keycloak_password }}"
+                - name: db_host
+                  value: "{{ workflow.parameters.db_host }}"
 
         - - name: install-keycloak
             templateRef:
@@ -88,6 +102,47 @@ spec:
                       { "app_group": "tks-admin-tools", "path": "harbor", "namespace": "harbor", "target_cluster": "" }
                     ]
 
+    #######################
+    # Template Definition #
+    #######################
+    - name: init-keycloak-db
+      inputs:
+        parameters:
+          - name: db_host
+            value: "postgres.tks-db"
+          - name: db_keycloak_user
+            value: "bn_keycloak"
+          - name: db_keycloak_password
+            value: "password"
+          - name: db_keycloak_db
+            value: "bitnami_keycloak"
+      container:
+        name: init-keycloak-db
+        image: jbergknoff/postgresql-client
+        env:
+        # postgres admin username
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_HOST
+          value: "{{ inputs.parameters.db_host }}"
+        - name: POSTGRES_ADMIN_PW
+          valueFrom:
+            secretKeyRef:
+              name: argo-postgres-config
+              key: postgresql-password
+        command:
+          - /bin/sh
+          - "-exc"
+          - |
+            # config for new keycloak DB
+            NEW_USER="{{ inputs.parameters.db_keycloak_user }}"
+            NEW_USER_PASSWORD="{{ inputs.parameters.db_keycloak_password }}"
+            NEW_DB="{{ inputs.parameters.db_keycloak_db }}"
 
-
-
+            # psql 명령어를 사용하여 사용자와 데이터베이스를 생성하고 권한을 부여
+            export PGPASSWORD=$POSTGRES_ADMIN_PW
+            psql -h $POSTGRES_HOST -U $POSTGRES_USER -d postgres <<EOF
+            CREATE USER $NEW_USER WITH PASSWORD '$NEW_USER_PASSWORD';
+            CREATE DATABASE $NEW_DB WITH OWNER = $NEW_USER;
+            GRANT ALL PRIVILEGES ON DATABASE $NEW_DB TO $NEW_USER;
+            EOF
