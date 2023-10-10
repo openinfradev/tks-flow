@@ -44,7 +44,7 @@ spec:
                 - name: list
                   value: |
                     [
-                      { "app_group": "tks-cluster", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" }
+                      { "app_group": "tks-admin-tools", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" }
                     ]
             when: "{{workflow.parameters.install-nginx}} == true"
 
@@ -108,7 +108,7 @@ spec:
                 - name: list
                   value: |
                     [
-                      { "app_group": "tks-admin-tools", "path": "tks-api", "namespace": "tks", "target_cluster": "" },
+                      { "app_group": "tks-admin-tools", "path": "tks-apis", "namespace": "tks", "target_cluster": "" },
                       { "app_group": "tks-admin-tools", "path": "harbor", "namespace": "harbor", "target_cluster": "" }
                     ]
 
