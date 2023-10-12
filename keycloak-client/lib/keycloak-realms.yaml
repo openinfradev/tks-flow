@@ -57,7 +57,7 @@ spec:
               print(e)
               print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
               sys.exit(1)
-          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master', username='admin', password=secret, verify=True)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master', username='admin', password=secret, verify=False)
           keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
           try:
               keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
@@ -127,7 +127,7 @@ spec:
               print(e)
               print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
               sys.exit(1)
-          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master', username='admin', password=secret, verify=True)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master', username='admin', password=secret, verify=False)
           keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
           try:
               keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
@@ -145,4 +145,3 @@ spec:
               print('create realm failed')
               keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
               sys.exit(1)
-
