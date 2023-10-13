@@ -1,0 +1,553 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: bootstrap-tks-usercluster
+  namespace: argo
+spec:
+  entrypoint: deploy
+  arguments:
+    parameters:
+      - name: contract_id
+        value: "P0010010a"
+      - name: cluster_id
+        value: "C011b88fa"
+      - name: site_name
+        value: "{{ workflow.parameters.cluster_id }}"
+      - name: cloud_account_id # will be not NULL if the cluster is multitenancy
+        value: "NULL"
+      - name: template_name
+        value: "aws-reference"
+      - name: git_account
+        value: "tks-management"
+      - name: manifest_repo_url
+        value: ""
+      - name: revision
+        value: "main"
+      - name: app_prefix
+        value: "{{workflow.parameters.cluster_id}}"
+      - name: tks_api_url
+        value: "http://tks-api.tks.svc:9110"
+      - name: base_repo_branch
+        value: "main"
+
+  volumes:
+    - name: kubeconfig-adm
+      secret:
+        secretName: tks-admin-kubeconfig-secret
+    - name: awsconfig
+      secret:
+        secretName: awsconfig-secret
+    - name: artifacts
+      configMap:
+        name: aws-artifacts
+        defaultMode: 0555
+    - name: tks-proto-vol
+      configMap:
+        name: tks-proto
+    - name: awsconfig
+      secret:
+        secretName: awsconfig-secret
+
+  templates:
+    - name: deploy
+      steps:
+        - - name: tks-get-cluster-info
+            templateRef:
+              name: tks-get-cluster
+              template: getTksCluster
+
+        - - name: tks-create-cluster-repo
+            templateRef:
+              name: tks-create-cluster-repo
+              template: main
+            arguments:
+              parameters:
+                - name: cluster_info
+                  value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
+
+        - - name: render-manifests
+            templateRef:
+              name: event-gitea-render-manifests
+              template: main
+            arguments:
+              parameters:
+                - name: decapod_site_repo
+                  value: "{{ workflow.parameters.git_account }}/{{ workflow.parameters.cluster_id }}"
+                - name: base_repo_branch
+                  value: "{{ workflow.parameters.base_repo_branch }}"
+
+        - - name: k8s-by-aws
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "cluster-api-aws",
+                        "namespace": "argo",
+                        "target_cluster": "tks-admin"
+                      }
+                    ]
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws"
+
+        - - name: k8s-by-byoh
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "cluster-api-byoh",
+                        "namespace": "argo",
+                        "target_cluster": "tks-admin"
+                      }
+                    ]
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
+        - - name: init-cluster-for-tks
+            template: init-cluster-for-tks
+            arguments:
+              parameters:
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
+                - name: infra_provider
+                  value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
+                - name: cloud_account_id
+                  value: "{{ workflow.parameters.cloud_account_id }}"
+
+        - - name: create-aws-cluster-autoscaler-iam
+            templateRef:
+              name: aws-cluster-autoscaler-iam
+              template: createIAMRole
+            arguments:
+              parameters:
+                - name: cloud_account_id
+                  value: "{{ workflow.parameters.cloud_account_id }}"
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+
+        - - name: install-cluster-autoscaler-rbac
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "cluster-autoscaler-rbac",
+                        "namespace": "argo",
+                        "target_cluster": "tks-admin"
+                      }
+                    ]
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+        - - name: prepare-cluster-autoscaler
+            template: prepare-cluster-autoscaler
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+        - - name: install-volumesnapshot-crds
+            template: install-volumesnapshot-crds
+
+        - - name: install-addons-cni-crds
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "tigera-operator-crds",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+
+        - - name: install-addons-cni
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "tigera-operator",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+
+        - - name: install-cluster-autoscaler
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "cluster-autoscaler",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+        - - name: install-addons-common
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "ingress-nginx",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      },
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "metrics-server",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      },
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "cluster-autoscaler",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      },
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "argo-rollouts",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      }
+                    ]
+
+        - - name: install-addons-aws
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "s3-chart-crds",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      },
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "s3-chart",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws
+
+        - - name: install-addons-aws-for-self-managed
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "aws-ebs-csi-driver",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+        - - name: create-internal-communication
+            templateRef:
+              name: manage-internal-communication
+              template: deploy
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
+        - - name: install-addons-byoh
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster-byoh",
+                        "path": "local-path-provisioner",
+                        "namespace": "taco-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
+    #######################
+    # Template Definition #
+    #######################
+    - name: init-cluster-for-tks
+      inputs:
+        parameters:
+          - name: cluster_id
+          - name: infra_provider
+          - name: cloud_account_id
+      container:
+        name: cluster-init
+        image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
+        command:
+          - /bin/bash
+          - "-exc"
+          - |
+            cp /kube/value kubeconfig_adm
+            export KUBECONFIG=kubeconfig_adm
+            mkdir ~/.aws
+            cp /aws/* ~/.aws/
+
+            case $INFRA_PROVIDER in
+              aws)
+                # check whether this workload cluster is managed or not
+                kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
+                awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
+
+                if [ $kcp_count = 1 ]; then # Self-managed control plane cluster
+                  kubectl wait --for=condition=Available --timeout=3600s kcp -n $CLUSTER_ID $CLUSTER_ID
+
+                  KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+                elif [ $awsmcp_count = 1 ]; then # EKS cluster
+                  kubectl wait --for=condition=ready --timeout=3600s awsmcp -n $CLUSTER_ID $CLUSTER_ID
+                  KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+                  if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then # multitenancy cluster
+                    IDENTITY_ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+                    cat <<< $KUBECONFIG_WORKLOAD | sed '/args/,+7d' > tmp_kubeconfig_workload
+                    echo "      args:
+                  - --region
+                  - ap-northeast-2
+                  - eks
+                  - get-token
+                  - --cluster-name
+                  - ${CLUSTER_ID}
+                  - --output
+                  - json
+                  - --role
+                  - ${IDENTITY_ROLE_ARN}
+                  command: aws" | envsubst >> tmp_kubeconfig_workload
+                    KUBECONFIG_WORKLOAD=$(cat tmp_kubeconfig_workload)
+                  fi
+                else
+                  echo "Wrong AWS Cluster type!"
+                  exit 1
+                fi
+
+                cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
+
+                echo "Wait for machinepool $CLUSTER_ID-mp-$TKS_NODE_NAME generated"
+                while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME --ignore-not-found | wc -l) == 0 ]
+                do
+                  echo "Wait for machinepools deployed (1s)"
+                  sleep 1
+                done
+
+                desired_replicas=$(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.spec.replicas}' )
+                while [ $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.status.nodeRefs}' | jq '.[].uid' | wc -l) != $desired_replicas ]
+                do
+                  echo "Wait for instance is ready (1s)"
+                  sleep 1
+                done
+
+                for node in $(kubectl get machinepool -n $CLUSTER_ID $CLUSTER_ID-mp-$TKS_NODE_NAME -o=jsonpath='{.status.nodeRefs}'| jq -r '.[].name')
+                do
+                  kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled tks-ingressgateway=enabled tks-egressgateway=enabled tks-msa=enabled --overwrite
+                done
+                ;;
+
+              byoh)
+                kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
+
+                KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+                cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
+                ;;
+
+              *)
+                echo "Error: wrong infra provider"
+                exit 1
+                ;;
+            esac
+
+            export KUBECONFIG=kubeconfig_workload
+
+            cat <<EOF > taco-system.yaml
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              labels:
+                name: taco-system
+              name: taco-system
+            EOF
+            kubectl apply -f taco-system.yaml
+
+            argocd login --insecure --plaintext $ARGO_SERVER --username $ARGO_USERNAME --password $ARGO_PASSWORD
+            CLUSTER_CONTEXT=$(kubectl config current-context)
+
+            while [ $(kubectl get no | wc -l) == 0 ]
+            do
+                echo "Wait for cluster is ready (1s)"
+                sleep 1
+            done
+
+            if [ $(argocd cluster list | grep \ $CLUSTER_ID\ | wc -l ) == 0 ]; then
+                argocd cluster add $CLUSTER_CONTEXT --name $CLUSTER_ID --upsert
+            else
+                echo "Warning: $1 is already registered on argo-cd server. If unintended, it may occure woring operations."
+            fi
+
+            # Create a kubeconfig secret for TKS internal use from ArgoCD cluster secret and for TKS user
+            export KUBECONFIG=kubeconfig_adm
+            if [ $kcp_count = 1 ]; then
+              TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+              TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            elif [ $awsmcp_count = 1 ]; then
+              CAPA_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+
+              # tks-kubeconfig
+              cat <<< $CAPA_USER_KUBECONFIG_WORKLOAD | sed '/exec:/,+15d' > tmp_tks_kubeconfig_workload
+              API_SERVER=$(grep server tmp_tks_kubeconfig_workload | awk '{print tolower($2)}')
+              ARGOCD_CLUSTER_SECRET=$(kubectl get secret -n argo | grep ${API_SERVER#*\/\/} | awk '{print $1}')
+              CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
+              echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
+              TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
+
+              # tks-user-kubeconfig
+              if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then # multitenancy cluster
+                cat <<< $CAPA_USER_KUBECONFIG_WORKLOAD | sed "24 i \ \ \ \ \  - --role\n\ \ \ \ \ \ - $IDENTITY_ROLE_ARN" > tmp_tks_user_kubeconfig_workload
+                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_tks_user_kubeconfig_workload)
+              else
+                TKS_USER_KUBECONFIG_WORKLOAD=$CAPA_USER_KUBECONFIG_WORKLOAD
+              fi
+
+              cat <<EOF > sc-taco-storage.yaml
+            apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: taco-storage
+            parameters:
+              fsType: ext4
+              type: gp2
+            provisioner: kubernetes.io/aws-ebs
+            reclaimPolicy: Delete
+            volumeBindingMode: WaitForFirstConsumer
+            EOF
+              kubectl --kubeconfig kubeconfig_workload apply -f sc-taco-storage.yaml
+            else
+              echo "Wrong AWS Cluster type!"
+              exit 1
+            fi
+            cat <<< $TKS_KUBECONFIG_WORKLOAD > tks_kubeconfig_workload
+            kubectl create secret generic -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig --from-file=value=tks_kubeconfig_workload
+            cat <<< $TKS_USER_KUBECONFIG_WORKLOAD > tks_user_kubeconfig_workload
+            kubectl create secret generic -n $CLUSTER_ID $CLUSTER_ID-tks-user-kubeconfig --from-file=value=tks_user_kubeconfig_workload
+
+        volumeMounts:
+          - name: kubeconfig-adm
+            mountPath: "/kube"
+          - name: awsconfig
+            mountPath: "/aws"
+        envFrom:
+          - secretRef:
+              name: "decapod-argocd-config"
+        env:
+          - name: CLUSTER_ID
+            value: "{{ inputs.parameters.cluster_id }}"
+          - name: INFRA_PROVIDER
+            value: "{{ inputs.parameters.infra_provider }}"
+          - name: CLOUD_ACCOUNT_ID
+            value: "{{ inputs.parameters.cloud_account_id }}"
+          - name: TKS_NODE_NAME
+            value: "taco"
+
+    - name: prepare-cluster-autoscaler
+      container:
+        name: prepare-cluster-autoscaler
+        image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
+        command:
+          - /bin/bash
+          - "-exc"
+          - |
+            cp /kube/value kubeconfig
+
+            CLUSTER=$(kubectl --kubeconfig kubeconfig get cl -ojsonpath='{.items[0].metadata.name}' -n default)
+            ADMIN_USER=${CLUSTER}-admin
+            TOKEN=$(kubectl --kubeconfig kubeconfig get secrets -n {{workflow.parameters.cluster_id}} "$(kubectl --kubeconfig kubeconfig get sa cluster-autoscaler -n {{workflow.parameters.cluster_id}} -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
+            kubectl --kubeconfig kubeconfig config set-credentials cluster-autoscaler --token=$TOKEN
+            kubectl --kubeconfig kubeconfig config set-context cluster-autoscaler --cluster=$CLUSTER --user=cluster-autoscaler
+            kubectl --kubeconfig kubeconfig config use-context cluster-autoscaler
+            kubectl --kubeconfig kubeconfig config delete-context "$ADMIN_USER@$CLUSTER"
+            kubectl --kubeconfig kubeconfig config delete-user "$ADMIN_USER"
+
+            KUBECONFIG_WORKLOAD=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            echo -e "kubeconfig_workload:\n$KUBECONFIG_WORKLOAD" | head -n 5
+            cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
+
+            kubectl --kubeconfig kubeconfig_workload -n kube-system create secret generic mgmt-kubeconfig --from-file=kubeconfig
+        volumeMounts:
+          - name: kubeconfig-adm
+            mountPath: "/kube"
+
+    - name: install-volumesnapshot-crds
+      container:
+        name: install-volumesnapshot-crds
+        image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
+        command:
+          - /bin/bash
+          - "-exc"
+          - |
+            KUBECONFIG=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+            echo -e "kubeconfig:\n$KUBECONFIG" | head -n 5
+            cat <<< "$KUBECONFIG" > kubeconfig_temp
+
+            kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml -n kube-system
+            kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml -n kube-system
+            kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml -n kube-system

@@ -1,0 +1,80 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-stack-install
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
+    - name: cluster_id
+      value: ""
+    - name: organization_id
+      value: ""
+    - name: stack_template_id
+      value: "NULL"
+    - name: creator
+      value: ""
+    - name: description
+      value: ""
+    - name: object_store
+      value: "s3"
+    - name: base_repo_branch
+      value: develop
+
+  templates:
+  - name: main
+    steps:
+    - - name: tks-get-stack-template-type
+        templateRef:
+          name: tks-get-stack-template-type
+          template: getTksGetStackTemplateType
+
+    - - name: call-install-usercluster
+        templateRef:
+          name: tks-cli
+          template: install-usercluster
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+
+    - - name: call-create-appgroup-for-LMA
+        templateRef:
+          name: tks-cli
+          template: create-appgroup
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
+          - name: name
+            value: "{{workflow.parameters.cluster_id}}_lma"
+          - name: type
+            value: "LMA"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+
+    - - name: call-create-appgroup-for-SERVICEMESH
+        templateRef:
+          name: tks-cli
+          template: create-appgroup
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
+          - name: name
+            value: "{{workflow.parameters.cluster_id}}_servicemesh"
+          - name: type
+            value: "SERVICE_MESH"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+        when: "{{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA"
+

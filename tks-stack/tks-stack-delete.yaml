@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-stack-delete-aws
+  name: tks-stack-delete
   namespace: argo
 spec:
   entrypoint: main

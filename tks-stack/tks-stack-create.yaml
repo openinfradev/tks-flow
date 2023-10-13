@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-stack-create-aws
+  name: tks-stack-create
   namespace: argo
 spec:
   entrypoint: main
@@ -61,7 +61,6 @@ spec:
           - name: cloud_service
             value: "{{workflow.parameters.cloud_service}}"
 
-
     - - name: call-create-appgroup-for-LMA
         templateRef:
           name: tks-cli
@@ -78,6 +77,7 @@ spec:
             value: "{{workflow.parameters.creator}}"
           - name: description
             value: "{{workflow.parameters.description}}"
+        when: "{{workflow.parameters.cloud_service}} != BYOH"
 
     - - name: call-create-appgroup-for-SERVICEMESH
         templateRef:
@@ -95,4 +95,9 @@ spec:
             value: "{{workflow.parameters.creator}}"
           - name: description
             value: "{{workflow.parameters.description}}"
-        when: "{{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA"
+        when: "{{workflow.parameters.cloud_service}} != BYOH && {{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA"
+
+        when: >-
+          {{workflow.parameters.cloud_service}} != BYOH &&
+            {{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA
+
