@@ -90,6 +90,7 @@ spec:
       - name: description
       - name: infra_conf
       - name: cloud_service
+      - name: cluster_endpoint
     container:
       name: create-usercluster
       image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.3
@@ -109,6 +110,7 @@ spec:
           TKS_USER_NODE=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.tksUserNode')
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
+
           echo "* Create $CL_NAME cluster"
           tks cluster create ${CL_NAME} \
             --stack-template-id "{{inputs.parameters.stack_template_id}}" \
@@ -116,6 +118,7 @@ spec:
             --cloud-account-id "{{inputs.parameters.cloud_account_id}}" \
             --description "{{inputs.parameters.description}}" \
             --cloud-service "{{inputs.parameters.cloud_service}}" \
+            --cluster-endpoint "{{inputs.parameters.cluster_endpoint}}" \
             --stack 1 \
             --tks-cp-node $TKS_CP_NODE \
             --tks-infra-node $TKS_INFRA_NODE \
