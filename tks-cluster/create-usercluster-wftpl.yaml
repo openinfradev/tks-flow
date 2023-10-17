@@ -216,9 +216,7 @@ spec:
                         "target_cluster": ""
                       }
                     ]
-            when: >-
-              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
-                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh"
 
         - - name: install-addons-common
             templateRef:
@@ -233,18 +231,6 @@ spec:
                         "app_group": "tks-cluster",
                         "path": "ingress-nginx",
                         "namespace": "taco-system",
-                        "target_cluster": ""
-                      },
-                      {
-                        "app_group": "tks-cluster",
-                        "path": "metrics-server",
-                        "namespace": "kube-system",
-                        "target_cluster": ""
-                      },
-                      {
-                        "app_group": "tks-cluster",
-                        "path": "cluster-autoscaler",
-                        "namespace": "kube-system",
                         "target_cluster": ""
                       },
                       {
@@ -318,7 +304,7 @@ spec:
                   value: |
                     [
                       {
-                        "app_group": "tks-cluster-byoh",
+                        "app_group": "tks-cluster",
                         "path": "local-path-provisioner",
                         "namespace": "taco-system",
                         "target_cluster": ""
