@@ -123,6 +123,10 @@ spec:
                 - name: cloud_account_id
                   value: "{{ workflow.parameters.cloud_account_id }}"
 
+        - - name: approve-for-byoh
+            suspend: {}
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
         - - name: create-aws-cluster-autoscaler-iam
             templateRef:
               name: aws-cluster-autoscaler-iam
@@ -324,7 +328,7 @@ spec:
                         "target_cluster": ""
                       }
                     ]
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == nanana"
 
     #######################
     # Template Definition #
