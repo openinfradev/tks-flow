@@ -1,0 +1,567 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: keycloak-user
+  namespace: argo
+spec:
+  templates:
+    - name: unassign-client-role-to-user
+      inputs:
+        parameters:
+          - name: server_url
+            value: http://tks-console-dev.taco-cat.xyz/auth/
+          - name: target_realm_name
+            value: test3
+          - name: target_client_id
+            value: k8s-oidc6
+          - name: keycloak_credential_secret_name
+            value: keycloak
+          - name: keycloak_credential_secret_namespace
+            value: keycloak
+          - name: client_role_name
+            value: admin
+          - name: user_names
+            value: '["user1"]'
+      script:
+        command:
+          - python3
+        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
+          import requests
+          from kubernetes import client, config
+          import sys
+          import base64
+          import json
+          input_params = {'server_url': '{{inputs.parameters.server_url}}', 'target_realm_name': '{{inputs.parameters.target_realm_name}}', 'target_client_id': '{{inputs.parameters.target_client_id}}', 'keycloak_credential_secret_name': '{{inputs.parameters.keycloak_credential_secret_name}}', 'keycloak_credential_secret_namespace': '{{inputs.parameters.keycloak_credential_secret_namespace}}', 'client_role_name': '{{inputs.parameters.client_role_name}}', 'user_names': '{{inputs.parameters.user_names}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  config.load_kube_config(config_file=kubeconfig_path)
+              else:
+                  config.load_incluster_config()
+              return client.CoreV1Api()
+        
+          def get_secret(k8s_client, secret_name, secret_namespace):
+              secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('admin-password')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
+          k8s_client = get_kubernetes_api(local=False)
+          try:
+              secret_name = input_params['keycloak_credential_secret_name']
+              secret_namespace = input_params['keycloak_credential_secret_namespace']
+              secret = get_secret(k8s_client, secret_name, secret_namespace)
+              print(f'get secret "{secret_name}" in "{secret_namespace}" namespace')
+          except Exception as e:
+              print(e)
+              print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
+              sys.exit(1)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name=input_params['target_realm_name'], user_realm_name='master', username='admin', password=secret, verify=False)
+          keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
+          try:
+              keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
+              print(f"login to {input_params['server_url']} success")
+          except Exception as e:
+              print(e)
+              print(f"login to {input_params['server_url']} failed")
+              sys.exit(1)
+          try:
+              try:
+                  hashed_client_id = keycloak_admin.get_client_id(client_id=input_params['target_client_id'])
+                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}".""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f"""get client id "{input_params['target_client_id']} failed""")
+              try:
+                  idOfClientRole = keycloak_admin.get_client_role_id(client_id=hashed_client_id, role_name=input_params['client_role_name'])
+                  print(f"""client role id in client id "{input_params['target_client_id']}" is "{idOfClientRole}".""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f"""get client role "{input_params['client_role_name']}" failed""")
+              input_params['user_names'] = json.loads(input_params['user_names'])
+              for user in input_params['user_names']:
+                  try:
+                      idOfUser = keycloak_admin.get_user_id(username=user)
+                      print(f'id of user "{user}" is "{idOfUser}".')
+                  except Exception as inner_e:
+                      print(inner_e)
+                      raise Exception(f'get user "{user}" failed')
+              try:
+                  keycloak_admin.delete_client_roles_of_user(client_id=hashed_client_id, user_id=idOfUser, roles=[{'id': idOfClientRole, 'name': input_params['client_role_name']}])
+                  print(f"""un-assign client role "{input_params['client_role_name']}" to user "{input_params['user_names']}" success""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception('un-assign client role to user on keycloak failed')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+          except Exception as e:
+              print(e)
+              print(f"""un-assign client role "{input_params['client_role_name']}" to user "{input_params['user_names']}" failed""")
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+              sys.exit(1)
+    - name: create-user
+      inputs:
+        parameters:
+          - name: server_url
+            value: http://tks-console-dev.taco-cat.xyz/auth/
+          - name: target_realm_name
+            value: test3
+          - name: keycloak_credential_secret_name
+            value: keycloak
+          - name: keycloak_credential_secret_namespace
+            value: keycloak
+          - name: user_name
+            value: user1
+          - name: user_password
+            value: user1
+          - name: user_email
+            value: test@gmail.com
+          - name: user_first_name
+            value: ''
+          - name: user_last_name
+            value: ''
+      script:
+        command:
+          - python3
+        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
+          from kubernetes import client, config
+          import sys
+          import base64
+          input_params = {'server_url': '{{inputs.parameters.server_url}}', 'target_realm_name': '{{inputs.parameters.target_realm_name}}', 'keycloak_credential_secret_name': '{{inputs.parameters.keycloak_credential_secret_name}}', 'keycloak_credential_secret_namespace': '{{inputs.parameters.keycloak_credential_secret_namespace}}', 'user_name': '{{inputs.parameters.user_name}}', 'user_password': '{{inputs.parameters.user_password}}', 'user_email': '{{inputs.parameters.user_email}}', 'user_first_name': '{{inputs.parameters.user_first_name}}', 'user_last_name': '{{inputs.parameters.user_last_name}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  config.load_kube_config(config_file=kubeconfig_path)
+              else:
+                  config.load_incluster_config()
+              return client.CoreV1Api()
+        
+          def get_secret(k8s_client, secret_name, secret_namespace):
+              secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('admin-password')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
+          k8s_client = get_kubernetes_api(local=False)
+          try:
+              secret_name = input_params['keycloak_credential_secret_name']
+              secret_namespace = input_params['keycloak_credential_secret_namespace']
+              secret = get_secret(k8s_client, secret_name, secret_namespace)
+              print(f'get secret "{secret_name}" in "{secret_namespace}" namespace')
+          except Exception as e:
+              print(e)
+              print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
+              sys.exit(1)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name=input_params['target_realm_name'], user_realm_name='master', username='admin', password=secret, verify=False)
+          keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
+          try:
+              keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
+              print(f"login to {input_params['server_url']} success")
+          except Exception as e:
+              print(e)
+              print(f"login to {input_params['server_url']} failed")
+              sys.exit(1)
+          try:
+              user_name = input_params['user_name']
+              user_password = input_params['user_password']
+              user_email = input_params['user_email']
+              user_first_name = input_params['user_first_name']
+              user_last_name = input_params['user_last_name']
+              keycloak_admin.create_user({'username': user_name, 'email': user_email, 'enabled': True, 'firstName': user_first_name, 'lastName': user_last_name, 'credentials': [{'type': 'password', 'value': user_password, 'temporary': False}]})
+              print(f'create user {user_name} success')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+          except Exception as e:
+              print(e)
+              print(f'create user {user_name} failed')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+              sys.exit(1)
+    - name: list-users
+      inputs:
+        parameters:
+          - name: server_url
+            value: http://tks-console-dev.taco-cat.xyz/auth/
+          - name: target_realm_name
+            value: test3
+          - name: keycloak_credential_secret_name
+            value: keycloak
+          - name: keycloak_credential_secret_namespace
+            value: keycloak
+      script:
+        command:
+          - python3
+        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
+          from kubernetes import client, config
+          import sys
+          import base64
+          import json
+          input_params = {'server_url': '{{inputs.parameters.server_url}}', 'target_realm_name': '{{inputs.parameters.target_realm_name}}', 'keycloak_credential_secret_name': '{{inputs.parameters.keycloak_credential_secret_name}}', 'keycloak_credential_secret_namespace': '{{inputs.parameters.keycloak_credential_secret_namespace}}'}
+          output_file_path = '/tmp/output.json'
+          output_params = {'users': []}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  config.load_kube_config(config_file=kubeconfig_path)
+              else:
+                  config.load_incluster_config()
+              return client.CoreV1Api()
+        
+          def get_secret(k8s_client, secret_name, secret_namespace):
+              secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('admin-password')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
+          k8s_client = get_kubernetes_api(local=False)
+          try:
+              secret_name = input_params['keycloak_credential_secret_name']
+              secret_namespace = input_params['keycloak_credential_secret_namespace']
+              secret = get_secret(k8s_client, secret_name, secret_namespace)
+              print(f'get secret "{secret_name}" in "{secret_namespace}" namespace')
+          except Exception as e:
+              print(e)
+              print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
+              sys.exit(1)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name=input_params['target_realm_name'], user_realm_name='master', username='admin', password=secret, verify=False)
+          keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
+          try:
+              keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
+              print(f"login to {input_params['server_url']} success")
+          except Exception as e:
+              print(e)
+              print(f"login to {input_params['server_url']} failed")
+              sys.exit(1)
+          try:
+              users = keycloak_admin.get_users()
+              print(f'get users success')
+              name_list = []
+              for user in users:
+                  name_list.append(user['username'])
+              try:
+                  data = {'user_names': name_list}
+                  with open(output_file_path, 'w') as f:
+                      json.dump(data, f)
+                  print(f'Users data saved to {output_file_path}')
+              except Exception as e:
+                  print(e)
+                  print(f'failed to save users data')
+                  sys.exit(1)
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+          except Exception as e:
+              print(e)
+              print(f'get users failed')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+              sys.exit(1)
+        volumeMounts:
+          - mountPath: /tmp
+            name: output-volume
+      outputs:
+        parameters:
+          - name: output
+            valueFrom:
+              path: /tmp/output.json
+    - name: assign-client-role-to-all-realm-user
+      inputs:
+        parameters:
+          - name: server_url
+            value: http://tks-console-dev.taco-cat.xyz/auth/
+          - name: target_realm_name
+            value: test3
+          - name: target_client_id
+            value: k8s-oidc6
+          - name: keycloak_credential_secret_name
+            value: keycloak
+          - name: keycloak_credential_secret_namespace
+            value: keycloak
+          - name: client_role_name
+            value: admin
+      script:
+        command:
+          - python3
+        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
+          from kubernetes import client, config
+          import sys
+          import base64
+          import json
+          input_params = {'server_url': '{{inputs.parameters.server_url}}', 'target_realm_name': '{{inputs.parameters.target_realm_name}}', 'target_client_id': '{{inputs.parameters.target_client_id}}', 'keycloak_credential_secret_name': '{{inputs.parameters.keycloak_credential_secret_name}}', 'keycloak_credential_secret_namespace': '{{inputs.parameters.keycloak_credential_secret_namespace}}', 'client_role_name': '{{inputs.parameters.client_role_name}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  config.load_kube_config(config_file=kubeconfig_path)
+              else:
+                  config.load_incluster_config()
+              return client.CoreV1Api()
+        
+          def get_secret(k8s_client, secret_name, secret_namespace):
+              secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('admin-password')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
+          k8s_client = get_kubernetes_api(local=False)
+          try:
+              secret_name = input_params['keycloak_credential_secret_name']
+              secret_namespace = input_params['keycloak_credential_secret_namespace']
+              secret = get_secret(k8s_client, secret_name, secret_namespace)
+              print(f'get secret "{secret_name}" in "{secret_namespace}" namespace')
+          except Exception as e:
+              print(e)
+              print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
+              sys.exit(1)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name=input_params['target_realm_name'], user_realm_name='master', username='admin', password=secret, verify=False)
+          keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
+          try:
+              keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
+              print(f"login to {input_params['server_url']} success")
+          except Exception as e:
+              print(e)
+              print(f"login to {input_params['server_url']} failed")
+              sys.exit(1)
+          try:
+              try:
+                  hashed_client_id = keycloak_admin.get_client_id(client_id=input_params['target_client_id'])
+                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}".""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f"""get client id "{input_params['target_client_id']} failed""")
+              try:
+                  idOfClientRole = keycloak_admin.get_client_role_id(client_id=hashed_client_id, role_name=input_params['client_role_name'])
+                  print(f"""client role id in client id "{input_params['target_client_id']}" is "{idOfClientRole}".""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f"""get client role "{input_params['client_role_name']}" failed""")
+              try:
+                  users = keycloak_admin.get_users()
+                  for user in users:
+                      username = user['username']
+                      idOfUser = keycloak_admin.get_user_id(username=username)
+                      print(f'id of user "{username}" is "{idOfUser}".')
+                      keycloak_admin.assign_client_role(client_id=hashed_client_id, user_id=idOfUser, roles=[{'id': idOfClientRole, 'name': input_params['client_role_name']}])
+                      print(f"""assign client role "{input_params['client_role_name']}" to user "{username}" success""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f'assign client role to user on keycloak failed')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+          except Exception as e:
+              print(e)
+              print(f"""assign client role "{input_params['client_role_name']}" to users failed""")
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+              sys.exit(1)
+    - name: assign-client-role-to-user
+      inputs:
+        parameters:
+          - name: server_url
+            value: http://tks-console-dev.taco-cat.xyz/auth/
+          - name: target_realm_name
+            value: test3
+          - name: target_client_id
+            value: k8s-oidc6
+          - name: keycloak_credential_secret_name
+            value: keycloak
+          - name: keycloak_credential_secret_namespace
+            value: keycloak
+          - name: client_role_name
+            value: admin
+          - name: user_names
+            value: '["user1"]'
+      script:
+        command:
+          - python3
+        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
+          from kubernetes import client, config
+          import sys
+          import base64
+          import json
+          input_params = {'server_url': '{{inputs.parameters.server_url}}', 'target_realm_name': '{{inputs.parameters.target_realm_name}}', 'target_client_id': '{{inputs.parameters.target_client_id}}', 'keycloak_credential_secret_name': '{{inputs.parameters.keycloak_credential_secret_name}}', 'keycloak_credential_secret_namespace': '{{inputs.parameters.keycloak_credential_secret_namespace}}', 'client_role_name': '{{inputs.parameters.client_role_name}}', 'user_names': '{{inputs.parameters.user_names}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  config.load_kube_config(config_file=kubeconfig_path)
+              else:
+                  config.load_incluster_config()
+              return client.CoreV1Api()
+        
+          def get_secret(k8s_client, secret_name, secret_namespace):
+              secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('admin-password')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
+          k8s_client = get_kubernetes_api(local=False)
+          try:
+              secret_name = input_params['keycloak_credential_secret_name']
+              secret_namespace = input_params['keycloak_credential_secret_namespace']
+              secret = get_secret(k8s_client, secret_name, secret_namespace)
+              print(f'get secret "{secret_name}" in "{secret_namespace}" namespace')
+          except Exception as e:
+              print(e)
+              print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
+              sys.exit(1)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name=input_params['target_realm_name'], user_realm_name='master', username='admin', password=secret, verify=False)
+          keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
+          try:
+              keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
+              print(f"login to {input_params['server_url']} success")
+          except Exception as e:
+              print(e)
+              print(f"login to {input_params['server_url']} failed")
+              sys.exit(1)
+          try:
+              try:
+                  hashed_client_id = keycloak_admin.get_client_id(client_id=input_params['target_client_id'])
+                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}".""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f"""get client id "{input_params['target_client_id']} failed""")
+              try:
+                  idOfClientRole = keycloak_admin.get_client_role_id(client_id=hashed_client_id, role_name=input_params['client_role_name'])
+                  print(f"""client role id in client id "{input_params['target_client_id']}" is "{idOfClientRole}".""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f"""get client role "{input_params['client_role_name']}" failed""")
+              input_params['user_names'] = json.loads(input_params['user_names'])
+              for user in input_params['user_names']:
+                  try:
+                      idOfUser = keycloak_admin.get_user_id(username=user)
+                      print(f'id of user "{user}" is "{idOfUser}".')
+                  except Exception as inner_e:
+                      print(inner_e)
+                      raise Exception(f'get user "{user}" failed')
+              try:
+                  keycloak_admin.assign_client_role(client_id=hashed_client_id, user_id=idOfUser, roles=[{'id': idOfClientRole, 'name': input_params['client_role_name']}])
+                  print(f"""assign client role "{input_params['client_role_name']}" to user "{input_params['user_names']}" success""")
+              except Exception as inner_e:
+                  print(inner_e)
+                  raise Exception(f'assign client role to user on keycloak failed')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+          except Exception as e:
+              print(e)
+              print(f"""assign client role "{input_params['client_role_name']}" to user "{input_params['user_names']}" failed""")
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+              sys.exit(1)
+    - name: delete-user
+      inputs:
+        parameters:
+          - name: server_url
+            value: http://tks-console-dev.taco-cat.xyz/auth/
+          - name: target_realm_name
+            value: test3
+          - name: keycloak_credential_secret_name
+            value: keycloak
+          - name: keycloak_credential_secret_namespace
+            value: keycloak
+          - name: user_name
+            value: user1
+      script:
+        command:
+          - python3
+        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
+          from kubernetes import client, config
+          import sys
+          import base64
+          input_params = {'server_url': '{{inputs.parameters.server_url}}', 'target_realm_name': '{{inputs.parameters.target_realm_name}}', 'keycloak_credential_secret_name': '{{inputs.parameters.keycloak_credential_secret_name}}', 'keycloak_credential_secret_namespace': '{{inputs.parameters.keycloak_credential_secret_namespace}}', 'user_name': '{{inputs.parameters.user_name}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  config.load_kube_config(config_file=kubeconfig_path)
+              else:
+                  config.load_incluster_config()
+              return client.CoreV1Api()
+        
+          def get_secret(k8s_client, secret_name, secret_namespace):
+              secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('admin-password')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def input_validation(origin_input_params):
+              if (not (origin_input_params['server_url'][(- 1)] == '/')):
+                  origin_input_params['server_url'] += '/'
+          input_validation(input_params)
+          k8s_client = get_kubernetes_api(local=False)
+          try:
+              secret_name = input_params['keycloak_credential_secret_name']
+              secret_namespace = input_params['keycloak_credential_secret_namespace']
+              secret = get_secret(k8s_client, secret_name, secret_namespace)
+              print(f'get secret "{secret_name}" in "{secret_namespace}" namespace')
+          except Exception as e:
+              print(e)
+              print(f'failed to get secret "{secret_name}" in "{secret_namespace}" namespace')
+              sys.exit(1)
+          keycloak_connection = KeycloakOpenIDConnection(server_url=input_params['server_url'], client_id='admin-cli', realm_name=input_params['target_realm_name'], user_realm_name='master', username='admin', password=secret, verify=False)
+          keycloak_openid = KeycloakOpenID(server_url=input_params['server_url'], client_id='admin-cli', realm_name='master')
+          try:
+              keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
+              print(f"login to {input_params['server_url']} success")
+          except Exception as e:
+              print(e)
+              print(f"login to {input_params['server_url']} failed")
+              sys.exit(1)
+          try:
+              user_name = input_params['user_name']
+              try:
+                  user_id = keycloak_admin.get_user_id(user_name)
+                  print(f'user id of {user_name}: {user_id}')
+              except Exception as e:
+                  print(e)
+                  raise Exception(f'failed to get user id of {user_name}')
+              try:
+                  keycloak_admin.delete_user(user_id)
+                  print(f'delete user {user_name} success')
+              except Exception as e:
+                  print(e)
+                  raise Exception(f'failed to remove user {user_name} on keycloak')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+          except Exception as e:
+              print(e)
+              print(f'delete user {user_name} failed')
+              keycloak_openid.logout(keycloak_admin.connection.token['refresh_token'])
+              sys.exit(1)
