@@ -405,6 +405,7 @@ spec:
                 ;;
 
               byoh)
+                kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
                 kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
@@ -482,7 +483,7 @@ spec:
             EOF
               kubectl --kubeconfig kubeconfig_workload apply -f sc-taco-storage.yaml
             else
-              echo "Wrong AWS Cluster type!"
+              echo "Wrong Cluster type!"
               exit 1
             fi
             cat <<< $TKS_KUBECONFIG_WORKLOAD > tks_kubeconfig_workload
