@@ -320,6 +320,8 @@ spec:
               template: main
             arguments:
               parameters:
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
                 - name: server_url
                   value: "{{ workflow.parameters.keycloak_url }}"
                 - name: target_realm_name
@@ -330,8 +332,41 @@ spec:
                   value: "keycloak"
                 - name: keycloak_credential_secret_namespace
                   value: "keycloak"
-                - name: client_role_name
-                  value: "system:masters"
+
+        - - name: set-cluster-role-binding-cluster-admin
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "{{workflow.parameters.cluster_id}}-cluster-admin"
+                - name: role_name
+                  value: "admin"
+                - name: group_list
+                  value: '["{{workflow.parameters.cluster_id}}-cluster-admin", "cluster-admin"]'
+
+        - - name: set-cluster-role-binding-cluster-view
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "{{workflow.parameters.cluster_id}}-cluster-view"
+                - name: role_name
+                  value: "view"
+                - name: group_list
+                  value: '["{{workflow.parameters.cluster_id}}-cluster-view", "cluster-view"]'
+
 
     #######################
     # Template Definition #
