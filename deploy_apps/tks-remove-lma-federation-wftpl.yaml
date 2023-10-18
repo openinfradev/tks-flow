@@ -330,24 +330,29 @@ spec:
 
           kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          
+
           while ! kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found; do
             echo "Waiting for the grafana service to appear in cluster ${cluster_id} (5s)"
             sleep 5
           done
-          
-          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
-            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
-              log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
-              exit -1
-            fi
-          
-            echo "Waiting for generating the loadbalancer of grafana(3s)"
-            sleep 3
-          done
-          
-          endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          
+
+          grafana_ep_secret=${kubectl --kubeconfig=kubeconfig get secret -n taco-system tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d }
+          if [ grafana_ep_secret == "" ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of grafana(3s)"
+              sleep 3
+            done
+
+            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          else
+            endpoint=${grafana_ep_secret}
+          fi
+
           # Login to keycloak
           admin_password=$(kubectl get secret -n keycloak keycloak -o jsonpath="{.data.admin-password}" | base64 -d)
           TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=admin -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
@@ -358,21 +363,18 @@ spec:
             echo "client already not exist"
           else
             JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
+
+            MODIFIED_JSON=$(echo $JSON_DATA | jq --arg value1 "http://$endpoint/*" --arg value2 "https://$endpoint/*" '.[0] | { "redirectUris": (.redirectUris | map(select(. != $value1 and . != $value2))) }')
+
             # Convert the array to a JSON array
-            num_redirect_uris=$(echo $JSON_DATA | jq '.[0].redirectUris | length')
-            last_redirect_uri=$(echo $JSON_DATA | jq -r '.[0].redirectUris[-1]')
-            if [ $num_redirect_uris -gt 1 ]
-            then
-                # Remove endpoint from client redirectUris
-                MODIFIED_JSON=$(echo $JSON_DATA | jq --arg value "http://$endpoint/*" '.[0] | { "redirectUris": (.redirectUris | map(select(. != $value))) }' )
-                # Write the JSON array to a new file
+            num_redirect_uris=$(echo $MODIFIED_JSON | jq '.redirectUris | length')
+
+            if [ $num_redirect_uris -gt 0 ]; then
                 echo "$MODIFIED_JSON" > modified_data.json
-                curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 
-            elif [ $num_redirect_uris -eq 1 ] && [ "$last_redirect_uri" == "http://$endpoint/*" ]; then
+                curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+            else
                 # Remove client
                 curl -s -k -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
-            else
-              echo "no redirect uri to remove"
             fi
           fi
       envFrom:

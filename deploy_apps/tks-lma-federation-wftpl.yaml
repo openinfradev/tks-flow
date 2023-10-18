@@ -350,59 +350,59 @@ spec:
           #################
           # Get endpoints
           #################
-
           kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          
+
           while ! kubectl --kubeconfig=kubeconfig get svc -n lma grafana --ignore-not-found; do
             echo "Waiting for the grafana service to appear in cluster ${cluster_id} (5s)"
             sleep 5
           done
-          
-          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
-            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
-              log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
-              exit -1
-            fi
-        
-            echo "Waiting for generating the loadbalancer of grafana(3s)"
-            sleep 3
-          done
-          
-          endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+
+          grafana_ep_secret=${kubectl --kubeconfig=kubeconfig get secret -n taco-system tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d }
+          if [ grafana_ep_secret == "" ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of grafana(3s)"
+              sleep 3
+            done
+
+            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          else
+            endpoint=${grafana_ep_secret}
+          fi
 
           # Login to keycloak
           admin_password=$(kubectl get secret -n keycloak keycloak -o jsonpath="{.data.admin-password}" | base64 -d)
-          TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=admin -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')          
+          TOKEN=$(curl -s -k -X POST ${keycloak_url}/auth/realms/master/protocol/openid-connect/token -d grant_type=password -d username=admin -d password=${admin_password} -d client_id=admin-cli | jq -r '.access_token')
 
           client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
           if [ -z "$client_uuid" ]; then
             # Create client
-          
+
             printf '{
                 "clientId" : "grafana",
                 "directAccessGrantsEnabled": true,
-                "standardFlowEnabled": true,
-                "redirectUris": ["http://%s/*"]
-            }\n' "$endpoint" > client.json
-            
+                "standardFlowEnabled": true
+            }\n' > client.json
+
             curl -s -k POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @client.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients
             client_uuid=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana | jq -r ' .[] | {id} | .id')
-            secret=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"type":"secret"}' ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}/client-secret | jq -r '.value')
-          else
-            # Reuse client
-            echo "client already exist"
-            JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
-
-            # Convert the array to a JSON array
-            MODIFIED_JSON=$(echo "$JSON_DATA" | jq --arg endpoint "http://$endpoint/*" 'map(.redirectUris += [$endpoint] | {redirectUris: .redirectUris})')
-            MODIFIED_JSON=$(echo $MODIFIED_JSON | jq '.[0]')
-          
-            # Write the JSON array to a new file
-            echo "$MODIFIED_JSON" > modified_data.json
-            curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid} 
-            secret=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}/client-secret | jq -r '.value')
           fi
+
+          JSON_DATA=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients\?\clientId\=grafana)
+
+          # Convert the array to a JSON array
+          MODIFIED_JSON=$(echo "$JSON_DATA" | jq --arg endpoint1 "http://$endpoint/*" --arg endpoint2 "https://$endpoint/*" 'map(.redirectUris += [$endpoint1, $endpoint2] | {redirectUris: .redirectUris})')
+          MODIFIED_JSON=$(echo $MODIFIED_JSON | jq '.[0]')
+
+          # Write the JSON array to a new file
+          echo "$MODIFIED_JSON" > modified_data.json
+          curl -s -k -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d @modified_data.json ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}
+          secret=$(curl -s -k GET -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" ${keycloak_url}/auth/admin/realms/${organization_id}/clients/${client_uuid}/client-secret | jq -r '.value')
 
           echo ${secret} > /mnt/out/keycloak_client_secret.txt
           echo ${endpoint} > /mnt/out/grafana_endpoint.txt
