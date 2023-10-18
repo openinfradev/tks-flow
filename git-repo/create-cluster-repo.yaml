@@ -195,7 +195,7 @@ spec:
           path: /mnt/out/infra_provider.txt
       - name: managed_cluster
         valueFrom:
-          default: "Something wrong"
+          default: "false"
           path: /mnt/out/managed_cluster.txt
 
   - name: createRepoCredential

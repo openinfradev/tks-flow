@@ -29,6 +29,8 @@ spec:
       value: "s3"
     - name: base_repo_branch
       value: develop
+    - name: cluster_endpoint
+      value: ""
 
   templates:
   - name: main
@@ -60,6 +62,8 @@ spec:
             value: "{{workflow.parameters.infra_conf}}"
           - name: cloud_service
             value: "{{workflow.parameters.cloud_service}}"
+          - name: cluster_endpoint
+            value: "{{workflow.parameters.cluster_endpoint}}"
 
     - - name: call-create-appgroup-for-LMA
         templateRef:
