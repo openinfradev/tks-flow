@@ -409,6 +409,11 @@ spec:
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
                 cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
+
+                for node in $(kubectl get machine -l cluster.x-k8s.io/deployment-name=$CLUSTER_ID $CLUSTER_ID-md-$TKS_NODE_NAME -o=jsonpath='{.items[*].status.nodeRef.name}')
+                do
+                  kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled tks-ingressgateway=enabled tks-egressgateway=enabled tks-msa=enabled --overwrite
+                done
                 ;;
 
               *)
