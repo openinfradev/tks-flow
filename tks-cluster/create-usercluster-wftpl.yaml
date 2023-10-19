@@ -264,6 +264,12 @@ spec:
                       },
                       {
                         "app_group": "tks-cluster",
+                        "path": "metrics-server",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      }, 
+                      {
+                        "app_group": "tks-cluster",
                         "path": "s3-chart",
                         "namespace": "taco-system",
                         "target_cluster": ""
