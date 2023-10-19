@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+
+ARG GIT_COMMIT
+ARG VERSION
+
+LABEL maintainer="cho4036@gmail.com" \
+      version=$VERSION \
+      git-commit=$GIT_COMMIT \
+      description="This is python image to use keycloak and kubernetes api" \
+      license="Apache License 2.0"
+
+COPY ./build/requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt

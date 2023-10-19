@@ -21,6 +21,9 @@ spec:
       value: "{{workflow.parameters.cluster_id}}"
     - name: filter
       value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group_prefix}}"
+    - name: keycloak_url
+      value: '{{workflow.parameters.keycloak_url}}'
+
   volumes:
   - name: tks-proto-vol
     configMap:
@@ -189,6 +192,24 @@ spec:
         templateRef:
           name: tks-delete-cluster-repo
           template: deleteClusterRepo
+
+    - - name: unset-keycloak-config
+        templateRef:
+          name: keycloak-client
+          template: delete-client
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.contract_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id}}-k8s-api"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+
 
 
   #######################
