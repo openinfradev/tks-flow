@@ -30,7 +30,7 @@ spec:
       - name: base_repo_branch
         value: "main"
       - name: keycloak_url
-        value: '{{workflow.parameters.keycloak_url}}'
+        value: 'https://keycloak.yourdomain.org/auth'
 
   volumes:
     - name: kubeconfig-adm
@@ -124,6 +124,10 @@ spec:
                   value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
                 - name: cloud_account_id
                   value: "{{ workflow.parameters.cloud_account_id }}"
+                - name: keycloak_url
+                  value: "{{ workflow.parameters.keycloak_url }}"
+                - name: contract_id
+                  value: "{{ workflow.parameters.contract_id }}"
 
         - - name: create-aws-cluster-autoscaler-iam
             templateRef:
@@ -377,6 +381,8 @@ spec:
           - name: cluster_id
           - name: infra_provider
           - name: cloud_account_id
+          - name: keycloak_url
+          - name: contract_id
       container:
         name: cluster-init
         image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
@@ -496,7 +502,29 @@ spec:
             export KUBECONFIG=kubeconfig_adm
             if [ $kcp_count = 1 ]; then
               TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+              if [ "$INFRA_PROVIDER" == "byoh" ]; then
+                ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
+                CLIENT_ID=$CLUSTER_ID-k8s-api
+                OIDC_USER_NAME="oidc-user"
+                EXISTING_USER_NAME=$CLUSTER_ID-admin
+                
+                kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d > tmp_user_kubeconfig
+                kubectl --kubeconfig=tmp_user_kubeconfig config unset users.$EXISTING_USER_NAME
+                kubectl --kubeconfig=tmp_user_kubeconfig config set-credentials $OIDC_USER_NAME \
+                  --exec-api-version=client.authentication.k8s.io/v1beta1 \
+                  --exec-command=kubectl \
+                  --exec-arg=oidc-login \
+                  --exec-arg=get-token \
+                  --exec-arg=--oidc-issuer-url=$ISSUER_URL \
+                  --exec-arg=--oidc-client-id=$CLIENT_ID \
+                  --exec-arg=--grant-type=password 
+                
+                CONTEXT_NAME=$(kubectl --kubeconfig=tmp_user_kubeconfig config current-context)
+                kubectl --kubeconfig=tmp_user_kubeconfig config set-context $CONTEXT_NAME --user $OIDC_USER_NAME
+                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_user_kubeconfig)
+              else
+                TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+              fi
             elif [ $awsmcp_count = 1 ]; then
               CAPA_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
 
@@ -555,6 +583,10 @@ spec:
             value: "{{ inputs.parameters.cloud_account_id }}"
           - name: TKS_NODE_NAME
             value: "taco"
+          - name: KEYCLOAK_URL
+            value: "{{ inputs.parameters.keycloak_url }}"
+          - name: CONTRACT_ID
+            value: "{{ inputs.parameters.contract_id }}"
 
     - name: prepare-cluster-autoscaler
       container:
