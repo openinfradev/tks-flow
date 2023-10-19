@@ -269,48 +269,6 @@ spec:
           default: "Something wrong"
           path: /mnt/out/managed_cluster.txt
 
-  - name: GetMyThanosScEndpoint
-    inputs:
-      parameters:
-      - name: target_namespace
-    outputs:
-      parameters:
-      - name: my_thanos_sc_ep
-        valueFrom:
-          path: /mnt/out/thanos_sc_ep.txt
-    volumes:
-    - name: out
-      emptyDir: {}
-    container:
-      name: 'get-thanos-ep'
-      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
-      envFrom:
-      - secretRef:
-          name: "git-svc-token"
-      env:
-        - name: TARGET_NAMESPACE
-          value: '{{inputs.parameters.target_namespace}}'
-      volumeMounts:
-      - name: out
-        mountPath: /mnt/out
-      command:
-        - /bin/bash
-        - '-c'
-        - |
-          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-          echo -e "kube_secret:\n$kube_secret" | head -n 5
-          cat <<< "$kube_secret" > /etc/kubeconfig
-
-          THANOS_SC_PORT='10901'
-          THANOS_SC_SVC='lma-thanos-external'
-          thanos_sc_ep=$(kubectl --kubeconfig=/etc/kubeconfig get svc ${THANOS_SC_SVC} -n ${TARGET_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          if [[ -z "$thanos_sc_ep" ]]; then
-            echo "Error: could not retrieve thanos sidecar endpoint from service resource."
-            exit 1
-          else
-            echo "$thanos_sc_ep:$THANOS_SC_PORT" > /mnt/out/thanos_sc_ep.txt
-          fi
-
   - name: create-keycloak-client
     activeDeadlineSeconds: 600
     inputs:
@@ -358,7 +316,8 @@ spec:
             sleep 5
           done
 
-          grafana_ep_secret=${kubectl --kubeconfig=kubeconfig get secret -n taco-system tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d }
+          grafana_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d )
+
           if [ grafana_ep_secret == "" ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
               if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
