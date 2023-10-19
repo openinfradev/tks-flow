@@ -23,6 +23,8 @@ spec:
       value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group_prefix}}"
     - name: keycloak_url
       value: '{{workflow.parameters.keycloak_url}}'
+    - name: contract_id
+      value: "P0010010a"
 
   volumes:
   - name: tks-proto-vol
