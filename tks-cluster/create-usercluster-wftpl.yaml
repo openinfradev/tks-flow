@@ -67,6 +67,17 @@ spec:
                 - name: cluster_info
                   value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
 
+        # - - name: tks-create-config-secret
+        #     templateRef:
+        #       name: TODO_tks-create-config-secret
+        #       template: main_tks-create-config-secret
+        #     arguments:
+        #       parameters:
+        #         - name: TODO--cluster_info
+        #           value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
+        #     when: >-
+        #       ( {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != aws )
+
         - - name: render-manifests
             templateRef:
               name: event-gitea-render-manifests

@@ -66,7 +66,7 @@ spec:
       #   template: sub-get-cluster
 
     - - name: set-primary-cluster-on-tks-info
-        template: sub-set-primay-cluster-on-tks-info
+        template: sub-set-primary-cluster-on-tks-info
         arguments:
           parameters:
           - name: cluster_id
@@ -210,7 +210,6 @@ spec:
       - name: primary_cluster
       - name: member_clusters
     steps:
-
     - - name: change-thanos-sidecar
         template: sub-change-thanos-sidecar
         arguments:
@@ -309,7 +308,7 @@ spec:
           primary_cluster=${current_cluster}
         fi
 
-        S3_Service="s3://ap-northeast-2"
+        S3_SERVICE="s3://ap-northeast-2"
         cp /kube/value kubeconfig_adm
         export KUBECONFIG=kubeconfig_adm
 
@@ -334,7 +333,7 @@ spec:
         for member in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
-          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_Service (the current target is ${member})"
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${member})"
           [ -d ${member} ] || git clone ${repository_base}${member}
           cd ${member}
 
@@ -347,9 +346,9 @@ spec:
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
           yq -i e "del(.charts[] | select(.name == \"loki\").override.loki.storageConfig.aws)" ${member}/lma/site-values.yaml
-          yq  -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.s3=\"s3://ap-northeast-2\")" ${member}/lma/site-values.yaml
-          yq  -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.dynamodb.dynamodb_url=\"dynamodb://ap-northeast-2\")" ${member}/lma/site-values.yaml
-          yq  -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.bucketnames=\"${primary_cluster}-tks-loki\")" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.s3=\"s3://ap-northeast-2\")" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.dynamodb.dynamodb_url=\"dynamodb://ap-northeast-2\")" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.bucketnames=\"${primary_cluster}-tks-loki\")" ${member}/lma/site-values.yaml
 
           if [ `kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             if [ -z $iamRoles ]; then
@@ -363,7 +362,7 @@ spec:
 
           cd -
         done
-        yq -i e  ".global.iamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
+        yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
 
         git config --global user.name "tks"
         git config --global user.email "tks@sktelecom.com"
@@ -446,25 +445,37 @@ spec:
         primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
+        LOKI_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.loki}'| base64 -d )
 
-        while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
-        do
-          if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
-            log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
-            exit -1
+        if [ "$LOKI_SERVICE" == "" ]; then
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+          do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+              log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
+              exit -1
+            fi
+
+            echo "Waiting for generating the loadbalancer of LOKI(3s)"
+            sleep 3
+          done
+
+          LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
+        else
+          LOKI_HOST=$(echo $LOKI_SERVICE | awk -F : '{print $1}')
+          LOKI_PORT=$(echo $LOKI_SERVICE | awk -F : '{print $2}')
+          if [ "$LOKI_PORT" == "" ]; then
+            LOKI_PORT=80
           fi
-
-          echo "Waiting for generating the loadbalancer of LOKI(3s)"
-          sleep 3
-        done
-
-        LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-        LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
+        fi
 
         if [ "$OBJECT_SOTRE" == "minio" ]; then
-          S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          S3_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
-          S3_Service=${S3_HOST}:${S3_PORT}
+          S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
+          if [ "$S3_SERVICE" == "" ]; then
+            S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+            S3_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
+            S3_SERVICE=${S3_HOST}:${S3_PORT}
+          fi
         fi
 
         #################
@@ -480,19 +491,19 @@ spec:
         for member in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
-          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_Service (the current target is ${member})"
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${member})"
           [ -d ${member} ] || git clone ${repository_base}${member}
           cd ${member}
 
           yq -i e  ".global.lokiHost=\"${LOKI_HOST}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${member}/lma/site-values.yaml
           if [ "$OBJECT_SOTRE" == "minio" ]; then
-            yq -i e  ".global.s3Service=\"${S3_Service}\"" ${member}/lma/site-values.yaml
+            yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
           fi
 
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
-          # 2. grafana datasource on primay_cluster
+          # 2. grafana datasource on primary_cluster
           if [ ${member} = ${primary_cluster} ]; then
             yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.TksWebhookUrl=\"{{workflow.parameters.alert_tks}}\"" ${member}/lma/site-values.yaml
@@ -511,9 +522,9 @@ spec:
         do
           cd ${member}
           if [[ `git status --porcelain` ]]; then
-            log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_Service"
+            log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE"
             if [ "$OBJECT_SOTRE" == "minio" ]; then
-              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_Service (cluster ${member})"
+              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_SERVICE (cluster ${member})"
             else
               cmessage="the loki to $LOKI_HOST:$LOKI_PORT (cluster ${member})"
             fi
@@ -581,7 +592,16 @@ spec:
           primary_cluster=${current_cluster}
         fi
 
-        S3_Service="s3://ap-northeast-2"
+        primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+        # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
+        cat <<< "$primary_kube_secret" > kubeconfig
+        S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
+        if [ "$S3_SERVICE" == "" ]; then
+          echo "This site uses the predefined loki and static object stores."
+          exit 0
+        fi
+
+        S3_SERVICE="s3://ap-northeast-2"
         cp /kube/value kubeconfig_adm
         export KUBECONFIG=kubeconfig_adm
 
@@ -595,7 +615,7 @@ spec:
           repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
         fi
 
-        log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_Service (the current target is ${current_cluster})"
+        log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${current_cluster})"
         [ -d ${current_cluster} ] || git clone ${repository_base}${current_cluster}
         cd ${current_cluster}
 
@@ -689,7 +709,10 @@ spec:
           # Thanos Endpoints
           kube_secret=$(kubectl get secret -n ${member} ${member}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+          PROMETHEUS_URL=$(kubectl get secret -n ${member} tks-endpoint-secret -o jsonpath='{.data.prometheus}'| base64 -d )
+          if [ "$PROMETHEUS_URL" != "" ]; then
+            eplist="${eplist}, \"$(PROMETHEUS_URL)\""
+          elif [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
             do
               if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
@@ -754,29 +777,29 @@ spec:
         yq -i e  ".global.thanosQueryStores=[${eplist}]" ${primary_cluster}/lma/site-values.yaml
 
         if [[ `git status --porcelain` ]]; then
-          log "INFO" "##### commit changes endpoints for the thanos query on ${primay_cluster} "
-          cmessage="changes endpoints for the thanos query on ${primay_cluster}"
+          log "INFO" "##### commit changes endpoints for the thanos query on ${primary_cluster} "
+          cmessage="changes endpoints for the thanos query on ${primary_cluster}"
           git add ${primary_cluster}/lma/site-values.yaml
           git commit -m "change thanos-query stores. (by set-primary workflow)" -m "$cmessage"
           git push
           echo ${primary_cluster} > /mnt/out/changed.txt
         else
-          log "INFO" "No change on the cluster ${member}"
+          log "INFO" "No change on the cluster ${primary_cluster}"
           echo NO_CHANGE_HERE > /mnt/out/changed.txt
         fi
 
         if [ "$OBJECT_SOTRE" != "s3" ]; then
-          yq -i e  ".global.iamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
+          yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
 
           if [[ `git status --porcelain` ]]; then
-            log "INFO" "##### commit changes iamRoles for the s3 on ${primay_cluster} "
-            cmessage="changes iamRoles for the s3 on ${primay_cluster}"
+            log "INFO" "##### commit changes iamRoles for the s3 on ${primary_cluster} "
+            cmessage="changes iamRoles for the s3 on ${primary_cluster}"
             git add ${primary_cluster}/lma/site-values.yaml
             git commit -m "change iamRoles(s3). (by set-primary workflow)" -m "$cmessage"
             git push
             echo ${primary_cluster} > /mnt/out/changed.txt
           else
-            log "INFO" "(iamRoles) No change on the cluster ${member}"
+            log "INFO" "(iamRoles) No change on the cluster ${primary_cluster}"
           fi
         fi
 
@@ -807,7 +830,6 @@ spec:
         valueFrom:
           path: /mnt/out/changed.txt
     activeDeadlineSeconds: 900
-
 
   - name: sub-remove-individual-loki-and-grafana
     inputs:
@@ -946,7 +968,7 @@ spec:
     retryStrategy:
       limit: 2
 
-  - name: sub-set-primay-cluster-on-tks-info
+  - name: sub-set-primary-cluster-on-tks-info
     inputs:
       parameters:
       - name: cluster_id
