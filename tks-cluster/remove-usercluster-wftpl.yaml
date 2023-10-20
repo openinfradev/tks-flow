@@ -67,6 +67,9 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
+        when: >-
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
 
     - - name: deleteClusterAutoscalerRbacApp
         templateRef:
@@ -263,7 +266,7 @@ spec:
           path: /mnt/out/infra_provider.txt
       - name: managed_cluster
         valueFrom:
-          default: "Something wrong"
+          default: "false"
           path: /mnt/out/managed_cluster.txt
 
   - name: disableAutoSync
