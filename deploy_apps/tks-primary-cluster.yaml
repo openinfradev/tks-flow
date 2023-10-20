@@ -111,40 +111,18 @@ spec:
               ]
         when: "{{workflow.parameters.object_store}} == minio"
 
-    - - name: pre-change-target
-        template: sub-pre-change-logging-target
+    - - name: loki-use-s3
+        template: loki-use-s3
         arguments:
           parameters:
           - name: primary_cluster
             value: '{{inputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{inputs.parameters.member_clusters}}'
-        when: "{{workflow.parameters.object_store}} == s3"
-
-    - - name: render-pre-modified-clusters
-        templateRef:
-          name: event-gitea-render-manifests
-          template: main
-        arguments:
-          parameters:
-          - name: decapod_site_repo
-            value: "{{ workflow.parameters.github_account }}/{{item}}"
+          - name: github_account
+            value: "{{ workflow.parameters.github_account }}"
           - name: base_repo_branch
             value: "{{ workflow.parameters.base_repo_branch }}"
-        withParam: "{{ steps.pre-change-target.outputs.parameters.modified_cluster_list}}"
-
-    - - name: federation-components-preinstall-for-s3
-        templateRef:
-          name: create-application
-          template: installApps
-        arguments:
-          parameters:
-          - name: list
-            value: |
-              [
-                { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" },
-                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
-              ]
         when: "{{workflow.parameters.object_store}} == s3"
 
     - - name: change-target
@@ -203,6 +181,49 @@ spec:
           - name: base_repo_branch
             value: "{{ workflow.parameters.base_repo_branch }}"
         withParam: "{{ steps.change-target.outputs.parameters.modified_cluster_list}}"
+
+  - name: loki-use-s3
+    inputs:
+      parameters:
+          - name: primary_cluster
+          - name: member_clusters
+          - name: github_account
+          - name: base_repo_branch
+
+    steps:
+    - - name: pre-change-target
+        template: sub-pre-change-logging-target
+        arguments:
+          parameters:
+          - name: primary_cluster
+            value: '{{inputs.parameters.primary_cluster}}'
+          - name: member_clusters
+            value: '{{inputs.parameters.member_clusters}}'
+
+    - - name: render-pre-modified-clusters
+        templateRef:
+          name: event-gitea-render-manifests
+          template: main
+        arguments:
+          parameters:
+          - name: decapod_site_repo
+            value: "{{ workflow.parameters.github_account }}/{{item}}"
+          - name: base_repo_branch
+            value: "{{ workflow.parameters.base_repo_branch }}"
+        withParam: "{{ steps.pre-change-target.outputs.parameters.modified_cluster_list}}"
+
+    - - name: federation-components-preinstall-for-s3
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
+              ]
 
   - name: update-eps-for-thanos
     inputs:
