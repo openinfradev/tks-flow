@@ -617,7 +617,7 @@ spec:
         # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
         S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
-        if [ "$S3_SERVICE" == "" ]; then
+        if [ "$S3_SERVICE" != "" ]; then
           echo "This site uses the predefined loki and static object stores."
           exit 0
         fi
