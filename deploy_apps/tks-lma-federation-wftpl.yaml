@@ -316,7 +316,8 @@ spec:
             sleep 5
           done
 
-          grafana_ep_secret=${kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d }
+          grafana_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d )
+
           if [ grafana_ep_secret == "" ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
               if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
