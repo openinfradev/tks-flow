@@ -684,10 +684,10 @@ spec:
               grafana: $(echo ${CLUSTER_IP}:30001 | base64)  # 30001
               loki: $(echo ${CLUSTER_IP}:30002 | base64)   # 30002
               minio: $(echo ${CLUSTER_IP}:30003 | base64)   # 30003
-              promehtues: $(echo ${CLUSTER_IP}:30004 | base64)    # 30004
+              prometheus: $(echo ${CLUSTER_IP}:30004 | base64)    # 30004
               thanos: $(echo ${CLUSTER_IP}:30005 | base64)  # 30005 (queryfrontend만 합시다...)
-              Kiali: $(echo ${CLUSTER_IP}:30011 | base64)    # 30011
-              Jaeger: $(echo ${CLUSTER_IP}:30012 | base64)    # 30012
+              kiali: $(echo ${CLUSTER_IP}:30011 | base64)    # 30011
+              jaeger: $(echo ${CLUSTER_IP}:30012 | base64)    # 30012
             EOF
             kubectl apply -f tks-endpoint-secret.yaml
         env:
