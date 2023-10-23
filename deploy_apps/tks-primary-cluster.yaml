@@ -665,7 +665,7 @@ spec:
           jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
         else
           echo "This site uses the predefined loki and static object stores."
-          # exit 0
+          echo NO_CHANGE_HERE >  /mnt/out/modified_cluster_list.txt
         fi
 
       env:
