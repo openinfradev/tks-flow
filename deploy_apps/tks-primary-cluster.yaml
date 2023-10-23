@@ -732,7 +732,7 @@ spec:
           cat <<< "$kube_secret" > kubeconfig
           PROMETHEUS_URL=$(kubectl get secret -n ${member} tks-endpoint-secret -o jsonpath='{.data.prometheus}'| base64 -d )
           if [ "$PROMETHEUS_URL" != "" ]; then
-            eplist="${eplist}, \"$(PROMETHEUS_URL)\""
+            eplist="${eplist}, \"${PROMETHEUS_URL}\""
           elif [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
             do
