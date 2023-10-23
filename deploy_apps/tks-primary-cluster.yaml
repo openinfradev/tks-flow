@@ -617,55 +617,56 @@ spec:
         # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
         S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
-        if [ "$S3_SERVICE" != "" ]; then
+        if [ "$S3_SERVICE" == "" ]; then
+
+          S3_SERVICE="s3://ap-northeast-2"
+          cp /kube/value kubeconfig_adm
+          export KUBECONFIG=kubeconfig_adm
+
+          #################
+          # updates
+          #################
+          GIT_ACCOUNT={{workflow.parameters.github_account}}
+          if  [[ $GIT_SVC_URL == https://* ]]; then
+            repository_base=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+          else
+            repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+          fi
+
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${current_cluster})"
+          [ -d ${current_cluster} ] || git clone ${repository_base}${current_cluster}
+          cd ${current_cluster}
+
+          yq -i e "del(.charts[] | select(.name == \"thanos-config\").override.objectStorage)" ${current_cluster}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.type=\"s3\")" ${current_cluster}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.endpoint=\"s3.ap-northeast-2.amazonaws.com\")" ${current_cluster}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.region=\"ap-northeast-2\")" ${current_cluster}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.bucket=\"${primary_cluster}-tks-thanos\")" ${current_cluster}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.signature_version2=false)" ${current_cluster}/lma/site-values.yaml
+
+          git config --global user.name "tks"
+          git config --global user.email "tks@sktelecom.com"
+
+          if [[ `git status --porcelain` ]]; then
+            log "INFO" "##### commit changes on ${current_cluster} to use s3"
+            cmessage="changes on ${current_cluster} to use s3"
+            git add ${current_cluster}/lma/site-values.yaml
+            git commit -m "change loki and thanos endpoints. (by set-primary workflow)" -m "$cmessage"
+            git push
+            modified_clusters=${current_cluster}
+            # echo -n "${current_cluster} " >>  /mnt/out/modified_cluster_list.txt
+          else
+            log "INFO" "No change on the cluster ${current_cluster}"
+            echo NO_CHANGE_HERE > /mnt/out/modified_cluster_list.txt
+          fi
+          cd -
+          rm -rf ${current_cluster}
+
+          jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
+        else
           echo "This site uses the predefined loki and static object stores."
-          exit 0
+          # exit 0
         fi
-
-        S3_SERVICE="s3://ap-northeast-2"
-        cp /kube/value kubeconfig_adm
-        export KUBECONFIG=kubeconfig_adm
-
-        #################
-        # updates
-        #################
-        GIT_ACCOUNT={{workflow.parameters.github_account}}
-        if  [[ $GIT_SVC_URL == https://* ]]; then
-          repository_base=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
-        else
-          repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
-        fi
-
-        log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${current_cluster})"
-        [ -d ${current_cluster} ] || git clone ${repository_base}${current_cluster}
-        cd ${current_cluster}
-
-        yq -i e "del(.charts[] | select(.name == \"thanos-config\").override.objectStorage)" ${current_cluster}/lma/site-values.yaml
-        yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.type=\"s3\")" ${current_cluster}/lma/site-values.yaml
-        yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.endpoint=\"s3.ap-northeast-2.amazonaws.com\")" ${current_cluster}/lma/site-values.yaml
-        yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.region=\"ap-northeast-2\")" ${current_cluster}/lma/site-values.yaml
-        yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.bucket=\"${primary_cluster}-tks-thanos\")" ${current_cluster}/lma/site-values.yaml
-        yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.signature_version2=false)" ${current_cluster}/lma/site-values.yaml
-
-        git config --global user.name "tks"
-        git config --global user.email "tks@sktelecom.com"
-
-        if [[ `git status --porcelain` ]]; then
-          log "INFO" "##### commit changes on ${current_cluster} to use s3"
-          cmessage="changes on ${current_cluster} to use s3"
-          git add ${current_cluster}/lma/site-values.yaml
-          git commit -m "change loki and thanos endpoints. (by set-primary workflow)" -m "$cmessage"
-          git push
-          modified_clusters=${current_cluster}
-          # echo -n "${current_cluster} " >>  /mnt/out/modified_cluster_list.txt
-        else
-          log "INFO" "No change on the cluster ${current_cluster}"
-          echo NO_CHANGE_HERE > /mnt/out/modified_cluster_list.txt
-        fi
-        cd -
-        rm -rf ${current_cluster}
-
-        jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
 
       env:
       - name: OBJECT_SOTRE
