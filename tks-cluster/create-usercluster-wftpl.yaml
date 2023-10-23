@@ -665,31 +665,31 @@ spec:
           - /bin/bash
           - '-c'
           - |
-          CLUSTER_INFO={{inputs.parameters.cluster_info}}
-          CLUSTER_ID={{inputs.parameters.cluster_id}}
-          CLUSTER_IP=$(echo $CLUSTER_INFO | jq -r '.byoClusterEndpointHost')
+            CLUSTER_INFO={{inputs.parameters.cluster_info}}
+            CLUSTER_ID={{inputs.parameters.cluster_id}}
+            CLUSTER_IP=$(echo $CLUSTER_INFO | jq -r '.byoClusterEndpointHost')
 
-          if [ "$CLUSTER_IP"="" ]; then
-            echo "ERROR::Endpoint for the cluster is not given!!!"
-            exit -1
-          fi
+            if [ "$CLUSTER_IP"="" ]; then
+              echo "ERROR::Endpoint for the cluster is not given!!!"
+              exit -1
+            fi
 
-          cat <<EOF > ${tks-endpoint-secret}.yaml
-            ---
-            apiVersion: v1
-            kind: Secret
-            metadata:
-              name: tks-endpoint-secret
-              namespace: ${CLUSTER_ID}
-            data:
-              grafana: $(echo ${CLUSTER_IP}:30001 | base64)  # 30001
-              loki: $(echo ${CLUSTER_IP}:30002 | base64)   # 30002
-              minio: $(echo ${CLUSTER_IP}:30003 | base64)   # 30003
-              promehtues: $(echo ${CLUSTER_IP}:30004 | base64)    # 30004
-              thanos: $(echo ${CLUSTER_IP}:30005 | base64)  # 30005 (queryfrontend만 합시다...)
-              Kiali: $(echo ${CLUSTER_IP}:30011 | base64)    # 30011
-              Jaeger: $(echo ${CLUSTER_IP}:30012 | base64)    # 30012
-          EOF
-          kubectl apply -f ${tks-endpoint-secret}.yaml
+            cat <<EOF > tks-endpoint-secret.yaml
+              ---
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: tks-endpoint-secret
+                namespace: ${CLUSTER_ID}
+              data:
+                grafana: $(echo ${CLUSTER_IP}:30001 | base64)  # 30001
+                loki: $(echo ${CLUSTER_IP}:30002 | base64)   # 30002
+                minio: $(echo ${CLUSTER_IP}:30003 | base64)   # 30003
+                promehtues: $(echo ${CLUSTER_IP}:30004 | base64)    # 30004
+                thanos: $(echo ${CLUSTER_IP}:30005 | base64)  # 30005 (queryfrontend만 합시다...)
+                Kiali: $(echo ${CLUSTER_IP}:30011 | base64)    # 30011
+                Jaeger: $(echo ${CLUSTER_IP}:30012 | base64)    # 30012
+            EOF
+            kubectl apply -f tks-endpoint-secret.yaml
 
       activeDeadlineSeconds: 30
