@@ -72,7 +72,7 @@ spec:
     - name: pv_mount_path
       value: ""
     # tks_info service URL
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
     - name: git_repo_url
       value: "github.com/openinfradev"

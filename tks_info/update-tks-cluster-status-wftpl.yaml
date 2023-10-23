@@ -7,7 +7,7 @@ spec:
   entrypoint: updateClusterStatus
   arguments:
     parameters:
-    - name: tks_info_host
+    - name: tks_api_url
       value: "tks-info.tks.svc"
     - name: cluster_id
       value: "Cabbead61"
@@ -43,7 +43,7 @@ spec:
         import common_pb2
         import common_pb2_grpc
 
-        ip = "{{workflow.parameters.tks_info_host}}"
+        ip = "{{workflow.parameters.tks_api_url}}"
         port = 9110 # if not specified
         addr = "%s:%d" % (ip, port)
         print("tks-info addr: %s" % addr)

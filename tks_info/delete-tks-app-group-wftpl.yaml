@@ -7,7 +7,7 @@ spec:
   entrypoint: deleteTksAppGroup
   arguments:
     parameters:
-    - name: tks_info_host
+    - name: tks_api_url
       value: "127.0.0.1"
     - name: app_group_id
       value: "Aabbead61"
@@ -39,7 +39,7 @@ spec:
         import common_pb2
         import common_pb2_grpc
 
-        ip = "{{workflow.parameters.tks_info_host}}"
+        ip = "{{workflow.parameters.tks_api_url}}"
         port = 9110 # if not specified
         addr = "%s:%d" % (ip, port)
         print("tks-info addr: %s" % addr)

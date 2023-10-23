@@ -12,7 +12,7 @@ spec:
   - name: login-tks-api
     container:
       name: login-tks-api
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -31,7 +31,7 @@ spec:
       - name: description
     container:
       name: create-organization
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -89,9 +89,11 @@ spec:
       - name: creator
       - name: description
       - name: infra_conf
+      - name: cloud_service
+      - name: cluster_endpoint
     container:
       name: create-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -103,25 +105,82 @@ spec:
 
           echo "infra_conf : {{inputs.parameters.infra_conf}}"
 
-          CP_NODE_CNT=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.cpNodeCnt')
-          TKS_NODE_CNT=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.tksNodeCnt')
-          USER_NODE_CNT=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.userNodeCnt')
+          TKS_CP_NODE=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.tksCpNode')
+          TKS_INFRA_NODE=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.tksInfraNode')
+          TKS_USER_NODE=$(echo "{{inputs.parameters.infra_conf}}" | jq -r '.tksUserNode')
 
           CL_NAME="{{inputs.parameters.cluster_name}}"
+
           echo "* Create $CL_NAME cluster"
           tks cluster create ${CL_NAME} \
             --stack-template-id "{{inputs.parameters.stack_template_id}}" \
             --organization-id "{{inputs.parameters.organization_id}}" \
             --cloud-account-id "{{inputs.parameters.cloud_account_id}}" \
             --description "{{inputs.parameters.description}}" \
-            --cp-node-cnt $CP_NODE_CNT \
-            --tks-node-cnt $TKS_NODE_CNT \
-            --user-node-cnt $USER_NODE_CNT
+            --cloud-service "{{inputs.parameters.cloud_service}}" \
+            --cluster-endpoint "{{inputs.parameters.cluster_endpoint}}" \
+            --stack 1 \
+            --tks-cp-node $TKS_CP_NODE \
+            --tks-infra-node $TKS_INFRA_NODE \
+            --tks-user-node $TKS_USER_NODE
 
-          threshold=60
+          threshold=720
           for i in $(seq 1 $threshold)
           do
-            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{ print $4 }')
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_NAME | awk '{ print $4 }')
+            if [ "$CL_STATUS" = "RUNNING" ] || [ "$CL_STATUS" = "BOOTSTRAPPED" ]; then
+              break
+            elif [ "$CL_STATUS" = "ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for user-cluster to be ready."
+              exit 1
+            fi
+            sleep 5s
+          done
+
+          tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_NAME | awk '{print $3}' | tee /mnt/out/cluster_id.txt
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: cluster-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/cluster_id.txt
+
+  - name: install-usercluster
+    inputs:
+      parameters:
+      - name: cluster_id
+      - name: organization_id
+    container:
+      name: install-usercluster
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
+
+          CL_ID="{{inputs.parameters.cluster_id}}"
+
+          echo "* Install $CL_NAME cluster"
+          tks cluster install -c ${CL_ID}
+
+          threshold=720
+          for i in $(seq 1 $threshold)
+          do
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_ID | awk '{ print $4 }')
             if [ "$CL_STATUS" = "RUNNING" ]; then
               break
             elif [ "$CL_STATUS" = "ERROR" ]; then
@@ -132,10 +191,10 @@ spec:
               echo "Timed out waiting for user-cluster to be ready."
               exit 1
             fi
-            sleep 1m
+            sleep 5
           done
 
-          tks cluster list "{{inputs.parameters.organization_id}}" | grep $CL_NAME | awk '{print $3}' | tee /mnt/out/cluster_id.txt
+          tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_ID | awk '{print $3}' | tee /mnt/out/cluster_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -156,7 +215,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -199,7 +258,7 @@ spec:
       - name: description
     container:
       name: create-appgroup
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -213,7 +272,7 @@ spec:
           threshold=30
           for i in $(seq 1 $threshold)
           do
-            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $5}')
+            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $5}')
             if [ "$STATUS" = "RUNNING" ]; then
               break
             elif [ "$STATUS" = "ERROR" ]; then
@@ -227,7 +286,7 @@ spec:
             sleep 1m
           done
 
-          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
+          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out
@@ -249,7 +308,7 @@ spec:
       - name: appgroup_id
     container:
       name: delete-appgroup
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -268,7 +327,7 @@ spec:
               break
             fi
 
-            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $5}')
+            STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $5}')
             if [ "$STATUS" = "DELETED" ]; then
               break
             elif [ "$STATUS" = "ERROR" ]; then
@@ -289,7 +348,7 @@ spec:
       - name: name
     container:
       name: get-appgroup-id
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v2.1.7
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.1.4
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -299,7 +358,7 @@ spec:
         - |
           tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
 
-          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
+          echo $(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $3}') | tee /mnt/out/appgroup_id.txt
       volumeMounts:
         - name: out
           mountPath: /mnt/out

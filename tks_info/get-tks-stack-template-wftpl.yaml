@@ -1,41 +1,48 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: tks-update-appgroup
+  name: tks-get-stack-template-type
   namespace: argo
 spec:
-  entrypoint: updateTksAppGroup
+  entrypoint: getTksGetStackTemplateType
   arguments:
     parameters:
     - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
-    - name: app_group_id
-      value: "abcdefghi"
+    - name: stack_template_id
+      value: "NULL"
   templates:
-  - name: updateTksAppGroup
-    inputs:
+  - name: getTksGetStackTemplateType
+    outputs:
       parameters:
-      - name: endpoint
-      - name: app_type
+      - name: stack_template_type
+        valueFrom:
+          path: /mnt/out/stack_template_type.txt
+    volumes:
+    - name: out
+      emptyDir: {}
     script:
       image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
       command: ["python"]
       env:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      - name: TKS_API_URL
+        value: "{{workflow.parameters.tks_api_url}}"
       envFrom:
       - secretRef:
-          name: "tks-api-secret"
+          name: "tks-api-secret"       
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
       source: |
         import sys
         import requests
+        import json
         import os
 
         TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
-        APPGROUP_ID = "{{workflow.parameters.app_group_id}}"
-        ENDPOINT = "{{inputs.parameters.endpoint}}"
-        APPTYPE = "{{inputs.parameters.app_type}}"
-         
+        STACK_TEMPLATE_ID = "{{workflow.parameters.stack_template_id}}"
 
         def getToken() :
             data = {
@@ -50,14 +57,13 @@ spec:
             resJson = res.json()
             return resJson['user']['token']
 
-        print( ENDPOINT )
-        data = {
-            'appGroupId' : APPGROUP_ID,
-            'applicationType' : APPTYPE,
-            'endpoint' : ENDPOINT
-        }
-        res = requests.post(TKS_API_URL + '/api/1.0/app-groups/' + APPGROUP_ID + '/applications' , headers={'Authorization': 'Bearer ' + getToken()}, json = data )
-        print("Response code from UpdateApplication : %d" % res.status_code)
 
+        res = requests.get(TKS_API_URL+"/api/1.0/stack-templates/" + STACK_TEMPLATE_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        if res.status_code != 200 :
+            sys.exit('Failed to get stackTemplate')
 
+        stackTemplate = res.json()['stackTemplate']
+        print(stackTemplate)
 
+        with open("/mnt/out/stack_template_type.txt", "w") as f:
+            f.write(stackTemplate['templateType'])

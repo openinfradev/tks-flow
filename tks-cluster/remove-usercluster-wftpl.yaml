@@ -9,7 +9,7 @@ spec:
     parameters:
     - name: app_group_prefix
       value: "tks-cluster"
-    - name: tks_info_host
+    - name: tks_api_url
       value: "tks-info.tks.svc"
     - name: cluster_id
       value: "Cabbead61"
@@ -21,6 +21,11 @@ spec:
       value: "{{workflow.parameters.cluster_id}}"
     - name: filter
       value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group_prefix}}"
+    - name: keycloak_url
+      value: '{{workflow.parameters.keycloak_url}}'
+    - name: contract_id
+      value: "P0010010a"
+
   volumes:
   - name: tks-proto-vol
     configMap:
@@ -62,6 +67,9 @@ spec:
           parameters:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
+        when: >-
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh &&
+              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
 
     - - name: deleteClusterAutoscalerRbacApp
         templateRef:
@@ -190,6 +198,24 @@ spec:
           name: tks-delete-cluster-repo
           template: deleteClusterRepo
 
+    - - name: unset-keycloak-config
+        templateRef:
+          name: keycloak-client
+          template: delete-client
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.contract_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id}}-k8s-api"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+
+
 
   #######################
   # Template Definition #
@@ -240,7 +266,7 @@ spec:
           path: /mnt/out/infra_provider.txt
       - name: managed_cluster
         valueFrom:
-          default: "Something wrong"
+          default: "false"
           path: /mnt/out/managed_cluster.txt
 
   - name: disableAutoSync
