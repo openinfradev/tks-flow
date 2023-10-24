@@ -7,22 +7,24 @@ spec:
   entrypoint: deploy
   arguments:
     parameters:
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
+    - name: template_name
+      value: "aws-reference"
     - name: contract_id
       value: "P0010010a"
     - name: cluster_id
       value: "C011b88fa"
     - name: kubeconfig
       value: "KUBECONFIG_string"
-    - name: template_name
-      value: "aws-reference"
-    - name: git_base_url
-      value: "github.com"
     - name: git_account
       value: "tks"
-    - name: git_org
-      value: "decapod10"
     - name: keycloak_url
       value: "keycloakUrl"
+    - name: cloud_account_id
+      value: "NULL"
+    - name: base_repo_branch
+      value: "main"
 
   volumes:
   - name: kubeconfig-adm
@@ -42,14 +44,19 @@ spec:
   templates:
   - name: deploy
     steps:
-    - - name: create-cluster-repo
-        template: create-cluster-repo
+    - - name: tks-get-cluster-info
+        templateRef:
+          name: tks-get-cluster
+          template: getTksCluster
+
+    - - name: tks-create-cluster-repo
+        templateRef:
+          name: tks-create-cluster-repo
+          template: main
         arguments:
           parameters:
-          - name: git_base_url
-            value: "{{ workflow.parameters.git_base_url }}"
-          - name: git_org
-            value: "{{ workflow.parameters.git_org }}"
+            - name: cluster_info
+              value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
 
     - - name: import-cluster
         template: import-cluster
@@ -90,79 +97,6 @@ spec:
   #######################
   # Template Definition #
   #######################
-  - name: create-cluster-repo
-    activeDeadlineSeconds: 300
-    inputs:
-      parameters:
-      - name: git_base_url
-      - name: git_org
-    container:
-      name: 'createClusterRepo'
-      image: harbor.taco-cat.xyz/tks/ghcli-alpine:2.0.0
-      imagePullPolicy: IfNotPresent
-      command:
-      - /bin/bash
-      - -ecx
-      - |
-        echo ${GIT_ORG}
-        TOKEN=$(echo -n $TOKEN)
-        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'"}' https://${GIT_BASE_URL}/api/v1/orgs/${GIT_ORG}/repos
-        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'$CLUSTER_ID'-manifests"}' https://${GIT_BASE_URL}/api/v1/orgs/${GIT_ORG}/repos
-
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CONTRACT_ID}.git
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CLUSTER_ID}.git
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CLUSTER_ID}-manifests.git
-
-        cd ${CONTRACT_ID}
-        CONTRACT_COMMIT_ID=$(git rev-parse HEAD)
-        mkdir ${CLUSTER_ID}
-        cd ..
-
-        cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
-        cp -r ${CONTRACT_ID}/_github ${CLUSTER_ID}/.github
-
-        ## Replace site-values with fetched params ##
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-
-        echo "Contract ID: "${CONTRACT_ID} > ${CLUSTER_ID}/META
-        echo "Contract Repo Commit: "${CONTRACT_COMMIT_ID} >> ${CLUSTER_ID}/META
-        echo "Template Name: "${TEMPLATE_NAME} >> ${CLUSTER_ID}/META
-
-        git config --global user.email "taco_support@sk.com"
-        git config --global user.name "SKTelecom TACO"
-
-        cd ${CLUSTER_ID}
-        git init
-        git checkout -b main        
-        git add .github
-        git add *
-        git commit -m "add new ${CLUSTER_ID} site"
-        git push -u origin main
-        cd ..
-
-        cd ${CLUSTER_ID}-manifests
-        git init
-        git checkout -b main        
-        touch README
-        git add README
-        git commit -m "add new ${CLUSTER_ID} site"
-        git push -u origin main
-        cd ..
-
-      envFrom:
-        - secretRef:
-            name: "git-svc-token"
-      env:
-      - name: CONTRACT_ID
-        value: "{{workflow.parameters.contract_id}}"
-      - name: CLUSTER_ID
-        value: "{{workflow.parameters.cluster_id}}"
-      - name: TEMPLATE_NAME
-        value: "{{workflow.parameters.template_name}}"
-      - name: GIT_BASE_URL
-        value: "{{inputs.parameters.git_base_url}}"
-      - name: GIT_ORG
-        value: "{{inputs.parameters.git_org}}"
 
   - name: import-cluster
     inputs:
