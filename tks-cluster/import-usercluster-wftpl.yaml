@@ -21,6 +21,8 @@ spec:
       value: "tks"
     - name: git_org
       value: "decapod10"
+    - name: keycloak_url
+      value: "keycloakUrl"
 
   volumes:
   - name: kubeconfig-adm
@@ -40,14 +42,19 @@ spec:
   templates:
   - name: deploy
     steps:
-    - - name: create-cluster-repo
-        template: create-cluster-repo
+    - - name: tks-get-cluster-info
+        templateRef:
+          name: tks-get-cluster
+          template: getTksCluster
+
+    - - name: tks-create-cluster-repo
+        templateRef:
+          name: tks-create-cluster-repo
+          template: main
         arguments:
           parameters:
-          - name: git_base_url
-            value: "{{ workflow.parameters.git_base_url }}"
-          - name: git_org
-            value: "{{ workflow.parameters.git_org }}"
+            - name: cluster_info
+              value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
 
     - - name: import-cluster
         template: import-cluster
@@ -60,26 +67,14 @@ spec:
 
     - - name: render-manifests
         templateRef:
-          name: render-manifests
-          template: render-manifests-template
+          name: event-gitea-render-manifests
+          template: main
         arguments:
           parameters:
-            - name: cluster_id
-              value: "{{ workflow.parameters.cluster_id }}"
-            - name: base_repo_url
-              value: '{{ workflow.parameters.git_base_url }}/{{ workflow.parameters.git_account }}/decapod-base-yaml'
+            - name: decapod_site_repo
+              value: "{{ workflow.parameters.git_account }}/{{ workflow.parameters.cluster_id }}"
             - name: base_repo_branch
-              value: main
-            - name: site_repo_url
-              value: '{{ workflow.parameters.git_base_url }}/{{ workflow.parameters.git_org }}/{{ workflow.parameters.cluster_id }}'
-            - name: site_repo_branch
-              value: main
-            - name: manifest_repo_url
-              value: '{{ workflow.parameters.git_base_url }}/{{ workflow.parameters.git_org }}/{{ workflow.parameters.cluster_id }}-manifests'
-            - name: manifest_repo_branch
-              value: main
-            - name: git_repo_type
-              value: gitea
+              value: "{{ workflow.parameters.base_repo_branch }}"
 
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
@@ -87,84 +82,19 @@ spec:
           parameters:
             - name: cluster_id
               value: "{{ workflow.parameters.cluster_id }}"
+            - name: infra_provider
+              value: "AWS"
+            - name: cloud_account_id
+              value: "NULL"
+            - name: keycloak_url
+              value: "{{ workflow.parameters.keycloak_url }}"
+            - name: contract_id
+              value: "{{ workflow.parameters.contract_id }}"
 
 
   #######################
   # Template Definition #
   #######################
-  - name: create-cluster-repo
-    activeDeadlineSeconds: 300
-    inputs:
-      parameters:
-      - name: git_base_url
-      - name: git_org
-    container:
-      name: 'createClusterRepo'
-      image: harbor.taco-cat.xyz/tks/ghcli-alpine:2.0.0
-      imagePullPolicy: IfNotPresent
-      command:
-      - /bin/bash
-      - -ecx
-      - |
-        echo ${GIT_ORG}
-        TOKEN=$(echo -n $TOKEN)
-        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'${CLUSTER_ID}'"}' https://${GIT_BASE_URL}/api/v1/orgs/${GIT_ORG}/repos
-        curl -X POST -H "content-type: application/json" -H "Authorization: token ${TOKEN}" --data '{"name": "'$CLUSTER_ID'-manifests"}' https://${GIT_BASE_URL}/api/v1/orgs/${GIT_ORG}/repos
-
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CONTRACT_ID}.git
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CLUSTER_ID}.git
-        git clone https://$(echo -n $TOKEN)@${GIT_BASE_URL}/${GIT_ORG}/${CLUSTER_ID}-manifests.git
-
-        cd ${CONTRACT_ID}
-        CONTRACT_COMMIT_ID=$(git rev-parse HEAD)
-        mkdir ${CLUSTER_ID}
-        cd ..
-
-        cp -r ${CONTRACT_ID}/${TEMPLATE_NAME} ${CLUSTER_ID}/${CLUSTER_ID}
-        cp -r ${CONTRACT_ID}/_github ${CLUSTER_ID}/.github
-
-        ## Replace site-values with fetched params ##
-        sed -i "s/clusterName:\ cluster.local/clusterName:\ $CLUSTER_ID/g" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-
-        echo "Contract ID: "${CONTRACT_ID} > ${CLUSTER_ID}/META
-        echo "Contract Repo Commit: "${CONTRACT_COMMIT_ID} >> ${CLUSTER_ID}/META
-        echo "Template Name: "${TEMPLATE_NAME} >> ${CLUSTER_ID}/META
-
-        git config --global user.email "taco_support@sk.com"
-        git config --global user.name "SKTelecom TACO"
-
-        cd ${CLUSTER_ID}
-        git init
-        git checkout -b main        
-        git add .github
-        git add *
-        git commit -m "add new ${CLUSTER_ID} site"
-        git push -u origin main
-        cd ..
-
-        cd ${CLUSTER_ID}-manifests
-        git init
-        git checkout -b main        
-        touch README
-        git add README
-        git commit -m "add new ${CLUSTER_ID} site"
-        git push -u origin main
-        cd ..
-
-      envFrom:
-        - secretRef:
-            name: "git-svc-token"
-      env:
-      - name: CONTRACT_ID
-        value: "{{workflow.parameters.contract_id}}"
-      - name: CLUSTER_ID
-        value: "{{workflow.parameters.cluster_id}}"
-      - name: TEMPLATE_NAME
-        value: "{{workflow.parameters.template_name}}"
-      - name: GIT_BASE_URL
-        value: "{{inputs.parameters.git_base_url}}"
-      - name: GIT_ORG
-        value: "{{inputs.parameters.git_org}}"
 
   - name: import-cluster
     inputs:
