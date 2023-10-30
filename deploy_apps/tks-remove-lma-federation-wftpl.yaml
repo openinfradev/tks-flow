@@ -77,7 +77,9 @@ spec:
         templateRef:
           name: tks-primary-cluster
           template: sub-remove-objects-in-buckets
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+        when: >-
+            ( {{workflow.parameters.object_store}} == s3 ) && 
+            ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}} )
 
     - - name: remove-lma-bucket
         templateRef:
@@ -87,7 +89,9 @@ spec:
           parameters:
           - name: app_name
             value: "{{workflow.parameters.cluster_id}}-lma-bucket"
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}}"
+        when: >-
+            ( {{workflow.parameters.object_store}} == s3 ) && 
+            ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}} )
 
     - - name: removeAppGroup
         templateRef:
@@ -111,7 +115,9 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{steps.get-clusters-in-contract.outputs.parameters.member_clusters}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
+        when: >-
+            ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' ) && 
+            ( {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} )
 
     - - name: set-primary-cluster-on-tks-info
         templateRef:
