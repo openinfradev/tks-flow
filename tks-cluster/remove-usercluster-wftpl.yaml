@@ -138,6 +138,16 @@ spec:
               {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
             )
 
+    - - name: deleteLocalPathProvisionerApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-local-path-provisioner"
+        when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == byoh"
+
       - name: deleteS3ChartApp
         templateRef:
           name: delete-apps
