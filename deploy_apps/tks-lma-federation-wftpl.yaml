@@ -238,11 +238,9 @@ spec:
 
           # check whether this workload cluster is managed or not
           kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
-          awsmcp_count=$(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
-
           if [ $kcp_count = 1 ]; then
             echo false | tee /mnt/out/managed_cluster.txt
-          elif [ $awsmcp_count = 1 ]; then
+          elif [ $(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l) = 1 ]; then
             echo true | tee /mnt/out/managed_cluster.txt
           else
             echo "Wrong Cluster type!"
