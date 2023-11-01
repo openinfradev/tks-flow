@@ -159,7 +159,10 @@ spec:
           KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
 
-          kubectl --kubeconfig=kubeconfig_workload label node --all taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
+          for worker in `kubectl --kubeconfig=kubeconfig_workload get no --show-labels | awk '{print $1 }' | grep -v control-plane | grep -v NAME `
+          do
+            kubectl --kubeconfig=kubeconfig_workload label node ${worker} taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
+          done
 
           export KUBECONFIG=kubeconfig_workload
           cat <<EOF > taco-system.yaml
