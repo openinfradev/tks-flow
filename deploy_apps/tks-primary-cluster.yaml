@@ -330,8 +330,8 @@ spec:
         fi
 
         S3_SERVICE="s3://ap-northeast-2"
-        cp /kube/value kubeconfig_adm
-        export KUBECONFIG=kubeconfig_adm
+        cp /kube/value ~/kubeconfig_adm
+        export KUBECONFIG=~/kubeconfig_adm
 
         #################
         # updates
@@ -371,15 +371,17 @@ spec:
           yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.dynamodb.dynamodb_url=\"dynamodb://ap-northeast-2\")" ${member}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.bucketnames=\"${primary_cluster}-tks-loki\")" ${member}/lma/site-values.yaml
 
-          if [ `kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
-            if [ -z $iamRoles ]; then
-              iamRoles="\"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+          for machine_type in AWSManagedMachinePool AWSMachinePool; do
+            if [ `kubectl get ${machine_type} -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+              if [ -z $iamRoles ]; then
+                iamRoles="\"${iamPrefix}/$(kubectl get ${machine_type} -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+              else
+                iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get ${machine_type} -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+              fi
             else
-              iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+              log "WARN" "Cluster(${member}) has no node role for taco-lma (CR: ${machine_type})"
             fi
-          else
-            log "WARN" "Cluster(${member}) has no node role for taco-lma"
-          fi
+          done
 
           cd -
         done
@@ -620,8 +622,8 @@ spec:
         if [[ "$S3_SERVICE" == "" ]]; then
 
           S3_SERVICE="s3://ap-northeast-2"
-          cp /kube/value kubeconfig_adm
-          export KUBECONFIG=kubeconfig_adm
+          cp /kube/value ~/kubeconfig_adm
+          export KUBECONFIG=~/kubeconfig_adm
 
           #################
           # updates
@@ -752,8 +754,8 @@ spec:
           fi
         done
 
-        cp /kube/value kubeconfig_adm
-        export KUBECONFIG=kubeconfig_adm
+        cp /kube/value ~/kubeconfig_adm
+        export KUBECONFIG=~/kubeconfig_adm
 
         if [[ "$OBJECT_STORE" == "s3" ]]; then
           #################
@@ -767,17 +769,18 @@ spec:
             iamPrefix=${ROLE_ARN%/*}
           fi
           
-          for member in $member_clusters
-          do
-            if [ `kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
-              if [ -z $iamRoles ]; then
-                iamRoles="\"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+          for member in $member_clusters; do
+            for machine_type in AWSManagedMachinePool AWSMachinePool; do
+              if [ `kubectl get ${machine_type} -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+                if [ -z $iamRoles ]; then
+                  iamRoles="\"${iamPrefix}/$(kubectl get ${machine_type} -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+                else
+                  iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get ${machine_type} -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+                fi
               else
-                iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+                log "WARN" "Cluster(${member}) has no node role for taco-lma (CR: ${machine_type})"
               fi
-            else
-              log "WARN" "Cluster(${member}) has no node role for taco-lma"
-            fi
+            done
           done
         fi
 
