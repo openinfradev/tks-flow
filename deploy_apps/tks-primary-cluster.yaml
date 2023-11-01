@@ -325,7 +325,7 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
@@ -408,7 +408,7 @@ spec:
         jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
 
       env:
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       envFrom:
       - secretRef:
@@ -456,7 +456,7 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
@@ -468,7 +468,7 @@ spec:
         cat <<< "$primary_kube_secret" > kubeconfig
         LOKI_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.loki}'| base64 -d )
 
-        if [ "$LOKI_SERVICE" == "" ]; then
+        if [[ "$LOKI_SERVICE" == "" ]]; then
           while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
           do
             if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
@@ -485,14 +485,14 @@ spec:
         else
           LOKI_HOST=$(echo $LOKI_SERVICE | awk -F : '{print $1}')
           LOKI_PORT=$(echo $LOKI_SERVICE | awk -F : '{print $2}')
-          if [ "$LOKI_PORT" == "" ]; then
+          if [[ "$LOKI_PORT" == "" ]]; then
             LOKI_PORT=80
           fi
         fi
 
-        if [ "$OBJECT_SOTRE" == "minio" ]; then
+        if [[ "$OBJECT_STORE" == "minio" ]]; then
           S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
-          if [ "$S3_SERVICE" == "" ]; then
+          if [[ "$S3_SERVICE" == "" ]]; then
             S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
             S3_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
             S3_SERVICE=${S3_HOST}:${S3_PORT}
@@ -518,14 +518,14 @@ spec:
 
           yq -i e  ".global.lokiHost=\"${LOKI_HOST}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${member}/lma/site-values.yaml
-          if [ "$OBJECT_SOTRE" == "minio" ]; then
+          if [[ "$OBJECT_STORE" == "minio" ]]; then
             yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
           fi
 
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
           # 2. grafana datasource on primary_cluster
-          if [ ${member} = ${primary_cluster} ]; then
+          if [[ "${member}" == "${primary_cluster}" ]]; then
             yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.TksWebhookUrl=\"{{workflow.parameters.alert_tks}}\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.SlackUrl=\"{{workflow.parameters.alert_slack}}\"" ${member}/lma/site-values.yaml
@@ -544,7 +544,7 @@ spec:
           cd ${member}
           if [[ `git status --porcelain` ]]; then
             log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE"
-            if [ "$OBJECT_SOTRE" == "minio" ]; then
+            if [[ "$OBJECT_STORE" == "minio" ]]; then
               cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_SERVICE (cluster ${member})"
             else
               cmessage="the loki to $LOKI_HOST:$LOKI_PORT (cluster ${member})"
@@ -563,7 +563,7 @@ spec:
         jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
 
       env:
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       envFrom:
       - secretRef:
@@ -609,7 +609,7 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
@@ -617,7 +617,7 @@ spec:
         # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
         S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
-        if [ "$S3_SERVICE" == "" ]; then
+        if [[ "$S3_SERVICE" == "" ]]; then
 
           S3_SERVICE="s3://ap-northeast-2"
           cp /kube/value kubeconfig_adm
@@ -669,7 +669,7 @@ spec:
         fi
 
       env:
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       envFrom:
       - secretRef:
@@ -717,7 +717,7 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         # empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
@@ -732,7 +732,7 @@ spec:
           kube_secret=$(kubectl get secret -n ${member} ${member}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
           PROMETHEUS_URL=$(kubectl get secret -n ${member} tks-endpoint-secret -o jsonpath='{.data.prometheus}'| base64 -d )
-          if [ "$PROMETHEUS_URL" != "" ]; then
+          if [[ "$PROMETHEUS_URL" != "" ]]; then
             eplist="${eplist}, \"${PROMETHEUS_URL}\""
           elif [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
@@ -755,7 +755,7 @@ spec:
         cp /kube/value kubeconfig_adm
         export KUBECONFIG=kubeconfig_adm
 
-        if [ "$OBJECT_SOTRE" == "s3" ]; then
+        if [[ "$OBJECT_STORE" == "s3" ]]; then
           #################
           # Gather iams
           #################
@@ -810,7 +810,7 @@ spec:
           echo NO_CHANGE_HERE > /mnt/out/changed.txt
         fi
 
-        if [ "$OBJECT_SOTRE" != "s3" ]; then
+        if [[ "$OBJECT_STORE" == "s3" ]]; then
           yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
 
           if [[ `git status --porcelain` ]]; then
@@ -836,7 +836,7 @@ spec:
         value: "{{workflow.parameters.cluster_id}}"
       - name: CLOUD_ACCOUNT_ID
         value: "{{workflow.parameters.cloud_account_id}}"
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       volumeMounts:
       - name: kubeconfig-adm
@@ -1091,7 +1091,7 @@ spec:
           sleep 10
         done
 
-        if [ $(kubectl get -n lma job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}') = "Complete" ]; then
+        if [[ $(kubectl get -n lma job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}') == "Complete" ]]; then
           exit 0
         else
           exit -1
