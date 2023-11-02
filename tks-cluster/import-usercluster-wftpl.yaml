@@ -57,6 +57,7 @@ spec:
           parameters:
             - name: cluster_info
               value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
+        when: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_type}} != ADMIN"
 
     - - name: import-cluster
         template: import-cluster
@@ -77,6 +78,7 @@ spec:
               value: "{{ workflow.parameters.git_account }}/{{ workflow.parameters.cluster_id }}"
             - name: base_repo_branch
               value: "{{ workflow.parameters.base_repo_branch }}"
+        when: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_type}} != ADMIN"
 
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
@@ -131,6 +133,7 @@ spec:
           EOF
           kubectl apply -f $CLUSTER_ID_namespace.yaml
 
+          #kubectl delete secret $CLUSTER_ID-tks-kubeconfig -n $CLUSTER_ID
           kubectl create secret generic $CLUSTER_ID-tks-kubeconfig -n $CLUSTER_ID --from-file=value=kubeconfig_$CLUSTER_ID
 
       volumeMounts:
@@ -199,3 +202,4 @@ spec:
       env:
       - name: CLUSTER_ID
         value: "{{ inputs.parameters.cluster_id }}"
+
