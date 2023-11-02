@@ -19,7 +19,7 @@ spec:
       - name: install-nginx
         value: false
       - name: keycloak_url
-        value: "https://keycloak.yourdomain.org/auth/"
+        value: "http://keycloak.keycloak.svc/auth/"
       - name: db_host
         value: "postgresql.tks-db"
       # DB password for keycloak and harbor user
