@@ -57,6 +57,7 @@ spec:
           parameters:
             - name: cluster_info
               value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
+        when: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_type}} != ADMIN"
 
     - - name: import-cluster
         template: import-cluster
@@ -77,6 +78,7 @@ spec:
               value: "{{ workflow.parameters.git_account }}/{{ workflow.parameters.cluster_id }}"
             - name: base_repo_branch
               value: "{{ workflow.parameters.base_repo_branch }}"
+        when: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_type}} != ADMIN"
 
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
@@ -131,6 +133,7 @@ spec:
           EOF
           kubectl apply -f $CLUSTER_ID_namespace.yaml
 
+          #kubectl delete secret $CLUSTER_ID-tks-kubeconfig -n $CLUSTER_ID
           kubectl create secret generic $CLUSTER_ID-tks-kubeconfig -n $CLUSTER_ID --from-file=value=kubeconfig_$CLUSTER_ID
 
       volumeMounts:
@@ -159,10 +162,7 @@ spec:
           KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
 
-          for worker in `kubectl --kubeconfig=kubeconfig_workload get no --show-labels | awk '{print $1 }' | grep -v control-plane | grep -v NAME `
-          do
-            kubectl --kubeconfig=kubeconfig_workload label node ${worker} taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
-          done
+          kubectl --kubeconfig=kubeconfig_workload label node --all taco-lma=enabled taco-ingress-gateway=enabled taco-egress-gateway=enabled servicemesh=enabled --overwrite
 
           export KUBECONFIG=kubeconfig_workload
           cat <<EOF > taco-system.yaml
@@ -199,3 +199,4 @@ spec:
       env:
       - name: CLUSTER_ID
         value: "{{ inputs.parameters.cluster_id }}"
+
