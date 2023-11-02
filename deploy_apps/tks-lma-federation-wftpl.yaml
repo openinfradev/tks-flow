@@ -238,7 +238,7 @@ spec:
           cat <<< "$kube_secret" > kubeconfig
 
           # check whether this workload cluster have control-plane
-          if [ $(kubectl --kubeconfig=kubeconfig get no | grep control-plane | wc -l) -gt 0 ]
+          if [ $(kubectl --kubeconfig=kubeconfig get no | grep control-plane | wc -l) -gt 0 ]; then
             echo false | tee /mnt/out/managed_cluster.txt
           else
             echo true | tee /mnt/out/managed_cluster.txt
