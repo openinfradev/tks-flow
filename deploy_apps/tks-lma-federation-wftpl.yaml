@@ -80,7 +80,7 @@ spec:
         when: >-
             ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''
             ) || (
-            {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}} )
+            {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == "{{workflow.parameters.cluster_id}}" )
 
     - - name: organization-level-update
         templateRef:
@@ -92,10 +92,10 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{workflow.parameters.cluster_id}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && '{{workflow.parameters.cluster_id}}' != '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'"
 
-    - - name: determine-if-a-mananged-cluster
-        template: determineIfaManagedCluster
+    - - name: is-accessable-to-etcd
+        template: isAccessableEtcd
         arguments:
           parameters:
           - name: cluster_id
@@ -108,7 +108,7 @@ spec:
         arguments:
           parameters:
           - name: is_mananged_cluster
-            value: "{{steps.determine-if-a-mananged-cluster.outputs.parameters.managed_cluster}}"
+            value: "{{steps.is-accessable-to-etcd.outputs.parameters.managed_cluster}}"
 
     - - name: update-eps-for-thanos
         templateRef:
@@ -222,7 +222,7 @@ spec:
     retryStrategy:
       limit: 2
 
-  - name: determineIfaManagedCluster
+  - name: isAccessableEtcd
     inputs:
       parameters:
         - name: cluster_id
@@ -234,25 +234,23 @@ spec:
         - '-exc'
         - |
           cp /kube/value kubeconfig_adm
-          export KUBECONFIG=kubeconfig_adm
+          kube_secret=$(kubectl --kubeconfig=kubeconfig_adm get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
 
-          # check whether this workload cluster is managed or not
-          kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
-          if [ $kcp_count -eq 1 ]; then
+          # check whether this workload cluster have control-plane
+          if [ $(kubectl --kubeconfig=kubeconfig get no | grep control-plane | wc -l) -gt 0 ]; then
             echo false | tee /mnt/out/managed_cluster.txt
-          elif [ $(kubectl get awsmcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l) -eq 1 ]; then
-            echo true | tee /mnt/out/managed_cluster.txt
           else
-            echo "Wrong Cluster type!"
-            exit 1
+            echo true | tee /mnt/out/managed_cluster.txt
           fi
+
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
       - name: out
         mountPath: /mnt/out
       env:
-      - name: CLUSTER_ID
+      - name: cluster_id
         value: "{{ inputs.parameters.cluster_id }}"
     volumes:
       - name: out

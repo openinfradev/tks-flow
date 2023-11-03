@@ -18,6 +18,9 @@ spec:
       - name: cluster_info
         valueFrom:
           path: /mnt/out/cluster_info.txt
+      - name: cluster_type
+        valueFrom:
+          path: /mnt/out/cluster_type.txt 
     volumes:
     - name: out
       emptyDir: {}
@@ -70,3 +73,7 @@ spec:
             cluster_conf = json.dumps(clusterSiteValues)
             print(cluster_conf)
             f.write(cluster_conf)
+        with open("/mnt/out/cluster_type.txt", "w") as f:
+            cluster_type = clusterSiteValues['clusterType']
+            print(cluster_type)
+            f.write(cluster_type)
