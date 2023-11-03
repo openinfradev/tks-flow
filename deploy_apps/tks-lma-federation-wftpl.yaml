@@ -92,7 +92,7 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{workflow.parameters.cluster_id}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && '{{workflow.parameters.cluster_id}}' != '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'"
+        when: "( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != \"\" ) && ( {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} )"
 
     - - name: is-accessable-to-etcd
         template: isAccessableEtcd
@@ -314,7 +314,7 @@ spec:
 
           grafana_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d )
 
-          if [[ grafana_ep_secret == "" ]]; then
+          if [[ ${grafana_ep_secret} == "" ]]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
               if [[ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]]; then
                 log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
