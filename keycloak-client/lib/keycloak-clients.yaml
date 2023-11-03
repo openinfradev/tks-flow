@@ -728,7 +728,7 @@ spec:
           try:
               try:
                   hashed_client_id = keycloak_admin.get_client_id(input_params['target_client_id'])
-                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}"""")
+                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}".""")
                   client = keycloak_admin.get_client(client_id=hashed_client_id)
               except Exception as inner_e:
                   print(inner_e)
@@ -774,7 +774,13 @@ spec:
           - name: client-secret
             valueFrom:
               path: /out/client_secret.txt
+      volumes:
+        - name: out
+          emptyDir: {}
       script:
+        volumeMounts:
+          - name: out
+            mountPath: "/out"
         command:
           - python3
         image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
@@ -845,14 +851,14 @@ spec:
           try:
               try:
                   hashed_client_id = keycloak_admin.get_client_id(input_params['target_client_id'])
-                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}"""")
+                  print(f"""hashed_client_id of client id "{input_params['target_client_id']}" is "{hashed_client_id}".""")
                   client = keycloak_admin.get_client(client_id=hashed_client_id)
               except Exception as inner_e:
                   print(inner_e)
                   raise Exception(f"""get client id "{input_params['target_client_id']}" failed""")
               try:
                   client_secret = get_client_secret(input_params['server_url'], input_params['target_realm_name'], input_params['target_client_id'], keycloak_admin.connection.token)
-                  print(f"""client secret of client id "{input_params['target_client_id']}" is "{client_secret}"""")
+                  print(f"""client secret of client id "{input_params['target_client_id']}" is "{client_secret}".""")
                   output_params['client_secret'] = client_secret
                   print('write client secret to /out/client_secret.txt')
                   with open('/out/client_secret.txt', 'w') as file:
