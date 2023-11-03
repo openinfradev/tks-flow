@@ -80,7 +80,7 @@ spec:
         when: >-
             ( {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == ''
             ) || (
-            {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == {{workflow.parameters.cluster_id}} )
+            {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} == "{{workflow.parameters.cluster_id}}" )
 
     - - name: organization-level-update
         templateRef:
@@ -92,7 +92,7 @@ spec:
             value: '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{workflow.parameters.cluster_id}}'
-        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
+        when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && '{{workflow.parameters.cluster_id}}' != '{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}'"
 
     - - name: is-accessable-to-etcd
         template: isAccessableEtcd
