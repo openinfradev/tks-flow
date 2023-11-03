@@ -250,7 +250,7 @@ spec:
             value: "{{ workflow.parameters.github_account }}/{{ workflow.parameters.cluster_id }}"
           - name: base_repo_branch
             value: "{{ workflow.parameters.base_repo_branch }}"
-        when: "{{steps.change-thanos-sidecar.outputs.parameters.changed}} != 'NO_CHANGE_HERE'"  # 이미 변경내역이 반영된 (한번 수행됐던) 클러스터라면 랜더링은 필요없음
+        when: "'{{steps.change-thanos-sidecar.outputs.parameters.changed}}' != 'NO_CHANGE_HERE'"  # 이미 변경내역이 반영된 (한번 수행됐던) 클러스터라면 랜더링은 필요없음
 
     - - name: sync-organization-changes
         template: sub-sync-organization-changes
@@ -271,7 +271,7 @@ spec:
             value: "{{ workflow.parameters.github_account }}/{{steps.sync-organization-changes.outputs.parameters.changed}}"
           - name: base_repo_branch
             value: "{{ workflow.parameters.base_repo_branch }}"
-        when: "{{steps.sync-organization-changes.outputs.parameters.changed}} != 'NO_CHANGE_HERE'"
+        when: "'{{steps.sync-organization-changes.outputs.parameters.changed}}' != 'NO_CHANGE_HERE'"
 
   #######################
   # Template Definition #
