@@ -48,11 +48,13 @@ spec:
               disable: false
               extraPolicyAttachments:
               - \"arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy\"
+              - \"arn:aws:iam::aws:policy/AmazonS3FullAccess\"
             fargate:
               disable: true
           nodes:
              extraPolicyAttachments:
              - \"arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy\"
+             - \"arn:aws:iam::aws:policy/AmazonS3FullAccess\"
           clusterAPIControllers:
             disabled: false
             trustStatements:
