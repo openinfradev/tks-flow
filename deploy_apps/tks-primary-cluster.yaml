@@ -364,6 +364,7 @@ spec:
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.region=\"ap-northeast-2\")" ${member}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.bucket=\"${primary_cluster}-tks-thanos\")" ${member}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.signature_version2=false)" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.aws_sdk_auth=true)" ${member}/lma/site-values.yaml
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
           yq -i e "del(.charts[] | select(.name == \"loki\").override.loki.storageConfig.aws)" ${member}/lma/site-values.yaml
@@ -649,6 +650,7 @@ spec:
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.region=\"ap-northeast-2\")" ${current_cluster}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.bucket=\"${primary_cluster}-tks-thanos\")" ${current_cluster}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.signature_version2=false)" ${current_cluster}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.aws_sdk_auth=true)" ${member}/lma/site-values.yaml
 
           git config --global user.name "tks"
           git config --global user.email "tks@sktelecom.com"
