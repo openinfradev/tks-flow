@@ -70,16 +70,13 @@ spec:
         rm -rf aws-reference/openstack aws-reference/decapod-controller aws-reference/admin-tools
         rm -rf byoh-reference/openstack byoh-reference/decapod-controller byoh-reference/admin-tools
 
+        site_list=$(ls -d */ | sed 's/\///g' | egrep "-reference$")
         # Append Keycloak URL and Realm info
         KEYCLOAK_DOMAIN="${KEYCLOAK_URL#https://}"
-        sed -i "/keycloakDomain:/c\  keycloakDomain: ${KEYCLOAK_DOMAIN}" aws-reference/lma/site-values.yaml
-        sed -i "/realms:/c\  realms: ${CONTRACT_ID}" aws-reference/lma/site-values.yaml
-        sed -i "/keycloakDomain:/c\  keycloakDomain: ${KEYCLOAK_DOMAIN}" eks-reference/lma/site-values.yaml
-        sed -i "/realms:/c\  realms: ${CONTRACT_ID}" eks-reference/lma/site-values.yaml
-        sed -i "/keycloakDomain:/c\  keycloakDomain: ${KEYCLOAK_DOMAIN}" aws-msa-reference/lma/site-values.yaml
-        sed -i "/realms:/c\  realms: ${CONTRACT_ID}" aws-msa-reference/lma/site-values.yaml
-        sed -i "/keycloakDomain:/c\  keycloakDomain: ${KEYCLOAK_DOMAIN}" eks-msa-reference/lma/site-values.yaml
-        sed -i "/realms:/c\  realms: ${CONTRACT_ID}" eks-msa-reference/lma/site-values.yaml
+        for site in ${site_list}
+        do
+          yq -i e ".global.keycloakDomain=\"$KEYCLOAK_DOMAIN\"" $site/lma/site-values.yaml
+        done
         
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
