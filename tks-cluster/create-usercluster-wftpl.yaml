@@ -232,7 +232,9 @@ spec:
                         "target_cluster": ""
                       }
                     ]
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh"
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
 
         - - name: install-addons-common
             templateRef:
