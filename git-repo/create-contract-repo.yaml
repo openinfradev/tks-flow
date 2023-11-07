@@ -69,15 +69,16 @@ spec:
         # For now, this hardcoding seems enough.
         rm -rf aws-reference/openstack aws-reference/decapod-controller aws-reference/admin-tools
         rm -rf byoh-reference/openstack byoh-reference/decapod-controller byoh-reference/admin-tools
-
+        
         site_list=$(ls -d */ | sed 's/\///g' | egrep "-reference$")
         # Append Keycloak URL and Realm info
         KEYCLOAK_DOMAIN="${KEYCLOAK_URL#https://}"
         for site in ${site_list}
         do
-          yq -i e ".global.keycloakDomain=\"$KEYCLOAK_DOMAIN\"" $site/lma/site-values.yaml
+          sed -i "/keycloakDomain:/c\  keycloakDomain: ${KEYCLOAK_DOMAIN}" ${site}/lma/site-values.yaml
+          sed -i "/realms:/c\  realms: ${CONTRACT_ID}" ${site}/lma/site-values.yaml
         done
-        
+      
         git config --global user.email "taco_support@sk.com"
         git config --global user.name "SKTelecom TACO"
         git add .
