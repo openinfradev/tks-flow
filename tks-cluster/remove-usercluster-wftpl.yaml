@@ -68,8 +68,7 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-cluster-autoscaler"
         when: >-
-            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh &&
-              {{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false
+            {{steps.findInfraProvider.outputs.parameters.infra_provider}} != byoh
 
     - - name: deleteClusterAutoscalerRbacApp
         templateRef:
