@@ -1,0 +1,81 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: wait-for-rendering-to-finish
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: cluster_id
+      value: "c011b88fa"
+  volumes:
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+  ttlStrategy:
+    secondsAfterSuccess: 5
+
+  templates:
+  #=========================================================
+  # Template Pipeline
+  #=========================================================
+  - name: main
+    steps:
+    - - name: wait-for-rendering-to-finish
+        template: wait-for-rendering
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{workflow.parameters.cluster_id}}"
+
+  #=========================================================
+  # Template Definition
+  #=========================================================
+  - name: wait-for-rendering
+    inputs:
+      parameters:
+      - name: cluster_id
+    container:
+      name: wait
+      image: harbor.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      command:
+      - /bin/bash
+      - '-exc'
+      - |
+        #!/bin/bash
+
+        function log() {
+          level=$2
+          msg=$3
+          date=$(date '+%F %H:%M:%S')
+          if [ $1 -eq 0 ];then
+            echo "[$date] $level     $msg"
+          else
+            level="ERROR"
+            echo "[$date] $level     $msg failed"
+            exit $1
+          fi
+        }
+
+        cp /kube/value kubeconfig_adm
+        export KUBECONFIG=kubeconfig_adm
+
+        TARGET_SITE_REPO="$USERNAME/{{inputs.parameters.cluster_id}}"
+
+        for wf in $(kubectl get workflows -n argo -l workflows.argoproj.io/workflow-template=event-gitea-render-manifests -oname); do
+          wf_site_repo=$(kubectl  get -n argo $wf -ojsonpath='{.spec.arguments.parameters[0].value}')
+          if [[ "$TARGET_SITE_REPO" == "$wf_site_repo" ]]; then
+            kubectl wait --for=condition=Completed -n argo $wf --timeout=600s || true
+          fi
+        done
+
+      volumeMounts:
+      - name: kubeconfig-adm
+        mountPath: "/kube"
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
