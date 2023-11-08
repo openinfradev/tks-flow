@@ -7,7 +7,7 @@ spec:
   entrypoint: getTksCluster
   arguments:
     parameters:
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api-dev.taco-cat.xyz:9110"
     - name: cluster_id
       value: "cabbead61"  
@@ -18,6 +18,9 @@ spec:
       - name: cluster_info
         valueFrom:
           path: /mnt/out/cluster_info.txt
+      - name: cluster_type
+        valueFrom:
+          path: /mnt/out/cluster_type.txt 
     volumes:
     - name: out
       emptyDir: {}
@@ -28,7 +31,7 @@ spec:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       - name: TKS_API_URL
-        value: "{{workflow.parameters.tks_info_host}}"
+        value: "{{workflow.parameters.tks_api_url}}"
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -41,7 +44,7 @@ spec:
         import json
         import os
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
 
         def getToken() :
@@ -70,3 +73,7 @@ spec:
             cluster_conf = json.dumps(clusterSiteValues)
             print(cluster_conf)
             f.write(cluster_conf)
+        with open("/mnt/out/cluster_type.txt", "w") as f:
+            cluster_type = clusterSiteValues['clusterType']
+            print(cluster_type)
+            f.write(cluster_type)

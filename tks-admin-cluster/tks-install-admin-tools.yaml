@@ -1,0 +1,199 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-install-admin-tools
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: manifest_repo_url
+        value: ""
+      - name: revision
+        value: main
+      # This param is also used as default target cluster on Argo CD
+      - name: site_name
+        value: "tks-admin"
+      - name: app_prefix
+        value: "tks-admin"
+      - name: install-nginx
+        value: false
+      - name: keycloak_url
+        value: "http://keycloak.keycloak.svc/auth/"
+      - name: db_host
+        value: "postgresql.tks-db"
+      # DB password for keycloak and harbor user
+      - name: db_common_password
+        value: ""
+  # TODO: check if this is necessary
+  volumes:
+    - name: admin-kubeconfig
+      secret:
+        secretName: tks-admin-kubeconfig-secret
+  templates:
+    - name: main
+      steps:
+        - - name: install-nginx-controller
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                ## If value-override for admin-cluster is different from that of user-cluster,
+                ## then the ingress-nginx should be copied to tks-admin-tools group.
+                - name: list
+                  value: |
+                    [
+                      { "app_group": "tks-admin-tools", "path": "ingress-nginx", "namespace": "ingress-nginx", "target_cluster": "" }
+                    ]
+            when: "{{workflow.parameters.install-nginx}} == true"
+
+        - - name: init-keycloak-db
+            template: init-keycloak-db
+            arguments:
+              parameters:
+                - name: db_keycloak_password
+                  value: "{{ workflow.parameters.db_common_password }}"
+                - name: db_host
+                  value: "{{ workflow.parameters.db_host }}"
+
+        - - name: install-keycloak
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      { "app_group": "tks-admin-tools", "path": "keycloak", "namespace": "keycloak", "target_cluster": "" }
+                    ]
+
+        - - name: configure-keycloak
+            templateRef:
+              name: set-admin-cluster
+              template: main
+            arguments:
+              parameters:
+                - name: server_url
+                  value: "{{workflow.parameters.keycloak_url}}"
+                - name: target_realm_name
+                  value: "master"
+                - name: target_client_id
+                  value: "admin-cluster-k8s-api"
+                - name: keycloak_credential_secret_name
+                  value: "keycloak"
+                - name: keycloak_credential_secret_namespace
+                  value: "keycloak"
+                - name: client_role_name
+                  value: "system:masters"
+                - name: user_names
+                  value: '["admin"]'
+
+        - - name: init-harbor-db
+            template: init-harbor-db
+            arguments:
+              parameters:
+                - name: db_harbor_password
+                  value: "{{ workflow.parameters.db_common_password }}"
+                - name: db_host
+                  value: "{{ workflow.parameters.db_host }}"
+
+        - - name: install-tks-api-and-harbor
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      { "app_group": "tks-admin-tools", "path": "tks-apis", "namespace": "tks", "target_cluster": "" },
+                      { "app_group": "tks-admin-tools", "path": "harbor", "namespace": "harbor", "target_cluster": "" }
+                    ]
+
+    #######################
+    # Template Definition #
+    #######################
+    - name: init-keycloak-db
+      inputs:
+        parameters:
+          - name: db_host
+            value: "postgres.tks-db"
+          - name: db_keycloak_user
+            value: "bn_keycloak"
+          - name: db_keycloak_password
+            value: "password"
+          - name: db_keycloak_db
+            value: "bitnami_keycloak"
+      container:
+        name: init-keycloak-db
+        image: jbergknoff/postgresql-client
+        env:
+        # postgres admin username
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_HOST
+          value: "{{ inputs.parameters.db_host }}"
+        - name: POSTGRES_ADMIN_PW
+          valueFrom:
+            secretKeyRef:
+              name: argo-postgres-config
+              key: postgresql-password
+        command:
+          - /bin/sh
+          - "-exc"
+          - |
+            # config for new keycloak DB
+            NEW_USER="{{ inputs.parameters.db_keycloak_user }}"
+            NEW_USER_PASSWORD="{{ inputs.parameters.db_keycloak_password }}"
+            NEW_DB="{{ inputs.parameters.db_keycloak_db }}"
+
+            # Create user and db and grant privileges
+            export PGPASSWORD=$POSTGRES_ADMIN_PW
+            psql -h $POSTGRES_HOST -U $POSTGRES_USER -d postgres <<EOF
+            CREATE USER $NEW_USER WITH PASSWORD '$NEW_USER_PASSWORD';
+            CREATE DATABASE $NEW_DB WITH OWNER = $NEW_USER;
+            GRANT ALL PRIVILEGES ON DATABASE $NEW_DB TO $NEW_USER;
+            EOF
+
+    - name: init-harbor-db
+      inputs:
+        parameters:
+          - name: db_host
+            value: "postgres.tks-db"
+          - name: db_harbor_user
+            value: "harbor"
+          - name: db_harbor_password
+            value: "password"
+      container:
+        name: init-harbor-db
+        image: jbergknoff/postgresql-client
+        env:
+        # postgres admin username
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_HOST
+          value: "{{ inputs.parameters.db_host }}"
+        - name: POSTGRES_ADMIN_PW
+          valueFrom:
+            secretKeyRef:
+              name: argo-postgres-config
+              key: postgresql-password
+        command:
+          - /bin/sh
+          - "-exc"
+          - |
+            # config for new harbor DB
+            NEW_USER="{{ inputs.parameters.db_harbor_user }}"
+            NEW_USER_PASSWORD="{{ inputs.parameters.db_harbor_password }}"
+
+            # Create user and db and grant privileges
+            export PGPASSWORD=$POSTGRES_ADMIN_PW
+            psql -h $POSTGRES_HOST -U $POSTGRES_USER -d postgres <<EOF
+            CREATE USER $NEW_USER WITH PASSWORD '$NEW_USER_PASSWORD';
+            CREATE DATABASE registry WITH OWNER = $NEW_USER;
+            CREATE DATABASE clair WITH OWNER = $NEW_USER;
+            GRANT ALL PRIVILEGES ON DATABASE registry TO $NEW_USER;
+            GRANT ALL PRIVILEGES ON DATABASE clair TO $NEW_USER;
+            EOF

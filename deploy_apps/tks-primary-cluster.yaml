@@ -22,11 +22,15 @@ spec:
       value: "decapod10"
     - name: object_store
       value: "s3"
+    - name: alert_tks
+      value: "NA"
+    - name: alert_slack
+      value: "NA"
 
     ##########################
     # For tks-info task #
     ##########################
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api-dev.taco-cat.xyz:9110"
     - name: organization_id
       value: "o086tb3zc"
@@ -66,7 +70,7 @@ spec:
       #   template: sub-get-cluster
 
     - - name: set-primary-cluster-on-tks-info
-        template: sub-set-primay-cluster-on-tks-info
+        template: sub-set-primary-cluster-on-tks-info
         arguments:
           parameters:
           - name: cluster_id
@@ -111,40 +115,18 @@ spec:
               ]
         when: "{{workflow.parameters.object_store}} == minio"
 
-    - - name: pre-change-target
-        template: sub-pre-change-logging-target
+    - - name: loki-use-s3
+        template: loki-use-s3
         arguments:
           parameters:
           - name: primary_cluster
             value: '{{inputs.parameters.primary_cluster}}'
           - name: member_clusters
             value: '{{inputs.parameters.member_clusters}}'
-        when: "{{workflow.parameters.object_store}} == s3"
-
-    - - name: render-pre-modified-clusters
-        templateRef:
-          name: event-gitea-render-manifests
-          template: main
-        arguments:
-          parameters:
-          - name: decapod_site_repo
-            value: "{{ workflow.parameters.github_account }}/{{item}}"
+          - name: github_account
+            value: "{{ workflow.parameters.github_account }}"
           - name: base_repo_branch
             value: "{{ workflow.parameters.base_repo_branch }}"
-        withParam: "{{ steps.pre-change-target.outputs.parameters.modified_cluster_list}}"
-
-    - - name: federation-components-preinstall-for-s3
-        templateRef:
-          name: create-application
-          template: installApps
-        arguments:
-          parameters:
-          - name: list
-            value: |
-              [
-                { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" },
-                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
-              ]
         when: "{{workflow.parameters.object_store}} == s3"
 
     - - name: change-target
@@ -192,27 +174,27 @@ spec:
           - name: member_clusters
             value: '{{inputs.parameters.member_clusters}}'
 
-    - - name: render-modified-clusters
+    - - name: wait-for-rendering-to-finish-modified-cluster
         templateRef:
-          name: event-gitea-render-manifests
+          name: wait-for-rendering-to-finish
           template: main
         arguments:
           parameters:
-          - name: decapod_site_repo
-            value: "{{ workflow.parameters.github_account }}/{{item}}"
-          - name: base_repo_branch
-            value: "{{ workflow.parameters.base_repo_branch }}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.github_account }}/{{ item }}"
         withParam: "{{ steps.change-target.outputs.parameters.modified_cluster_list}}"
 
-  - name: update-eps-for-thanos
+  - name: loki-use-s3
     inputs:
       parameters:
-      - name: primary_cluster
-      - name: member_clusters
-    steps:
+          - name: primary_cluster
+          - name: member_clusters
+          - name: github_account
+          - name: base_repo_branch
 
-    - - name: change-thanos-sidecar
-        template: sub-change-thanos-sidecar
+    steps:
+    - - name: pre-change-target
+        template: sub-pre-change-logging-target
         arguments:
           parameters:
           - name: primary_cluster
@@ -220,17 +202,50 @@ spec:
           - name: member_clusters
             value: '{{inputs.parameters.member_clusters}}'
 
-    - - name: render-current-cluster
+    - - name: wait-for-rendering-to-finish-pre-modified-cluster
         templateRef:
-          name: event-gitea-render-manifests
+          name: wait-for-rendering-to-finish
           template: main
         arguments:
           parameters:
-          - name: decapod_site_repo
+          - name: cluster_id
+            value: "{{ workflow.parameters.github_account }}/{{ item }}"
+        withParam: "{{ steps.pre-change-target.outputs.parameters.modified_cluster_list}}"
+
+    - - name: federation-components-preinstall-for-s3
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
+              ]
+
+  - name: update-eps-for-thanos
+    inputs:
+      parameters:
+      - name: primary_cluster
+      - name: member_clusters
+    steps:
+    - - name: change-thanos-sidecar
+        template: sub-change-thanos-sidecar
+        arguments:
+          parameters:
+          - name: primary_cluster
+            value: '{{inputs.parameters.primary_cluster}}'
+
+    - - name: wait-for-rendering-to-finish-this-cluster
+        templateRef:
+          name: wait-for-rendering-to-finish
+          template: main
+        arguments:
+          parameters:
+          - name: cluster_id
             value: "{{ workflow.parameters.github_account }}/{{ workflow.parameters.cluster_id }}"
-          - name: base_repo_branch
-            value: "{{ workflow.parameters.base_repo_branch }}"
-        when: "{{steps.change-thanos-sidecar.outputs.parameters.changed}} != 'NO_CHANGE_HERE'"  # 이미 변경내역이 반영된 (한번 수행됐던) 클러스터라면 랜더링은 필요없음
 
     - - name: sync-organization-changes
         template: sub-sync-organization-changes
@@ -241,17 +256,15 @@ spec:
           - name: member_clusters
             value: '{{inputs.parameters.member_clusters}}'
 
-    - - name: render-primary-cluster
+    - - name: wait-for-rendering-to-finish-changed-clusters
         templateRef:
-          name: event-gitea-render-manifests
+          name: wait-for-rendering-to-finish
           template: main
         arguments:
           parameters:
-          - name: decapod_site_repo
-            value: "{{ workflow.parameters.github_account }}/{{steps.sync-organization-changes.outputs.parameters.changed}}"
-          - name: base_repo_branch
-            value: "{{ workflow.parameters.base_repo_branch }}"
-        when: "{{steps.sync-organization-changes.outputs.parameters.changed}} != 'NO_CHANGE_HERE'"
+          - name: cluster_id
+            value: "{{ workflow.parameters.github_account }}/{{steps.sync-organization-changes.outputs.parameters.changed_primary_id}}"
+        when: "{{steps.sync-organization-changes.outputs.parameters.changed_primary_id}} != NONE"
 
   #######################
   # Template Definition #
@@ -305,13 +318,13 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
-        S3_Service="s3://ap-northeast-2"
-        cp /kube/value kubeconfig_adm
-        export KUBECONFIG=kubeconfig_adm
+        S3_SERVICE="s3://ap-northeast-2"
+        cp /kube/value ~/kubeconfig_adm
+        export KUBECONFIG=~/kubeconfig_adm
 
         #################
         # updates
@@ -334,7 +347,7 @@ spec:
         for member in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
-          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_Service (the current target is ${member})"
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${member})"
           [ -d ${member} ] || git clone ${repository_base}${member}
           cd ${member}
 
@@ -344,12 +357,13 @@ spec:
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.region=\"ap-northeast-2\")" ${member}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.bucket=\"${primary_cluster}-tks-thanos\")" ${member}/lma/site-values.yaml
           yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.signature_version2=false)" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.aws_sdk_auth=true)" ${member}/lma/site-values.yaml
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
           yq -i e "del(.charts[] | select(.name == \"loki\").override.loki.storageConfig.aws)" ${member}/lma/site-values.yaml
-          yq  -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.s3=\"s3://ap-northeast-2\")" ${member}/lma/site-values.yaml
-          yq  -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.dynamodb.dynamodb_url=\"dynamodb://ap-northeast-2\")" ${member}/lma/site-values.yaml
-          yq  -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.bucketnames=\"${primary_cluster}-tks-loki\")" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.s3=\"s3://ap-northeast-2\")" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.dynamodb.dynamodb_url=\"dynamodb://ap-northeast-2\")" ${member}/lma/site-values.yaml
+          yq -i e ".charts |= map(select(.name == \"loki\").override.loki.storageConfig.aws.bucketnames=\"${primary_cluster}-tks-loki\")" ${member}/lma/site-values.yaml
 
           if [ `kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             if [ -z $iamRoles ]; then
@@ -357,13 +371,19 @@ spec:
             else
               iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
             fi
+          elif [ `kubectl get AWSMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+            if [ -z $iamRoles ]; then
+              iamRoles="\"${iamPrefix}/nodes.cluster-api-provider-aws.sigs.k8s.io\""
+            else
+              iamRoles="${iamRoles}, \"${iamPrefix}/nodes.cluster-api-provider-aws.sigs.k8s.io\""
+            fi
           else
             log "WARN" "Cluster(${member}) has no node role for taco-lma"
           fi
 
           cd -
         done
-        yq -i e  ".global.iamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
+        yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
 
         git config --global user.name "tks"
         git config --global user.email "tks@sktelecom.com"
@@ -388,7 +408,7 @@ spec:
         jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
 
       env:
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       envFrom:
       - secretRef:
@@ -436,7 +456,7 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
@@ -446,25 +466,37 @@ spec:
         primary_kube_secret=$(kubectl get secret -n ${primary_cluster} ${primary_cluster}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
         # echo -e "primary_kube_secret:\n$primary_kube_secret" | head -n 5
         cat <<< "$primary_kube_secret" > kubeconfig
+        LOKI_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.loki}'| base64 -d )
 
-        while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
-        do
-          if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
-            log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
-            exit -1
+        if [[ "$LOKI_SERVICE" == "" ]]; then
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+          do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+              log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
+              exit -1
+            fi
+
+            echo "Waiting for generating the loadbalancer of LOKI(3s)"
+            sleep 3
+          done
+
+          LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
+        else
+          LOKI_HOST=$(echo $LOKI_SERVICE | awk -F : '{print $1}')
+          LOKI_PORT=$(echo $LOKI_SERVICE | awk -F : '{print $2}')
+          if [[ "$LOKI_PORT" == "" ]]; then
+            LOKI_PORT=80
           fi
+        fi
 
-          echo "Waiting for generating the loadbalancer of LOKI(3s)"
-          sleep 3
-        done
-
-        LOKI_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-        LOKI_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
-
-        if [ "$OBJECT_SOTRE" == "minio" ]; then
-          S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-          S3_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
-          S3_Service=${S3_HOST}:${S3_PORT}
+        if [[ "$OBJECT_STORE" == "minio" ]]; then
+          S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
+          if [[ "$S3_SERVICE" == "" ]]; then
+            S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+            S3_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.spec.ports[0].port}")
+            S3_SERVICE=${S3_HOST}:${S3_PORT}
+          fi
         fi
 
         #################
@@ -480,20 +512,20 @@ spec:
         for member in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
-          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_Service (the current target is ${member})"
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${member})"
           [ -d ${member} ] || git clone ${repository_base}${member}
           cd ${member}
 
           yq -i e  ".global.lokiHost=\"${LOKI_HOST}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${member}/lma/site-values.yaml
-          if [ "$OBJECT_SOTRE" == "minio" ]; then
-            yq -i e  ".global.s3Service=\"${S3_Service}\"" ${member}/lma/site-values.yaml
+          if [[ "$OBJECT_STORE" == "minio" ]]; then
+            yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
           fi
 
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
-          # 2. grafana datasource on primay_cluster
-          if [ ${member} = ${primary_cluster} ]; then
+          # 2. grafana datasource on primary_cluster
+          if [[ "${member}" == "${primary_cluster}" ]]; then
             yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.TksWebhookUrl=\"{{workflow.parameters.alert_tks}}\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.SlackUrl=\"{{workflow.parameters.alert_slack}}\"" ${member}/lma/site-values.yaml
@@ -511,9 +543,9 @@ spec:
         do
           cd ${member}
           if [[ `git status --porcelain` ]]; then
-            log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_Service"
-            if [ "$OBJECT_SOTRE" == "minio" ]; then
-              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_Service (cluster ${member})"
+            log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE"
+            if [[ "$OBJECT_STORE" == "minio" ]]; then
+              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_SERVICE (cluster ${member})"
             else
               cmessage="the loki to $LOKI_HOST:$LOKI_PORT (cluster ${member})"
             fi
@@ -531,7 +563,7 @@ spec:
         jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
 
       env:
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       envFrom:
       - secretRef:
@@ -553,7 +585,6 @@ spec:
     inputs:
       parameters:
       - name: primary_cluster
-      - name: member_clusters
     container:
       name: logging-target-changer
       image: harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11
@@ -572,22 +603,25 @@ spec:
           echo "[$date] $level  $msg"
         }
 
+        cp /kube/value ~/kubeconfig_adm
+        export KUBECONFIG=~/kubeconfig_adm
+
         current_cluster={{workflow.parameters.cluster_id}}
         primary_cluster={{inputs.parameters.primary_cluster}}
-        member_clusters="{{inputs.parameters.member_clusters}}"
         empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
-        S3_Service="s3://ap-northeast-2"
-        cp /kube/value kubeconfig_adm
-        export KUBECONFIG=kubeconfig_adm
+        S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
+        if [[ "$S3_SERVICE" != "" ]]; then
+          echo "This site uses the predefined loki and static object stores."
+          exit 0
+        fi
 
-        #################
-        # updates
-        #################
+        S3_SERVICE="s3://ap-northeast-2"
+
         GIT_ACCOUNT={{workflow.parameters.github_account}}
         if  [[ $GIT_SVC_URL == https://* ]]; then
           repository_base=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
@@ -595,7 +629,7 @@ spec:
           repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
         fi
 
-        log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_Service (the current target is ${current_cluster})"
+        log "INFO" "##### configure thanos object storage (the current target is ${current_cluster})"
         [ -d ${current_cluster} ] || git clone ${repository_base}${current_cluster}
         cd ${current_cluster}
 
@@ -605,6 +639,7 @@ spec:
         yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.region=\"ap-northeast-2\")" ${current_cluster}/lma/site-values.yaml
         yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.bucket=\"${primary_cluster}-tks-thanos\")" ${current_cluster}/lma/site-values.yaml
         yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.signature_version2=false)" ${current_cluster}/lma/site-values.yaml
+        yq -i e ".charts |= map(select(.name == \"thanos-config\").override.objectStorage.rawConfig.aws_sdk_auth=true)" ${current_cluster}/lma/site-values.yaml
 
         git config --global user.name "tks"
         git config --global user.email "tks@sktelecom.com"
@@ -615,19 +650,12 @@ spec:
           git add ${current_cluster}/lma/site-values.yaml
           git commit -m "change loki and thanos endpoints. (by set-primary workflow)" -m "$cmessage"
           git push
-          modified_clusters=${current_cluster}
-          # echo -n "${current_cluster} " >>  /mnt/out/modified_cluster_list.txt
         else
           log "INFO" "No change on the cluster ${current_cluster}"
-          echo NO_CHANGE_HERE > /mnt/out/modified_cluster_list.txt
         fi
-        cd -
-        rm -rf ${current_cluster}
-
-        jq -n '$ARGS.positional' --args $modified_clusters >  /mnt/out/modified_cluster_list.txt
 
       env:
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       envFrom:
       - secretRef:
@@ -635,16 +663,7 @@ spec:
       volumeMounts:
       - name: kubeconfig-adm
         mountPath: "/kube"
-      - name: out
-        mountPath: /mnt/out
     volumes:
-    - name: out
-      emptyDir: {}
-    outputs:
-      parameters:
-      - name: changed
-        valueFrom:
-          path: /mnt/out/modified_cluster_list.txt
     activeDeadlineSeconds: 900
 
   - name: sub-sync-organization-changes
@@ -675,7 +694,7 @@ spec:
         member_clusters="{{inputs.parameters.member_clusters}}"
         # empty_char=
 
-        if [ -z ${primary_cluster} ] || [ "${primary_cluster}" = "$empty_char" ]; then
+        if [ -z ${primary_cluster} ] || [[ "${primary_cluster}" == "$empty_char" ]]; then
           primary_cluster=${current_cluster}
         fi
 
@@ -689,7 +708,10 @@ spec:
           # Thanos Endpoints
           kube_secret=$(kubectl get secret -n ${member} ${member}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
-          if [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+          PROMETHEUS_URL=$(kubectl get secret -n ${member} tks-endpoint-secret -o jsonpath='{.data.prometheus}'| base64 -d )
+          if [[ "$PROMETHEUS_URL" != "" ]]; then
+            eplist="${eplist}, \"${PROMETHEUS_URL}\""
+          elif [ `kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
             do
               if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma lma-thanos-external -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
@@ -707,10 +729,10 @@ spec:
           fi
         done
 
-        cp /kube/value kubeconfig_adm
-        export KUBECONFIG=kubeconfig_adm
+        cp /kube/value ~/kubeconfig_adm
+        export KUBECONFIG=~/kubeconfig_adm
 
-        if [ "$OBJECT_SOTRE" == "s3" ]; then
+        if [[ "$OBJECT_STORE" == "s3" ]]; then
           #################
           # Gather iams
           #################
@@ -722,13 +744,18 @@ spec:
             iamPrefix=${ROLE_ARN%/*}
           fi
           
-          for member in $member_clusters
-          do
+          for member in $member_clusters; do
             if [ `kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
               if [ -z $iamRoles ]; then
                 iamRoles="\"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
               else
                 iamRoles="${iamRoles}, \"${iamPrefix}/$(kubectl get AWSManagedMachinePool -n ${member} ${member}-mp-taco  -o jsonpath='{.spec.roleName}')\""
+              fi
+            elif [ `kubectl get AWSMachinePool -n ${member} ${member}-mp-taco --ignore-not-found=true | grep -v NAME | wc -l ` -eq 1 ]; then
+              if [ -z $iamRoles ]; then
+                iamRoles="\"${iamPrefix}/nodes.cluster-api-provider-aws.sigs.k8s.io\""
+              else
+                iamRoles="${iamRoles}, \"${iamPrefix}/nodes.cluster-api-provider-aws.sigs.k8s.io\""
               fi
             else
               log "WARN" "Cluster(${member}) has no node role for taco-lma"
@@ -754,29 +781,28 @@ spec:
         yq -i e  ".global.thanosQueryStores=[${eplist}]" ${primary_cluster}/lma/site-values.yaml
 
         if [[ `git status --porcelain` ]]; then
-          log "INFO" "##### commit changes endpoints for the thanos query on ${primay_cluster} "
-          cmessage="changes endpoints for the thanos query on ${primay_cluster}"
+          log "INFO" "##### commit changes endpoints for the thanos query on ${primary_cluster} "
+          cmessage="changes endpoints for the thanos query on ${primary_cluster}"
           git add ${primary_cluster}/lma/site-values.yaml
           git commit -m "change thanos-query stores. (by set-primary workflow)" -m "$cmessage"
           git push
           echo ${primary_cluster} > /mnt/out/changed.txt
         else
-          log "INFO" "No change on the cluster ${member}"
-          echo NO_CHANGE_HERE > /mnt/out/changed.txt
+          log "INFO" "No change on the cluster ${primary_cluster}"
         fi
 
-        if [ "$OBJECT_SOTRE" != "s3" ]; then
-          yq -i e  ".global.iamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
+        if [[ "$OBJECT_STORE" == "s3" ]]; then
+          yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/lma/site-values.yaml
 
           if [[ `git status --porcelain` ]]; then
-            log "INFO" "##### commit changes iamRoles for the s3 on ${primay_cluster} "
-            cmessage="changes iamRoles for the s3 on ${primay_cluster}"
+            log "INFO" "##### commit changes iamRoles for the s3 on ${primary_cluster} "
+            cmessage="changes iamRoles for the s3 on ${primary_cluster}"
             git add ${primary_cluster}/lma/site-values.yaml
             git commit -m "change iamRoles(s3). (by set-primary workflow)" -m "$cmessage"
             git push
             echo ${primary_cluster} > /mnt/out/changed.txt
           else
-            log "INFO" "(iamRoles) No change on the cluster ${member}"
+            log "INFO" "(iamRoles) No change on the cluster ${primary_cluster}"
           fi
         fi
 
@@ -791,7 +817,7 @@ spec:
         value: "{{workflow.parameters.cluster_id}}"
       - name: CLOUD_ACCOUNT_ID
         value: "{{workflow.parameters.cloud_account_id}}"
-      - name: OBJECT_SOTRE
+      - name: OBJECT_STORE
         value: "{{workflow.parameters.object_store}}"
       volumeMounts:
       - name: kubeconfig-adm
@@ -803,11 +829,11 @@ spec:
       emptyDir: {}
     outputs:
       parameters:
-      - name: changed
+      - name: changed_primary_id
         valueFrom:
           path: /mnt/out/changed.txt
+          default: "NONE"
     activeDeadlineSeconds: 900
-
 
   - name: sub-remove-individual-loki-and-grafana
     inputs:
@@ -875,7 +901,7 @@ spec:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       - name: TKS_API_URL
-        value: "{{workflow.parameters.tks_info_host}}"
+        value: "{{workflow.parameters.tks_api_url}}"
       envFrom:
       - secretRef:
           name: "tks-api-secret"
@@ -888,7 +914,7 @@ spec:
         import json
         import os
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
         CLUSTER_ID = "{{workflow.parameters.cluster_id}}"
 
@@ -946,7 +972,7 @@ spec:
     retryStrategy:
       limit: 2
 
-  - name: sub-set-primay-cluster-on-tks-info
+  - name: sub-set-primary-cluster-on-tks-info
     inputs:
       parameters:
       - name: cluster_id
@@ -957,7 +983,7 @@ spec:
       - name: PYTHONPATH
         value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
       - name: TKS_API_URL
-        value: "{{workflow.parameters.tks_info_host}}"
+        value: "{{workflow.parameters.tks_api_url}}"
       envFrom:
       - secretRef:
           name: "tks-api-secret"
@@ -967,7 +993,7 @@ spec:
         import json
         import os
 
-        TKS_API_URL = "{{workflow.parameters.tks_info_host}}"
+        TKS_API_URL = "{{workflow.parameters.tks_api_url}}"
         ORGANIZATION_ID = "{{workflow.parameters.organization_id}}"
         CLUSTER_ID = "{{inputs.parameters.cluster_id}}"
 
@@ -1047,7 +1073,7 @@ spec:
           sleep 10
         done
 
-        if [ $(kubectl get -n lma job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}') = "Complete" ]; then
+        if [[ $(kubectl get -n lma job empty-buckets-before-delete-them -o jsonpath='{.status.conditions[0].type}') == "Complete" ]]; then
           exit 0
         else
           exit -1

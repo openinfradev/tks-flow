@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: create-tks-usercluster
+  name: bootstrap-tks-usercluster
   namespace: argo
 spec:
   entrypoint: deploy
@@ -29,8 +29,6 @@ spec:
         value: "http://tks-api.tks.svc:9110"
       - name: base_repo_branch
         value: "main"
-      - name: keycloak_url
-        value: 'https://keycloak.yourdomain.org/auth'
 
   volumes:
     - name: kubeconfig-adm
@@ -114,16 +112,6 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: tks-create-config-secret
-            template: create-endpoint-secret
-            arguments:
-              parameters:
-                - name: cluster_info
-                  value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
-                - name: cluster_id
-                  value: "{{ workflow.parameters.cluster_id }}"
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
-
         - - name: init-cluster-for-tks
             template: init-cluster-for-tks
             arguments:
@@ -134,10 +122,6 @@ spec:
                   value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
                 - name: cloud_account_id
                   value: "{{ workflow.parameters.cloud_account_id }}"
-                - name: keycloak_url
-                  value: "{{ workflow.parameters.keycloak_url }}"
-                - name: contract_id
-                  value: "{{ workflow.parameters.contract_id }}"
 
         - - name: create-aws-cluster-autoscaler-iam
             templateRef:
@@ -232,7 +216,9 @@ spec:
                         "target_cluster": ""
                       }
                     ]
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh"
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
 
         - - name: install-addons-common
             templateRef:
@@ -247,6 +233,18 @@ spec:
                         "app_group": "tks-cluster",
                         "path": "ingress-nginx",
                         "namespace": "taco-system",
+                        "target_cluster": ""
+                      },
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "metrics-server",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      },
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "cluster-autoscaler",
+                        "namespace": "kube-system",
                         "target_cluster": ""
                       },
                       {
@@ -272,12 +270,6 @@ spec:
                         "namespace": "taco-system",
                         "target_cluster": ""
                       },
-                      {
-                        "app_group": "tks-cluster",
-                        "path": "metrics-server",
-                        "namespace": "kube-system",
-                        "target_cluster": ""
-                      }, 
                       {
                         "app_group": "tks-cluster",
                         "path": "s3-chart",
@@ -326,73 +318,13 @@ spec:
                   value: |
                     [
                       {
-                        "app_group": "tks-cluster",
+                        "app_group": "tks-cluster-byoh",
                         "path": "local-path-provisioner",
                         "namespace": "taco-system",
                         "target_cluster": ""
-                      },
-                      {
-                        "app_group": "tks-cluster",
-                        "path": "metrics-server",
-                        "namespace": "kube-system",
-                        "target_cluster": ""
-                      } 
+                      }
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
-
-        - - name: set-keycloak-config
-            templateRef:
-              name: set-user-cluster
-              template: main
-            arguments:
-              parameters:
-                - name: cluster_id
-                  value: "{{ workflow.parameters.cluster_id }}"
-                - name: server_url
-                  value: "{{ workflow.parameters.keycloak_url }}"
-                - name: target_realm_name
-                  value: "{{ workflow.parameters.contract_id }}"
-                - name: target_client_id
-                  value: "{{ workflow.parameters.cluster_id}}-k8s-api"
-                - name: keycloak_credential_secret_name
-                  value: "keycloak"
-                - name: keycloak_credential_secret_namespace
-                  value: "keycloak"
-
-        - - name: set-cluster-role-binding-cluster-admin
-            templateRef:
-              name: k8s-client
-              template: create-cluster-role-binding
-            arguments:
-              parameters:
-                - name: target_cluster_id
-                  value: "{{workflow.parameters.cluster_id}}"
-                - name: is_self_target
-                  value: "false"
-                - name: rolebinding_name
-                  value: "{{workflow.parameters.cluster_id}}-cluster-admin"
-                - name: role_name
-                  value: "admin"
-                - name: group_list
-                  value: '["{{workflow.parameters.cluster_id}}-cluster-admin", "cluster-admin"]'
-
-        - - name: set-cluster-role-binding-cluster-view
-            templateRef:
-              name: k8s-client
-              template: create-cluster-role-binding
-            arguments:
-              parameters:
-                - name: target_cluster_id
-                  value: "{{workflow.parameters.cluster_id}}"
-                - name: is_self_target
-                  value: "false"
-                - name: rolebinding_name
-                  value: "{{workflow.parameters.cluster_id}}-cluster-view"
-                - name: role_name
-                  value: "view"
-                - name: group_list
-                  value: '["{{workflow.parameters.cluster_id}}-cluster-view", "cluster-view"]'
-
 
     #######################
     # Template Definition #
@@ -403,8 +335,6 @@ spec:
           - name: cluster_id
           - name: infra_provider
           - name: cloud_account_id
-          - name: keycloak_url
-          - name: contract_id
       container:
         name: cluster-init
         image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
@@ -475,21 +405,10 @@ spec:
                 ;;
 
               byoh)
-                kcp_count=$(kubectl get kcp -n $CLUSTER_ID $CLUSTER_ID | grep -v NAME | wc -l)
                 kubectl wait --for=condition=Available --timeout=600s kcp -n $CLUSTER_ID $CLUSTER_ID
 
                 KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
                 cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
-
-                for machine in $(kubectl get machine -n $CLUSTER_ID -l cluster.x-k8s.io/deployment-name=$CLUSTER_ID-md-$TKS_NODE_NAME -oname)
-                do
-                  kubectl wait --for=condition=ready --timeout=3600s -n $CLUSTER_ID $machine
-                done
-
-                for node in $(kubectl get machine -n $CLUSTER_ID -l cluster.x-k8s.io/deployment-name=$CLUSTER_ID-md-$TKS_NODE_NAME -o=jsonpath='{.items[*].status.nodeRef.name}')
-                do
-                  kubectl --kubeconfig=kubeconfig_workload label node $node taco-lma=enabled tks-ingressgateway=enabled tks-egressgateway=enabled tks-msa=enabled --overwrite
-                done
                 ;;
 
               *)
@@ -529,29 +448,7 @@ spec:
             export KUBECONFIG=kubeconfig_adm
             if [ $kcp_count = 1 ]; then
               TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              if [ "$INFRA_PROVIDER" == "byoh" ]; then
-                ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
-                CLIENT_ID=$CLUSTER_ID-k8s-api
-                OIDC_USER_NAME="oidc-user"
-                EXISTING_USER_NAME=$CLUSTER_ID-admin
-                
-                kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d > tmp_user_kubeconfig
-                kubectl --kubeconfig=tmp_user_kubeconfig config unset users.$EXISTING_USER_NAME
-                kubectl --kubeconfig=tmp_user_kubeconfig config set-credentials $OIDC_USER_NAME \
-                  --exec-api-version=client.authentication.k8s.io/v1beta1 \
-                  --exec-command=kubectl \
-                  --exec-arg=oidc-login \
-                  --exec-arg=get-token \
-                  --exec-arg=--oidc-issuer-url=$ISSUER_URL \
-                  --exec-arg=--oidc-client-id=$CLIENT_ID \
-                  --exec-arg=--grant-type=password 
-                
-                CONTEXT_NAME=$(kubectl --kubeconfig=tmp_user_kubeconfig config current-context)
-                kubectl --kubeconfig=tmp_user_kubeconfig config set-context $CONTEXT_NAME --user $OIDC_USER_NAME
-                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_user_kubeconfig)
-              else
-                TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              fi
+              TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             elif [ $awsmcp_count = 1 ]; then
               CAPA_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
 
@@ -585,7 +482,7 @@ spec:
             EOF
               kubectl --kubeconfig kubeconfig_workload apply -f sc-taco-storage.yaml
             else
-              echo "Wrong Cluster type!"
+              echo "Wrong AWS Cluster type!"
               exit 1
             fi
             cat <<< $TKS_KUBECONFIG_WORKLOAD > tks_kubeconfig_workload
@@ -610,10 +507,6 @@ spec:
             value: "{{ inputs.parameters.cloud_account_id }}"
           - name: TKS_NODE_NAME
             value: "taco"
-          - name: KEYCLOAK_URL
-            value: "{{ inputs.parameters.keycloak_url }}"
-          - name: CONTRACT_ID
-            value: "{{ inputs.parameters.contract_id }}"
 
     - name: prepare-cluster-autoscaler
       container:
@@ -658,46 +551,3 @@ spec:
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml -n kube-system
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml -n kube-system
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml -n kube-system
-
-    - name: create-endpoint-secret
-      inputs:
-        parameters:
-          - name: cluster_info
-          - name: cluster_id
-      container:
-        name: create-namespace
-        image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
-        command:
-          - /bin/bash
-          - '-c'
-          - |
-            CLUSTER_ID={{inputs.parameters.cluster_id}}
-            CLUSTER_IP=$(echo $CLUSTER_INFO | jq -r '.byoClusterEndpointHost')
-
-            if [ "$CLUSTER_IP" = "" ]; then
-              echo "ERROR::Endpoint for the cluster is not given!!!"
-              exit -1
-            fi
-
-            cat <<EOF > tks-endpoint-secret.yaml
-            ---
-            apiVersion: v1
-            kind: Secret
-            metadata:
-              name: tks-endpoint-secret
-              namespace: ${CLUSTER_ID}
-            data:
-              grafana: $(echo ${CLUSTER_IP}:30001 | base64)  # 30001
-              loki: $(echo ${CLUSTER_IP}:30002 | base64)   # 30002
-              minio: $(echo ${CLUSTER_IP}:30003 | base64)   # 30003
-              prometheus: $(echo ${CLUSTER_IP}:30004 | base64)    # 30004
-              thanos: $(echo ${CLUSTER_IP}:30005 | base64)  # 30005 (queryfrontend만 합시다...)
-              kiali: $(echo ${CLUSTER_IP}:30011 | base64)    # 30011
-              jaeger: $(echo ${CLUSTER_IP}:30012 | base64)    # 30012
-            EOF
-            kubectl apply -f tks-endpoint-secret.yaml
-        env:
-        - name: CLUSTER_INFO
-          value: "{{inputs.parameters.cluster_info}}"
-
-      activeDeadlineSeconds: 30

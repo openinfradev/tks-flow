@@ -72,7 +72,7 @@ spec:
       - name: https_enabled
     container:
       name: render-manifests-template
-      image: harbor.taco-cat.xyz/tks/decapod-render:v3.1.3
+      image: harbor.taco-cat.xyz/tks/decapod-render:v3.3.0
       command:
       - /bin/bash
       - '-exc'
@@ -157,21 +157,44 @@ spec:
 
           if [[ ${CLUSTER_ID} != *"decapod"* ]]; then
             log 0 "INFO" "Almost finished: changing namespace for aws-cluster-resouces from argo to cluster-name.."
-            sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
-            sed -i "s/- argo/- ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
-            # It's possible besides of two above but very tricky!!
-            # sed -i "s/ argo$/ ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
-            echo "---
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: ${site}
-          labels:
+            
+            # [TODO] this is workaround fixes.
+            if [ -d "$(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws" ]; then
+              sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
+              sed -i "s/- argo/- ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
+              # It's possible besides of two above but very tricky!!
+              # sed -i "s/ argo$/ ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/*
+              echo "---
+          apiVersion: v1
+          kind: Namespace
+          metadata:
             name: ${site}
-            # It bring the secret 'dacapod-argocd-config' using kubed
-            decapod-argocd-config: enabled
-        " > Namespace_aws_rc.yaml
-            mv Namespace_aws_rc.yaml $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/
+            labels:
+              name: ${site}
+              # It bring the secret 'dacapod-argocd-config' using kubed
+              decapod-argocd-config: enabled
+          " > Namespace_aws_rc.yaml
+              mv Namespace_aws_rc.yaml $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-aws/
+            fi
+
+            # [TODO] this is workaround fixes.
+            if [ -d "$(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-byoh" ]; then
+              sed -i "s/ namespace: argo/ namespace: ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-byoh/*
+              sed -i "s/- argo/- ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-byoh/*
+              # It's possible besides of two above but very tricky!!
+              # sed -i "s/ argo$/ ${site}/g" $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-byoh/*
+              echo "---
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: ${site}
+            labels:
+              name: ${site}
+              # It bring the secret 'dacapod-argocd-config' using kubed
+              decapod-argocd-config: enabled
+          " > Namespace_aws_rc.yaml
+              mv Namespace_aws_rc.yaml $(pwd)/${OUTPUT_DIR}/${site}/tks-cluster/cluster-api-byoh/
+            fi
           fi
 
         done

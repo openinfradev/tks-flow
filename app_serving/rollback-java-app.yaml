@@ -23,7 +23,7 @@ spec:
     - name: helm_revision
       value: ""
     # tks_info service URL
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
 
   templates:

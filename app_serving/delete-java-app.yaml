@@ -20,7 +20,7 @@ spec:
       value: ""
     - name: organization_id
       value: "ose4j7p39"
-    - name: tks_info_host
+    - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
 
   templates:

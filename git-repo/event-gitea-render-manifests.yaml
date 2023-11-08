@@ -11,6 +11,8 @@ spec:
       value: "org/cluster_id"
     - name: base_repo_branch
       value: ""
+  ttlStrategy:
+    secondsAfterSuccess: 5
 
   templates:
   - name: main
