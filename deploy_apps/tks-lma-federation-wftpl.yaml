@@ -159,16 +159,15 @@ spec:
           - name: app_type
             value: GRAFANA
 
-    - - name: render-auth-oidc-grafana
+    - - name: wait-for-rendering-to-finish
         templateRef:
-          name: event-gitea-render-manifests
+          name: wait-for-rendering-to-finish
           template: main
         arguments:
           parameters:
-          - name: decapod_site_repo
-            value: "{{workflow.parameters.github_account}}/{{workflow.parameters.cluster_id}}"
-          - name: base_repo_branch
-            value: "{{ workflow.parameters.base_repo_branch }}"
+          - name: cluster_id
+            value: "{{ workflow.parameters.github_account }}/{{workflow.parameters.cluster_id}}"
+        when: "{{steps.update-auth-oidc-grafana.outputs.parameters.is_changed}} == YES"
 
     - - name: argocd-sync-wait
         template: argocd-sync-wait
@@ -418,20 +417,35 @@ spec:
           yq -i e  ".global.grafanaClientSecret=\"${keycloak_client_secret}\"" ${cluster_id}/lma/site-values.yaml
           yq -i e  ".global.consoleUrl=\"${console_url}\"" ${cluster_id}/lma/site-values.yaml
 
-          git config --global user.name "tks"
-          git config --global user.email "tks@sktelecom.com"
+          if [[ `git status --porcelain` ]]; then
+            git config --global user.name "tks"
+            git config --global user.email "tks@sktelecom.com"
 
-          log "INFO" "##### commit changes grafana domain and root_url on ${cluster_id} to ${grafana_endpoint} and ${grafana_endpoint}/grafana"
-          cmessage="changes grafana domain and root_url on ${cluster_id} to ${grafana_endpoint} and ${grafana_endpoint}/grafana"
-          git add ${cluster_id}/lma/site-values.yaml
-          git commit -m "change values on grafana.ini.server." -m "$cmessage"
-          git push
+            log "INFO" "##### commit changes grafana domain and root_url on ${cluster_id} to ${grafana_endpoint} and ${grafana_endpoint}/grafana"
+            cmessage="changes grafana domain and root_url on ${cluster_id} to ${grafana_endpoint} and ${grafana_endpoint}/grafana"
+            git add ${cluster_id}/lma/site-values.yaml
+            git commit -m "change values on grafana.ini.server." -m "$cmessage"
+            git push
+            echo "YES" > /mnt/out/changed.txt
+          fi
 
       envFrom:
         - secretRef:
             name: "git-svc-token"
         - secretRef:
             name: "tks-api-secret"
+      volumeMounts:
+      - name: out
+        mountPath: /mnt/out
+    volumes:
+    - name: out
+      emptyDir: {}
+    outputs:
+      parameters:
+      - name: is_changed
+        valueFrom:
+          path: /mnt/out/changed.txt
+          default: "NO"
 
   - name: argocd-sync-wait
     inputs:
