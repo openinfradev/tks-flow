@@ -139,7 +139,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: argo-postgres-config
-              key: postgresql-password
+              key: postgres-password
         command:
           - /bin/sh
           - "-exc"
@@ -179,7 +179,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: argo-postgres-config
-              key: postgresql-password
+              key: postgres-password
         command:
           - /bin/sh
           - "-exc"
