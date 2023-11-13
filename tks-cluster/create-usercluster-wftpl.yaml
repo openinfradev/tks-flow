@@ -114,16 +114,6 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: tks-create-config-secret
-            template: create-endpoint-secret
-            arguments:
-              parameters:
-                - name: cluster_info
-                  value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
-                - name: cluster_id
-                  value: "{{ workflow.parameters.cluster_id }}"
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
-
         - - name: init-cluster-for-tks
             template: init-cluster-for-tks
             arguments:
@@ -173,6 +163,12 @@ spec:
 
         - - name: prepare-cluster-autoscaler
             template: prepare-cluster-autoscaler
+            arguments:
+              parameters:
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
+                - name: infra_provider
+                  value: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}}"
             when: >-
               {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
                 {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
@@ -215,6 +211,10 @@ spec:
                       }
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+
+        - - name: suspend
+            template: suspend
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
         - - name: install-cluster-autoscaler
             templateRef:
@@ -397,6 +397,9 @@ spec:
     #######################
     # Template Definition #
     #######################
+    - name: suspend
+      suspend: {}
+
     - name: init-cluster-for-tks
       inputs:
         parameters:
@@ -616,6 +619,10 @@ spec:
             value: "{{ inputs.parameters.contract_id }}"
 
     - name: prepare-cluster-autoscaler
+      inputs:
+        parameters:
+          - name: cluster_id
+          - name: infra_provider
       container:
         name: prepare-cluster-autoscaler
         image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
@@ -623,16 +630,48 @@ spec:
           - /bin/bash
           - "-exc"
           - |
+            cp /kube/value kubeconfig_adm
+            export KUBECONFIG=kubeconfig_adm
+
             cp /kube/value kubeconfig
 
-            CLUSTER=$(kubectl --kubeconfig kubeconfig get cl -ojsonpath='{.items[0].metadata.name}' -n default)
-            ADMIN_USER=${CLUSTER}-admin
-            TOKEN=$(kubectl --kubeconfig kubeconfig get secrets -n {{workflow.parameters.cluster_id}} "$(kubectl --kubeconfig kubeconfig get sa cluster-autoscaler -n {{workflow.parameters.cluster_id}} -o=jsonpath={.secrets[0].name})" -o=jsonpath={.data.token} | base64 -d)
-            kubectl --kubeconfig kubeconfig config set-credentials cluster-autoscaler --token=$TOKEN
-            kubectl --kubeconfig kubeconfig config set-context cluster-autoscaler --cluster=$CLUSTER --user=cluster-autoscaler
-            kubectl --kubeconfig kubeconfig config use-context cluster-autoscaler
-            kubectl --kubeconfig kubeconfig config delete-context "$ADMIN_USER@$CLUSTER"
-            kubectl --kubeconfig kubeconfig config delete-user "$ADMIN_USER"
+            CLUSTER=$(kubectl get cl -ojsonpath='{.items[0].metadata.name}' -n default)
+
+            create_cluster_autoscaler_kubeconfig() {
+              ADMIN_CONTEXT=$1
+              ADMIN_USER=$2
+
+              TOKEN=$(kubectl get secret -n {{workflow.parameters.cluster_id}} cluster-autoscaler-token -ojsonpath={.data.token} | base64 -d)
+              kubectl --kubeconfig kubeconfig config set-credentials cluster-autoscaler --token=$TOKEN
+              kubectl --kubeconfig kubeconfig config set-context cluster-autoscaler --cluster=$CLUSTER --user=cluster-autoscaler
+              kubectl --kubeconfig kubeconfig config use-context cluster-autoscaler
+
+              kubectl --kubeconfig kubeconfig config delete-context "$ADMIN_CONTEXT"
+              kubectl --kubeconfig kubeconfig config delete-user "$ADMIN_USER"
+            }
+
+            CURRENT_CONTEXT=$(kubectl --kubeconfig kubeconfig config current-context)
+            case $INFRA_PROVIDER in
+              aws)
+                # check whether admin cluster is managed or not
+                kcp_count=$(kubectl get kcp -n default $CLUSTER | grep -v NAME | wc -l)
+                awsmcp_count=$(kubectl get awsmcp -n default $CLUSTER | grep -v NAME | wc -l)
+
+                if [ $kcp_count = 1 ]; then # Self-managed control plane cluster
+                  create_cluster_autoscaler_kubeconfig "$CURRENT_CONTEXT" "$CLUSTER-admin"
+                elif [ $awsmcp_count = 1 ]; then # EKS cluster
+                  create_cluster_autoscaler_kubeconfig "$CURRENT_CONTEXT" "$CLUSTER-user"
+                else
+                  echo "Wrong AWS Cluster type!"
+                  exit 1
+                fi
+                ;;
+
+               *)
+                echo "Error: wrong infra provider"
+                exit 1
+                ;;
+            esac
 
             KUBECONFIG_WORKLOAD=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
             echo -e "kubeconfig_workload:\n$KUBECONFIG_WORKLOAD" | head -n 5
@@ -642,6 +681,11 @@ spec:
         volumeMounts:
           - name: kubeconfig-adm
             mountPath: "/kube"
+        env:
+          - name: CLUSTER_ID
+            value: "{{ inputs.parameters.cluster_id }}"
+          - name: INFRA_PROVIDER
+            value: "{{ inputs.parameters.infra_provider }}"
 
     - name: install-volumesnapshot-crds
       container:
@@ -659,45 +703,3 @@ spec:
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml -n kube-system
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml -n kube-system
 
-    - name: create-endpoint-secret
-      inputs:
-        parameters:
-          - name: cluster_info
-          - name: cluster_id
-      container:
-        name: create-namespace
-        image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
-        command:
-          - /bin/bash
-          - '-c'
-          - |
-            CLUSTER_ID={{inputs.parameters.cluster_id}}
-            CLUSTER_IP=$(echo $CLUSTER_INFO | jq -r '.byoClusterEndpointHost')
-
-            if [ "$CLUSTER_IP" = "" ]; then
-              echo "ERROR::Endpoint for the cluster is not given!!!"
-              exit -1
-            fi
-
-            cat <<EOF > tks-endpoint-secret.yaml
-            ---
-            apiVersion: v1
-            kind: Secret
-            metadata:
-              name: tks-endpoint-secret
-              namespace: ${CLUSTER_ID}
-            data:
-              grafana: $(echo ${CLUSTER_IP}:30001 | base64)  # 30001
-              loki: $(echo ${CLUSTER_IP}:30002 | base64)   # 30002
-              minio: $(echo ${CLUSTER_IP}:30003 | base64)   # 30003
-              prometheus: $(echo ${CLUSTER_IP}:30004 | base64)    # 30004
-              thanos: $(echo ${CLUSTER_IP}:30005 | base64)  # 30005 (queryfrontend만 합시다...)
-              kiali: $(echo ${CLUSTER_IP}:30011 | base64)    # 30011
-              jaeger: $(echo ${CLUSTER_IP}:30012 | base64)    # 30012
-            EOF
-            kubectl apply -f tks-endpoint-secret.yaml
-        env:
-        - name: CLUSTER_INFO
-          value: "{{inputs.parameters.cluster_info}}"
-
-      activeDeadlineSeconds: 30
