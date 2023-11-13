@@ -114,16 +114,6 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: tks-create-config-secret
-            template: create-endpoint-secret
-            arguments:
-              parameters:
-                - name: cluster_info
-                  value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_info}}"
-                - name: cluster_id
-                  value: "{{ workflow.parameters.cluster_id }}"
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
-
         - - name: init-cluster-for-tks
             template: init-cluster-for-tks
             arguments:
