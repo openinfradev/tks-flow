@@ -18,6 +18,8 @@ spec:
       value: "{{workflow.parameters.site_name}}"
     - name: keycloak_url
       value: ""
+    - name: organization_id
+      value: "o086tb3zc"
     #===============================
     # For tks-info task
     #===============================
@@ -29,7 +31,7 @@ spec:
       value: "Aabbead61"
     - name: base_repo_branch
       value: "main"
-      
+
   # volumes:
   # - name: tks-proto-vol
   #   configMap:
@@ -41,10 +43,472 @@ spec:
   #=========================================================
   - name: deploy-tks-service-mesh
     steps:
+    - - name: kiali-create-keycloak-client
+        templateRef:
+          name: keycloak-client
+          template: create-client
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-kiali"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+    - - name: kiali-update-keycloak-client-secret
+        templateRef:
+          name: keycloak-client
+          template: update-client-secret
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-kiali"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: client_secret_value
+              value: ""
+    - - name: kiali-get-keycloak-client-secret
+        templateRef:
+          name: keycloak-client
+          template: get-client-secret
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-kiali"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: client_secret_enabled
+              value: 'true'
+            - name: client_secret_value
+              value: ""
+    - - name: jaeger-create-keycloak-client
+        templateRef:
+          name: keycloak-client
+          template: create-client
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-gatekeeper-jaeger"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+    - - name: jaeger-update-keycloak-client-secret
+        templateRef:
+          name: keycloak-client
+          template: update-client-secret
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-gatekeeper-jaeger"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: client_secret_enabled
+              value: 'true'
+            - name: client_secret_value
+              value: ""
+    - - name: jaeger-get-keycloak-client-secret
+        templateRef:
+          name: keycloak-client
+          template: get-client-secret
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-gatekeeper-jaeger"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+    - - name: update-oidc-git
+        template: update-oidc-git
+        arguments:
+          parameters:
+            - name: client_secret
+              value: "{{steps.jaeger-get-keycloak-client-secret.outputs.parameters.client-secret}}"
+            - name: cluster_id
+              value: "{{workflow.parameters.cluster_id}}"
+            - name: keycloak_url
+              value: "{{workflow.parameters.keycloak_url}}/auth"
+            - name: organization_id
+              value: "{{workflow.parameters.organization_id}}"
     - - name: install-service-mesh-app
         templateRef:
           name: service-mesh
           template: deploy-start
+    - - name: kiali-create-keycloak-secret-to-k8s-cluster
+        template: create-keycloak-secret-to-k8s-cluster
+        arguments:
+          parameters:
+            - name: client_secret
+              value: "{{steps.kiali-get-keycloak-client-secret.outputs.parameters.client-secret}}"
+            - name: cluster_id
+              value: "{{workflow.parameters.cluster_id}}"
+    - - name: kiali-get-ep
+        template: kiali-get-ep
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{workflow.parameters.cluster_id}}"
+    - - name: kiali-append-client-redirect-uri-http
+        templateRef:
+          name: keycloak-client
+          template: append-client-redirect-uri
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-kiali"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: redirect_uri
+              value: "http://{{ steps.kiali-get-ep.outputs.parameters.kiali_ep }}/*"
+    - - name: kiali-append-client-redirect-uri-https
+        templateRef:
+          name: keycloak-client
+          template: append-client-redirect-uri
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-kiali"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: redirect_uri
+              value: "https://{{ steps.kiali-get-ep.outputs.parameters.kiali_ep }}/*"
+    - - name: jaeger-get-ep
+        template: jaeger-get-ep
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{workflow.parameters.cluster_id}}"
+    - - name: jaeger-append-client-redirect-uri-http
+        templateRef:
+          name: keycloak-client
+          template: append-client-redirect-uri
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-gatekeeper-jaeger"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: redirect_uri
+              value: "http://{{ steps.jaeger-get-ep.outputs.parameters.jaeger_ep }}/*"
+    - - name: jaeger-append-client-redirect-uri-https
+        templateRef:
+          name: keycloak-client
+          template: append-client-redirect-uri
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-gatekeeper-jaeger"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+            - name: redirect_uri
+              value: "https://{{ steps.jaeger-get-ep.outputs.parameters.jaeger_ep }}/*"
+
+  - name: kiali-get-ep
+    inputs:
+      parameters:
+        - name: cluster_id
+    outputs:
+      parameters:
+        - name: kiali_ep
+          valueFrom:
+            path: /mnt/out/kiali_ep.txt
+    volumes:
+      - name: out
+        emptyDir: {}
+    container:
+      name: kiali-get-ep
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          cluster_id={{inputs.parameters.cluster_id}}
+
+          #################
+          # Get endpoints
+          #################
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+
+          while ! kubectl --kubeconfig=kubeconfig get svc -n tks-msa kiali --ignore-not-found; do
+            echo "Waiting for the grafana service to appear in cluster ${cluster_id} (5s)"
+            sleep 5
+          done
+
+          kiali_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.kiali}'| base64 -d )
+          
+          if [ "$kiali_ep_secret" == "" ]; then
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n tks-msa kiali -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n tks-msa kiali -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+                log "FAIL" "A service for the kiali in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of kiali(3s)"
+              sleep 3
+            done
+
+            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n tks-msa kiali -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+            endpoint="${endpoint}:20001"
+          else
+            endpoint=${kiali_ep_secret}
+          fi
+          
+          echo ${endpoint} > /mnt/out/kiali_ep.txt
+
+      envFrom:
+        - secretRef:
+            name: tks-api-secret
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+
+  - name: update-oidc-git
+    inputs:
+      parameters:
+        - name: client_secret
+        - name: cluster_id
+        - name: keycloak_url
+        - name: organization_id
+    container:
+      name: update-kiali-resource-git
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+          
+          cluster_id={{inputs.parameters.cluster_id}}
+          keycloak_url={{inputs.parameters.keycloak_url}}
+          organization_id={{workflow.parameters.organization_id}}
+          client_secret={{inputs.parameters.client_secret}}
+
+          #################
+          # updates
+          #################
+          GIT_ACCOUNT={{workflow.parameters.github_account}}
+          if  [[ $GIT_SVC_URL == https://* ]]; then
+            repository_base=https://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+          else
+            repository_base=http://${TOKEN//[$'\t\r\n ']}@${GIT_SVC_URL/http:\/\//}/${GIT_ACCOUNT}/
+          fi
+
+          GIT_SVC_HTTP=${GIT_SVC_URL%://*}
+          GIT_SVC_BASE_URL=${GIT_SVC_URL#*//}
+          git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${cluster_id}.git
+          cd ${cluster_id}
+
+          # Update global variable
+          yq -i e  ".global.keycloakClientPrefix=\"${cluster_id}\"" ${cluster_id}/service-mesh/site-values.yaml
+          yq -i e  ".global.keycloakIssuerUri=\"${keycloak_url}/realms/${organization_id}\"" ${cluster_id}/service-mesh/site-values.yaml
+          yq -i e  ".global.gatekeeperSecret=\"${client_secret}\"" ${cluster_id}/service-mesh/site-values.yaml
+
+          git config --global user.name "tks"
+          git config --global user.email "tks@sktelecom.com"
+
+          log "INFO" "##### commit changes oidc global variable"
+          cmessage="changes oidc global variable for keycloak"
+          git add ${cluster_id}/service-mesh/site-values.yaml
+          git commit -m "change oidc global variable." -m "$cmessage"
+          git push
+          
+          sleep 30
+          git clone $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${cluster_id}-manifests.git
+          cd ${cluster_id}-manifests
+                    
+          DESIRED_PATTERN="client-id: ${cluster_id}-gatekeeper-jaeger"
+
+          while true; do
+            git pull
+            # Check if the file contains the desired pattern
+            if grep -q "$DESIRED_PATTERN" "${cluster_id}/service-mesh/gatekeeper/Secret_gatekeeper.yaml"; then
+              exit 0
+            else
+              echo "$(date): Not desired rendered state."
+            fi
+            # Wait for 10 seconds
+            sleep 10
+          done
+
+      envFrom:
+        - secretRef:
+            name: "git-svc-token"
+
+  - name: jaeger-get-ep
+    inputs:
+      parameters:
+        - name: cluster_id
+    outputs:
+      parameters:
+        - name: jaeger_ep
+          valueFrom:
+            path: /mnt/out/jaeger_ep.txt
+    volumes:
+      - name: out
+        emptyDir: { }
+    container:
+      name: jaeger-get-ep
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          cluster_id={{inputs.parameters.cluster_id}}
+
+          #################
+          # Get endpoints
+          #################
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+
+          while ! kubectl --kubeconfig=kubeconfig get svc -n tks-msa gatekeeper --ignore-not-found; do
+            echo "Waiting for the jaeger service to appear in cluster ${cluster_id} (5s)"
+            sleep 5
+          done
+
+          jaeger_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.jaeger}'| base64 -d )
+          echo "aaaaa"
+          if [ "$jaeger_ep_secret" == "" ]; then
+            echo "jager_ep_empty"
+            while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n tks-msa gatekeeper -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
+              if [ "$(kubectl --kubeconfig=kubeconfig get svc -n tks-msa gatekeeper -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
+                log "FAIL" "A service for the gatekeeper in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                exit -1
+              fi
+
+              echo "Waiting for generating the loadbalancer of jaeger(3s)"
+              sleep 3
+            done
+            echo "bbbbbb"
+            endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n tks-msa gatekeeper -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+            echo $endpoint
+          else
+            endpoint=${jaeger_ep_secret}
+          fi
+
+          echo ${endpoint} > /mnt/out/jaeger_ep.txt
+
+      envFrom:
+        - secretRef:
+            name: tks-api-secret
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+
+  - name: create-keycloak-secret-to-k8s-cluster
+    inputs:
+      parameters:
+        - name: client_secret
+        - name: cluster_id
+    container:
+      name: create-secret
+      image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          client_secret={{inputs.parameters.client_secret}}
+          cluster_id={{inputs.parameters.cluster_id}}
+
+          #################
+          # Get endpoints
+          #################
+          kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          cat <<< "$kube_secret" > kubeconfig
+          
+          kubectl --kubeconfig=kubeconfig apply -f - << EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: kiali
+            namespace: tks-msa
+          type: Opaque
+          data:
+            oidc-secret: $(echo -n "$client_secret" | base64)
+          EOF
+          
 
   #=========================================================
   # Template Definition
