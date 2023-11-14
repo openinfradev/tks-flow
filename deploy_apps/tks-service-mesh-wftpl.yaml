@@ -161,10 +161,6 @@ spec:
               value: "{{workflow.parameters.keycloak_url}}/auth"
             - name: organization_id
               value: "{{workflow.parameters.organization_id}}"
-    - - name: install-service-mesh-app
-        templateRef:
-          name: service-mesh
-          template: deploy-start
     - - name: kiali-create-keycloak-secret-to-k8s-cluster
         template: create-keycloak-secret-to-k8s-cluster
         arguments:
@@ -173,6 +169,12 @@ spec:
               value: "{{steps.kiali-get-keycloak-client-secret.outputs.parameters.client-secret}}"
             - name: cluster_id
               value: "{{workflow.parameters.cluster_id}}"
+            - name: namespace
+              value: "tks-msa"
+    - - name: install-service-mesh-app
+        templateRef:
+          name: service-mesh
+          template: deploy-start
     - - name: kiali-get-ep
         template: kiali-get-ep
         arguments:
@@ -442,7 +444,6 @@ spec:
           done
 
           jaeger_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.jaeger}'| base64 -d )
-          echo "aaaaa"
           if [ "$jaeger_ep_secret" == "" ]; then
             echo "jager_ep_empty"
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n tks-msa gatekeeper -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
@@ -454,9 +455,8 @@ spec:
               echo "Waiting for generating the loadbalancer of jaeger(3s)"
               sleep 3
             done
-            echo "bbbbbb"
             endpoint=$(kubectl --kubeconfig=kubeconfig get svc -n tks-msa gatekeeper -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-            echo $endpoint
+            endpoint="${endpoint}:3000"
           else
             endpoint=${jaeger_ep_secret}
           fi
@@ -475,6 +475,7 @@ spec:
       parameters:
         - name: client_secret
         - name: cluster_id
+        - name: namespace
     container:
       name: create-secret
       image: 'harbor.taco-cat.xyz/tks/shyaml_jq_yq_kubectl_python:3.11'
@@ -491,12 +492,15 @@ spec:
 
           client_secret={{inputs.parameters.client_secret}}
           cluster_id={{inputs.parameters.cluster_id}}
+          namespace={{inputs.parameters.namespace}}
 
           #################
           # Get endpoints
           #################
           kube_secret=$(kubectl get secret -n ${cluster_id} ${cluster_id}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$kube_secret" > kubeconfig
+          
+          kubectl --kubeconfig=kubeconfig create ns ${namespace} || true
           
           kubectl --kubeconfig=kubeconfig apply -f - << EOF
           apiVersion: v1
