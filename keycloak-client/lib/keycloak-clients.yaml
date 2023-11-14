@@ -519,7 +519,7 @@ spec:
               if (not (origin_input_params['server_url'][(- 1)] == '/')):
                   origin_input_params['server_url'] += '/'
           input_validation(input_params)
-          k8s_client = get_kubernetes_api(local=True)
+          k8s_client = get_kubernetes_api(local=False)
           try:
               secret_name = input_params['keycloak_credential_secret_name']
               secret_namespace = input_params['keycloak_credential_secret_namespace']
