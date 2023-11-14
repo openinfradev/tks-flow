@@ -161,6 +161,10 @@ spec:
               value: "{{workflow.parameters.keycloak_url}}/auth"
             - name: organization_id
               value: "{{workflow.parameters.organization_id}}"
+    - - name: install-service-mesh-app
+        templateRef:
+          name: service-mesh
+          template: deploy-start
     - - name: kiali-create-keycloak-secret-to-k8s-cluster
         template: create-keycloak-secret-to-k8s-cluster
         arguments:
@@ -169,10 +173,6 @@ spec:
               value: "{{steps.kiali-get-keycloak-client-secret.outputs.parameters.client-secret}}"
             - name: cluster_id
               value: "{{workflow.parameters.cluster_id}}"
-    - - name: install-service-mesh-app
-        templateRef:
-          name: service-mesh
-          template: deploy-start
     - - name: kiali-get-ep
         template: kiali-get-ep
         arguments:
@@ -302,11 +302,11 @@ spec:
           if [ "$kiali_ep_secret" == "" ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n tks-msa kiali -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
               if [ "$(kubectl --kubeconfig=kubeconfig get svc -n tks-msa kiali -o jsonpath='{.spec.type}')" != "LoadBalancer" ]; then
-                log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
+                log "FAIL" "A service for the kiali in ${cluster_id} is not configured properly.(No LoadBalancer)"
                 exit -1
               fi
 
-              echo "Waiting for generating the loadbalancer of grafana(3s)"
+              echo "Waiting for generating the loadbalancer of kiali(3s)"
               sleep 3
             done
 
