@@ -134,7 +134,8 @@ spec:
 
         # Delete preview svc and namespace
         kubectl delete service --all -n {{workflow.parameters.namespace}} 2> >(tee -a $DELETE_LOG >&2) || true
-        kubectl delete ns {{workflow.parameters.namespace}} || true
+        ## Do not delete ns for now
+        # kubectl delete ns {{workflow.parameters.namespace}} || true
         
         echo "App {{workflow.parameters.app_name}} was deleted successfully." | tee -a $DELETE_LOG
 

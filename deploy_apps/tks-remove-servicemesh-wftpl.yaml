@@ -11,6 +11,8 @@ spec:
       value: "service-mesh"
     - name: keycloak_url
       value: ""
+    - name: organization_id
+      value: ""
     #===============================
     # For tks-info task
     #===============================
@@ -26,7 +28,7 @@ spec:
       value: "app={{workflow.parameters.cluster_id}}-{{workflow.parameters.app_group}}"
     - name: base_repo_branch
       value: "main"
-      
+
   # volumes:
   # - name: tks-proto-vol
   #   configMap:
@@ -42,6 +44,39 @@ spec:
         templateRef:
           name: remove-servicemesh-all
           template: remove-start
+    - - name: kiali-delete-keycloak-client
+        templateRef:
+          name: keycloak-client
+          template: delete-client
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-kiali"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
+
+    - - name: jaeger-delete-keycloak-client
+        templateRef:
+          name: keycloak-client
+          template: delete-client
+        arguments:
+          parameters:
+            - name: server_url
+              value: "{{ workflow.parameters.keycloak_url }}/auth"
+            - name: target_realm_name
+              value: "{{ workflow.parameters.organization_id }}"
+            - name: target_client_id
+              value: "{{ workflow.parameters.cluster_id }}-gatekeeper-jaeger"
+            - name: keycloak_credential_secret_name
+              value: "keycloak"
+            - name: keycloak_credential_secret_namespace
+              value: "keycloak"
 
     #- - name: updateTksInfo
     #    templateRef:
