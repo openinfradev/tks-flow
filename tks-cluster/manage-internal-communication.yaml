@@ -64,9 +64,9 @@ spec:
         # Create Security Group
         SG=$(aws ec2 create-security-group --group-name taco-internal --description "Security group for interanl communication among nodes" --vpc-id $VPC  --output text)
         # Set ingress rule
-        # - 2379  for kube-etcd
+        # - 2381  for kube-etcd metrics
         # - 10249 for kube-proxy
-        aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 2379 --cidr $CIDR
+        aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 2381 --cidr $CIDR
         aws ec2 authorize-security-group-ingress --group-id $SG --protocol tcp --port 10249 --cidr $CIDR
 
         # Add Security Group to all node in the VPC
