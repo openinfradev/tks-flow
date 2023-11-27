@@ -134,7 +134,7 @@ spec:
 
             yq -i e ".global.clusterEndpointHost=\"$cluster_endpoint_host\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             yq -i e ".global.clusterEndpointPort=$cluster_endpoint_port" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
-            yq -i e ".global.keycloakIssuerUri=\"$KEYCLOAK_URL\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
+            yq -i e ".global.keycloakIssuerUri=\"$KEYCLOAK_URL/realms/$CONTRACT_ID\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             yq -i e ".global.keycloakClientId=\"$client_id\"" $CLUSTER_ID/$CLUSTER_ID/tks-cluster/site-values.yaml
             ;;
 
