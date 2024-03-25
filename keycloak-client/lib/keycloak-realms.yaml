@@ -19,7 +19,7 @@ spec:
       script:
         command:
           - python3
-        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        image: harbor.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
         source: |2
         
           from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
@@ -89,7 +89,7 @@ spec:
       script:
         command:
           - python3
-        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        image: harbor.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
         source: |2
         
           from keycloak import KeycloakOpenIDConnection, KeycloakAdmin, KeycloakOpenID
