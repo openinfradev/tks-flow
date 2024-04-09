@@ -31,6 +31,8 @@ spec:
       value: develop
     - name: cluster_endpoint
       value: ""
+    - name: policy_ids
+      value: ""
 
   templates:
   - name: main
@@ -64,6 +66,8 @@ spec:
             value: "{{workflow.parameters.cloud_service}}"
           - name: cluster_endpoint
             value: "{{workflow.parameters.cluster_endpoint}}"
+          - name: policy_ids
+            value: "{{workflow.parameters.policy_ids}}"
 
     - - name: call-create-appgroup-for-LMA
         templateRef:
