@@ -15,6 +15,7 @@ spec:
     inputs:
       parameters:
       - name: organization_id
+      - name: project_id
       - name: asa_id
       - name: asa_task_id
       - name: status
@@ -38,6 +39,7 @@ spec:
 
         TKS_API_URL = '{{workflow.parameters.tks_api_url}}'
         ORG_ID = '{{inputs.parameters.organization_id}}'
+        PROJECT_ID = '{{inputs.parameters.project_id}}'
         APP_ID = '{{inputs.parameters.asa_id}}'
         TASK_ID = '{{inputs.parameters.asa_task_id}}'
         STATUS = '{{inputs.parameters.status}}'
@@ -59,7 +61,7 @@ spec:
 
 
         TOKEN = getToken()
-        uri = '/api/1.0/organizations/%s/app-serve-apps/%s/status' % (ORG_ID, APP_ID)
+        uri = '/api/1.0/organizations/%s/projects/%s/app-serve-apps/%s/status' % (ORG_ID, PROJECT_ID, APP_ID)
         data = {
           'taskId': TASK_ID,
           'status': STATUS,
@@ -69,7 +71,7 @@ spec:
                             headers={"Authorization": "Bearer " + TOKEN},
                             json=data)
         if res.status_code != 200:
-          print('text: {}\n'.format(res.text))
+          print('Response: {}\n'.format(res.text))
           sys.exit('Failed to update status')
 
         res_json = res.json()
