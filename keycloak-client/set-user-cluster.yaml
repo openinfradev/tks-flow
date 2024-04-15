@@ -40,78 +40,78 @@ spec:
               value: "{{inputs.parameters.keycloak_credential_secret_name}}"
             - name: keycloak_credential_secret_namespace
               value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
-    - - name: create-client-admin-role
-        templateRef:
-          name: keycloak-client
-          template: create-client-role
-        arguments:
-          parameters:
-            - name: server_url
-              value: "{{inputs.parameters.server_url}}"
-            - name: target_realm_name
-              value: "{{inputs.parameters.target_realm_name}}"
-            - name: target_client_id
-              value: "{{inputs.parameters.target_client_id}}"
-            - name: keycloak_credential_secret_name
-              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
-            - name: keycloak_credential_secret_namespace
-              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
-            - name: client_role_name
-              value: "cluster-admin"
-    - - name: create-client-clusterId-admin-role
-        templateRef:
-          name: keycloak-client
-          template: create-client-role
-        arguments:
-          parameters:
-            - name: server_url
-              value: "{{inputs.parameters.server_url}}"
-            - name: target_realm_name
-              value: "{{inputs.parameters.target_realm_name}}"
-            - name: target_client_id
-              value: "{{inputs.parameters.target_client_id}}"
-            - name: keycloak_credential_secret_name
-              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
-            - name: keycloak_credential_secret_namespace
-              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
-            - name: client_role_name
-              value: "{{inputs.parameters.cluster_id}}-cluster-admin"
-    - - name: create-client-view-role
-        templateRef:
-          name: keycloak-client
-          template: create-client-role
-        arguments:
-          parameters:
-            - name: server_url
-              value: "{{inputs.parameters.server_url}}"
-            - name: target_realm_name
-              value: "{{inputs.parameters.target_realm_name}}"
-            - name: target_client_id
-              value: "{{inputs.parameters.target_client_id}}"
-            - name: keycloak_credential_secret_name
-              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
-            - name: keycloak_credential_secret_namespace
-              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
-            - name: client_role_name
-              value: "cluster-view"
-    - - name: create-client-clusterId-view-role
-        templateRef:
-          name: keycloak-client
-          template: create-client-role
-        arguments:
-          parameters:
-            - name: server_url
-              value: "{{inputs.parameters.server_url}}"
-            - name: target_realm_name
-              value: "{{inputs.parameters.target_realm_name}}"
-            - name: target_client_id
-              value: "{{inputs.parameters.target_client_id}}"
-            - name: keycloak_credential_secret_name
-              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
-            - name: keycloak_credential_secret_namespace
-              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
-            - name: client_role_name
-              value: "{{inputs.parameters.cluster_id}}-cluster-view"
+#    - - name: create-client-admin-role
+#        templateRef:
+#          name: keycloak-client
+#          template: create-client-role
+#        arguments:
+#          parameters:
+#            - name: server_url
+#              value: "{{inputs.parameters.server_url}}"
+#            - name: target_realm_name
+#              value: "{{inputs.parameters.target_realm_name}}"
+#            - name: target_client_id
+#              value: "{{inputs.parameters.target_client_id}}"
+#            - name: keycloak_credential_secret_name
+#              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
+#            - name: keycloak_credential_secret_namespace
+#              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
+#            - name: client_role_name
+#              value: "cluster-admin"
+#    - - name: create-client-clusterId-admin-role
+#        templateRef:
+#          name: keycloak-client
+#          template: create-client-role
+#        arguments:
+#          parameters:
+#            - name: server_url
+#              value: "{{inputs.parameters.server_url}}"
+#            - name: target_realm_name
+#              value: "{{inputs.parameters.target_realm_name}}"
+#            - name: target_client_id
+#              value: "{{inputs.parameters.target_client_id}}"
+#            - name: keycloak_credential_secret_name
+#              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
+#            - name: keycloak_credential_secret_namespace
+#              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
+#            - name: client_role_name
+#              value: "{{inputs.parameters.cluster_id}}-cluster-admin"
+#    - - name: create-client-view-role
+#        templateRef:
+#          name: keycloak-client
+#          template: create-client-role
+#        arguments:
+#          parameters:
+#            - name: server_url
+#              value: "{{inputs.parameters.server_url}}"
+#            - name: target_realm_name
+#              value: "{{inputs.parameters.target_realm_name}}"
+#            - name: target_client_id
+#              value: "{{inputs.parameters.target_client_id}}"
+#            - name: keycloak_credential_secret_name
+#              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
+#            - name: keycloak_credential_secret_namespace
+#              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
+#            - name: client_role_name
+#              value: "cluster-view"
+#    - - name: create-client-clusterId-view-role
+#        templateRef:
+#          name: keycloak-client
+#          template: create-client-role
+#        arguments:
+#          parameters:
+#            - name: server_url
+#              value: "{{inputs.parameters.server_url}}"
+#            - name: target_realm_name
+#              value: "{{inputs.parameters.target_realm_name}}"
+#            - name: target_client_id
+#              value: "{{inputs.parameters.target_client_id}}"
+#            - name: keycloak_credential_secret_name
+#              value: "{{inputs.parameters.keycloak_credential_secret_name}}"
+#            - name: keycloak_credential_secret_namespace
+#              value: "{{inputs.parameters.keycloak_credential_secret_namespace}}"
+#            - name: client_role_name
+#              value: "{{inputs.parameters.cluster_id}}-cluster-view"
     - - name: create-client-scope-mapper-client-role
         templateRef:
           name: keycloak-client
