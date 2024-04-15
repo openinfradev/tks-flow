@@ -48,7 +48,8 @@ spec:
           def get_secret(k8s_client, secret_name, secret_namespace):
               secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
               encoded_data = secret_obj.data.get('admin-password')
-              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              cleaned_data = encoded_data.strip()
+              decoded_data = base64.b64decode(cleaned_data).decode('utf-8')
               return decoded_data
         
           def input_validation(origin_input_params):
@@ -152,7 +153,8 @@ spec:
           def get_secret(k8s_client, secret_name, secret_namespace):
               secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
               encoded_data = secret_obj.data.get('admin-password')
-              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              cleaned_data = encoded_data.strip()
+              decoded_data = base64.b64decode(cleaned_data).decode('utf-8')
               return decoded_data
         
           def input_validation(origin_input_params):
@@ -230,7 +232,8 @@ spec:
           def get_secret(k8s_client, secret_name, secret_namespace):
               secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
               encoded_data = secret_obj.data.get('admin-password')
-              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              cleaned_data = encoded_data.strip()
+              decoded_data = base64.b64decode(cleaned_data).decode('utf-8')
               return decoded_data
         
           def input_validation(origin_input_params):
@@ -325,7 +328,8 @@ spec:
           def get_secret(k8s_client, secret_name, secret_namespace):
               secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
               encoded_data = secret_obj.data.get('admin-password')
-              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              cleaned_data = encoded_data.strip()
+              decoded_data = base64.b64decode(cleaned_data).decode('utf-8')
               return decoded_data
         
           def input_validation(origin_input_params):
@@ -423,7 +427,8 @@ spec:
           def get_secret(k8s_client, secret_name, secret_namespace):
               secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
               encoded_data = secret_obj.data.get('admin-password')
-              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              cleaned_data = encoded_data.strip()
+              decoded_data = base64.b64decode(cleaned_data).decode('utf-8')
               return decoded_data
         
           def input_validation(origin_input_params):
@@ -519,7 +524,8 @@ spec:
           def get_secret(k8s_client, secret_name, secret_namespace):
               secret_obj = k8s_client.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
               encoded_data = secret_obj.data.get('admin-password')
-              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              cleaned_data = encoded_data.strip()
+              decoded_data = base64.b64decode(cleaned_data).decode('utf-8')
               return decoded_data
         
           def input_validation(origin_input_params):
