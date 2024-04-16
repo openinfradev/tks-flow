@@ -129,6 +129,22 @@ spec:
                 - name: contract_id
                   value: "{{ workflow.parameters.contract_id }}"
 
+        - - name: create-eks-keycloak-oidc-provider
+            templateRef:
+              name: aws-eks-keycloak-oidc-provider
+              template: createProvider
+            arguments:
+              parameters:
+                - name: contract_id
+                  value: "{{ workflow.parameters.contract_id }}"
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
+                - name: keycloak_url
+                  value: "{{ workflow.parameters.keycloak_url }}"
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
+
         - - name: create-aws-cluster-autoscaler-iam
             templateRef:
               name: aws-cluster-autoscaler-iam
@@ -551,32 +567,9 @@ spec:
             fi
 
             # Create a kubeconfig secret for TKS internal use from ArgoCD cluster secret and for TKS user
-            export KUBECONFIG=kubeconfig_adm
+            export KUBECONFIG=kubeconfig_adm        
             if [ $kcp_count = 1 ]; then
               TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              if [ "$INFRA_PROVIDER" == "byoh" ]; then
-                ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
-                CLIENT_ID=$CLUSTER_ID-k8s-api
-                OIDC_USER_NAME="oidc-user"
-                EXISTING_USER_NAME=$CLUSTER_ID-admin
-                
-                kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d > tmp_user_kubeconfig
-                kubectl --kubeconfig=tmp_user_kubeconfig config unset users.$EXISTING_USER_NAME
-                kubectl --kubeconfig=tmp_user_kubeconfig config set-credentials $OIDC_USER_NAME \
-                  --exec-api-version=client.authentication.k8s.io/v1beta1 \
-                  --exec-command=kubectl \
-                  --exec-arg=oidc-login \
-                  --exec-arg=get-token \
-                  --exec-arg=--oidc-issuer-url=$ISSUER_URL \
-                  --exec-arg=--oidc-client-id=$CLIENT_ID \
-                  --exec-arg=--grant-type=password 
-                
-                CONTEXT_NAME=$(kubectl --kubeconfig=tmp_user_kubeconfig config current-context)
-                kubectl --kubeconfig=tmp_user_kubeconfig config set-context $CONTEXT_NAME --user $OIDC_USER_NAME
-                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_user_kubeconfig)
-              else
-                TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              fi
             elif [ $awsmcp_count = 1 ]; then
               CAPA_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
 
@@ -587,14 +580,6 @@ spec:
               CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
               echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
               TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
-
-              # tks-user-kubeconfig
-              if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then # multitenancy cluster
-                cat <<< $CAPA_USER_KUBECONFIG_WORKLOAD | sed "24 i \ \ \ \ \  - --role\n\ \ \ \ \ \ - $IDENTITY_ROLE_ARN" > tmp_tks_user_kubeconfig_workload
-                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_tks_user_kubeconfig_workload)
-              else
-                TKS_USER_KUBECONFIG_WORKLOAD=$CAPA_USER_KUBECONFIG_WORKLOAD
-              fi
 
               cat <<EOF > sc-taco-storage.yaml
             apiVersion: storage.k8s.io/v1
@@ -613,6 +598,28 @@ spec:
               echo "Wrong Cluster type!"
               exit 1
             fi
+            
+            # generate kubeconfig for user
+            ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
+            CLIENT_ID=$CLUSTER_ID-k8s-api
+            OIDC_USER_NAME="oidc-user"
+            EXISTING_USER_NAME=$CLUSTER_ID-admin
+            
+            kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d > tmp_user_kubeconfig
+            kubectl --kubeconfig=tmp_user_kubeconfig config unset users.$EXISTING_USER_NAME
+            kubectl --kubeconfig=tmp_user_kubeconfig config set-credentials $OIDC_USER_NAME \
+              --exec-api-version=client.authentication.k8s.io/v1beta1 \
+              --exec-command=kubectl \
+              --exec-arg=oidc-login \
+              --exec-arg=get-token \
+              --exec-arg=--oidc-issuer-url=$ISSUER_URL \
+              --exec-arg=--oidc-client-id=$CLIENT_ID \
+              --exec-arg=--grant-type=password 
+            
+            CONTEXT_NAME=$(kubectl --kubeconfig=tmp_user_kubeconfig config current-context)
+            kubectl --kubeconfig=tmp_user_kubeconfig config set-context $CONTEXT_NAME --user $OIDC_USER_NAME
+            TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_user_kubeconfig)
+            
             cat <<< $TKS_KUBECONFIG_WORKLOAD > tks_kubeconfig_workload
             kubectl create secret generic -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig --from-file=value=tks_kubeconfig_workload
             cat <<< $TKS_USER_KUBECONFIG_WORKLOAD > tks_user_kubeconfig_workload
