@@ -21,6 +21,11 @@ spec:
 
   templates:
   - name: createProvider
+    inputs:
+      parameters:
+      - name: contract_id
+      - name: cluster_id
+      - name: keycloak_url
     activeDeadlineSeconds: 1800
     container:
       image: harbor.taco-cat.xyz/tks/tks-aws:v1.1.0
