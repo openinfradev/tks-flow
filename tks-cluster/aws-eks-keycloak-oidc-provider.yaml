@@ -21,6 +21,11 @@ spec:
 
   templates:
   - name: createProvider
+    inputs:
+      parameters:
+      - name: contract_id
+      - name: cluster_id
+      - name: keycloak_url
     activeDeadlineSeconds: 1800
     container:
       image: harbor.taco-cat.xyz/tks/tks-aws:v1.1.0
@@ -47,10 +52,11 @@ spec:
             usernameClaim: preferred_username
             groupsClaim: groups
         EOF
+        cat oidc-config.yaml
         eksctl associate identityprovider -f oidc-config.yaml
       env:
       - name: CLUSTER_ID
-        value: "{{workflow.parameters.cluster_id}}"
+        value: "{{ inputs.parameters.cluster_id }}"
       - name: KEYCLOAK_URL
         value: "{{ inputs.parameters.keycloak_url }}"
       - name: CONTRACT_ID
