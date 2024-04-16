@@ -47,10 +47,11 @@ spec:
             usernameClaim: preferred_username
             groupsClaim: groups
         EOF
+        cat oidc-config.yaml
         eksctl associate identityprovider -f oidc-config.yaml
       env:
       - name: CLUSTER_ID
-        value: "{{workflow.parameters.cluster_id}}"
+        value: "{{ inputs.parameters.cluster_id }}"
       - name: KEYCLOAK_URL
         value: "{{ inputs.parameters.keycloak_url }}"
       - name: CONTRACT_ID
