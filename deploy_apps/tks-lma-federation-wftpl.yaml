@@ -28,7 +28,7 @@ spec:
     - name: console_url
       value: "https://tks-console-dev.taco-cat.xyz"
     - name: alert_tks
-      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/alerts"
+      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/system-notifications"
     - name: alert_slack
       value: "https://hooks.slack.com/services/fixme"
     ##########################
