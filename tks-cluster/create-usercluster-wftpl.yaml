@@ -451,7 +451,7 @@ spec:
               kubectl label ns ${CLUSTER_ID} tks.io/policy=${CLUSTER_ID}
             else
               POLICY_NS=$(kubectl get ns $(kubectl get ns -l tks.io/organization=${CONTRACT_ID} --ignore-not-found=true | grep -v NAME | awk '{print $1}' | head -n 1 )  --ignore-not-found=true -o jsonpath='{.metadata.labels.tks\.io\/policy}' )
-              if [ -z "$POLICY_NS" ]"; then
+              if [ -z "$POLICY_NS" ]; then
                 kubectl label ns ${CLUSTER_ID} tks.io/policy=${CLUSTER_ID}
               else
                 kubectl label ns ${CLUSTER_ID} tks.io/policy=${POLICY_NS}
