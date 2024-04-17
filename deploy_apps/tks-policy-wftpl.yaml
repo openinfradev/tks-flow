@@ -141,6 +141,7 @@ spec:
           apiVersion: tkspolicy.openinfradev.github.io/v1
           kind: TKSCluster
           metadata:
+            labels:
               app.kubernetes.io/created-by: tks-policy-wftpl
               app.kubernetes.io/instance: ${CLUSTER_ID}
               app.kubernetes.io/name: tkscluster
