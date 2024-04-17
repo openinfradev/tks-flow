@@ -115,7 +115,7 @@ spec:
       parameters:
       - name: cloud_account_id
     container:
-      image: harbor.taco-cat.xyz/tks/tks-aws:v1.0.3
+      image: harbor.taco-cat.xyz/tks/tks-aws:v1.1.0
       command:
       - /bin/bash
       - -exc
@@ -132,9 +132,20 @@ spec:
           export AWS_ACCESS_KEY_ID=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.AccessKeyId')
           export AWS_SECRET_ACCESS_KEY=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SecretAccessKey')
           export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
+
+          ROLE_ARN_REMOVED_SUFFIX=${ROLE_ARN%:*}
+          AWS_ACCOUNT_ID=${ROLE_ARN_REMOVED_SUFFIX#*::}
+        else
+          AWS_ACCOUNT_ID=$(kubectl  get secret -n argo awsconfig-secret -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d)
         fi
 
         eksctl delete iamserviceaccount --cluster $CLUSTER_ID --name cluster-autoscaler --namespace kube-system
+
+        oidc_id=$(aws eks describe-cluster --name $CLUSTER_ID --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f3-5)
+        aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::$AWS_ACCOUNT_ID:oidc-provider/$oidc_id
+
+        aws iam detach-role-policy --role-name cluster-autoscaler-$CLUSTER_ID --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID
+        aws iam delete-role --role-name cluster-autoscaler-$CLUSTER_ID
 
       env:
       - name: CLUSTER_ID

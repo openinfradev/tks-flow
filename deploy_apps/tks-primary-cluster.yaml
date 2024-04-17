@@ -264,7 +264,7 @@ spec:
           parameters:
           - name: cluster_id
             value: "{{ workflow.parameters.github_account }}/{{steps.sync-organization-changes.outputs.parameters.changed_primary_id}}"
-        when: "{{steps.sync-organization-changes.outputs.parameters.changed_primary_id}} != NONE"
+        when: "'{{steps.sync-organization-changes.outputs.parameters.changed_primary_id}}' != NONE"
 
   #######################
   # Template Definition #
@@ -383,6 +383,8 @@ spec:
 
           cd -
         done
+
+        ls
         yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
 
         git config --global user.name "tks"

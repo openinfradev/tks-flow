@@ -28,7 +28,7 @@ spec:
     - name: console_url
       value: "https://tks-console-dev.taco-cat.xyz"
     - name: alert_tks
-      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/alerts"
+      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/system-notifications"
     - name: alert_slack
       value: "https://hooks.slack.com/services/fixme"
     ##########################
@@ -313,9 +313,9 @@ spec:
             sleep 5
           done
 
-          grafana_ep_secret=${kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d }
+          grafana_ep_secret=${kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d } || grafana_ep_secret=""
           
-          if [ grafana_ep_secret == "" ]; then
+          if [ "$grafana_ep_secret" == "" ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
               if [[ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]]; then
                 log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"

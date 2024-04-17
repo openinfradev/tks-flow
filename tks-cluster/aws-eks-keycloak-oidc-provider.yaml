@@ -1,0 +1,66 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: aws-eks-keycloak-oidc-provider
+  namespace: argo
+spec:
+  entrypoint: createProvider
+  arguments:
+    parameters:
+    - name: contract_id
+      value: "o6t7z6qzp"
+    - name: cluster_id
+      value: "C011b88fa"
+    - name: keycloak_url
+      value: 'https://keycloak.yourdomain.org/auth'
+
+  volumes:
+    - name: awsconfig
+      secret:
+        secretName: awsconfig-secret
+
+  templates:
+  - name: createProvider
+    inputs:
+      parameters:
+      - name: contract_id
+      - name: cluster_id
+      - name: keycloak_url
+    activeDeadlineSeconds: 1800
+    container:
+      image: harbor.taco-cat.xyz/tks/tks-aws:v1.1.0
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        mkdir ~/.aws
+        cp /aws/* ~/.aws/   
+        # generate OIDC provider for EKS cluster
+        ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
+        CLIENT_ID=$CLUSTER_ID-k8s-api
+        cat <<EOF >oidc-config.yaml
+        apiVersion: eksctl.io/v1alpha5
+        kind: ClusterConfig
+        metadata:
+          name: $CLUSTER_ID
+          region: ap-northeast-2
+        identityProviders:
+          - name: keycloak
+            type: oidc
+            issuerUrl: $ISSUER_URL
+            clientId: $CLIENT_ID
+            usernameClaim: preferred_username
+            groupsClaim: groups
+        EOF
+        cat oidc-config.yaml
+        eksctl associate identityprovider -f oidc-config.yaml
+      env:
+      - name: CLUSTER_ID
+        value: "{{ inputs.parameters.cluster_id }}"
+      - name: KEYCLOAK_URL
+        value: "{{ inputs.parameters.keycloak_url }}"
+      - name: CONTRACT_ID
+        value: "{{ inputs.parameters.contract_id }}"
+      volumeMounts:
+        - name: awsconfig
+          mountPath: "/aws"

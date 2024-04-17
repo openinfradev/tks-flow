@@ -58,7 +58,7 @@ spec:
             return resJson['user']['token']
 
 
-        res = requests.get(TKS_API_URL+"/api/1.0/stack-templates/" + STACK_TEMPLATE_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
+        res = requests.get(TKS_API_URL+"/api/1.0/admin/stack-templates/" + STACK_TEMPLATE_ID, headers={"Authorization": "Bearer " + getToken(), "Content-Type" : "application/json"} )
         if res.status_code != 200 :
             sys.exit('Failed to get stackTemplate')
 
