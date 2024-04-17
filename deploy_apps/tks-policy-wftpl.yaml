@@ -18,6 +18,11 @@ spec:
     - name: contract_id
       value: "{{workflow.parameters.contract_id}}"
 
+  volumes:
+    - name: kubeconfig-adm
+      secret:
+        secretName: tks-admin-kubeconfig-secret
+
   templates:
   - name: deploy
     inputs:
@@ -80,7 +85,7 @@ spec:
         - name: target_namespace
     container:
       name: create-namespace
-      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -91,6 +96,9 @@ spec:
             date=$(date '+%F %H:%M:%S')
             echo "[$date] $level     $msg"
           }
+
+          cp /kube/value kubeconfig_adm
+          export KUBECONFIG=kubeconfig_adm
 
           kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           echo -e "kube_secret:\n$kube_secret" | head -n 5
@@ -106,6 +114,9 @@ spec:
       env:
         - name: TARGET_NAMESPACE
           value: '{{inputs.parameters.target_namespace}}'
+      volumeMounts:
+        - name: kubeconfig-adm
+          mountPath: "/kube"
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
@@ -117,7 +128,7 @@ spec:
         - name: cluster_id
     container:
       name: createClusterCR
-      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
+      image: harbor.taco-cat.xyz/tks/kubectl-shell:latest-v1.21.1-amd64
       command:
         - /bin/bash
         - '-c'
@@ -128,6 +139,9 @@ spec:
             date=$(date '+%F %H:%M:%S')
             echo "[$date] $level     $msg"
           }
+          cp /kube/value kubeconfig_adm
+          export KUBECONFIG=kubeconfig_adm
+
 
           if [ $(kubectl get crd tksclusters.tkspolicy.openinfradev.github.io --ignore-not-found | grep -v NAME | wc -l) -eq 0 ]; then
             log "ERROR" "TKS-policy opreator is not installed. Please check your tks-admin cluster."
@@ -161,6 +175,9 @@ spec:
           value: "{{ inputs.parameters.cluster_id }}"
         - name: CONTRACT_ID
           value: "{{ inputs.parameters.contract_id }}"
+      volumeMounts:
+        - name: kubeconfig-adm
+          mountPath: "/kube"
     activeDeadlineSeconds: 900
     retryStrategy:
       limit: 2
