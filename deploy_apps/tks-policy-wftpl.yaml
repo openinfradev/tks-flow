@@ -116,7 +116,7 @@ spec:
         - name: contract_id
         - name: cluster_id
     container:
-      name: create-namespace
+      name: createClusterCR
       image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
       command:
         - /bin/bash
@@ -134,7 +134,7 @@ spec:
             exit -1
           fi
           kube_secret=$(kubectl get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-          POLICY_NS=$(kubectl get ns ${CLUSTER_ID} -o jsonpath='{.metadata.labels.tks\.io\/primary}')
+          POLICY_NS=$(kubectl get ns ${CLUSTER_ID} -o jsonpath='{.metadata.labels.tks\.io\/policy}')
 
           cat <<EOF >/tks_cluster_${CLUSTER_ID}.yaml
           ---
