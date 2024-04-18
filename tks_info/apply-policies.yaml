@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
-  name: apply-policies
+  name: tks-apply-policies
   namespace: argo
 spec:
   entrypoint: applyPolicies
@@ -9,7 +9,7 @@ spec:
     parameters:
     - name: tks_api_url
       value: "http://tks-api-dev.taco-cat.xyz"
-    - name: organization_id
+    - name: contract_id
       value: ""
     - name: cluster_id
       value: ""
@@ -20,7 +20,7 @@ spec:
   - name: applyPolicies
     inputs:
       parameters:
-      - name: organization_id
+      - name: contract_id
       - name: cluster_id
       - name: policy_ids
 
@@ -41,7 +41,7 @@ spec:
         import sys
 
         TKS_API_URL = '{{workflow.parameters.tks_api_url}}'
-        ORGANIZATION_ID = '{{inputs.parameters.organization_id}}'
+        ORGANIZATION_ID = '{{inputs.parameters.contract_id}}'
         CLUSTER_ID = '{{inputs.parameters.cluster_id}}'
         POLICY_IDS = '{{inputs.parameters.policy_ids}}'
 
