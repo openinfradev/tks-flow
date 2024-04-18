@@ -17,6 +17,8 @@ spec:
       value: "{{workflow.parameters.site_name}}"
     - name: contract_id
       value: "{{workflow.parameters.contract_id}}"
+    - name: policy_ids
+      value: "{{workflow.parameters.policy_ids}}"
 
   volumes:
     - name: kubeconfig-adm
@@ -68,6 +70,7 @@ spec:
             value: '{{inputs.parameters.contract_id}}'
           - name: cluster_id
             value: '{{inputs.parameters.cluster_id}}'
+
     - - name: argocd-sync-wait
         templateRef:
           name: create-application
@@ -78,6 +81,19 @@ spec:
             value: '{{inputs.parameters.cluster_id}}'
           - name: appname
             value: 'policy-resources'
+
+    - - name: apply-policies
+        templateRef:
+          name: tks-apply-policies
+          template: applyPolicies
+        arguments:
+          parameters:
+          - name: contract_id
+            value: '{{inputs.parameters.contract_id}}'
+          - name: cluster_id
+            value: '{{inputs.parameters.cluster_id}}'
+          - name: policy-ids
+            value: '{{inputs.parameters.policy_ids}}'
 
   - name: createNamespace
     inputs:

@@ -1,0 +1,81 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: apply-policies
+  namespace: argo
+spec:
+  entrypoint: applyPolicies
+  arguments:
+    parameters:
+    - name: tks_api_url
+      value: "http://tks-api-dev.taco-cat.xyz"
+    - name: organization_id
+      value: ""
+    - name: cluster_id
+      value: ""
+    - name: policy_ids
+      value: ""
+
+  templates:
+  - name: applyPolicies
+    inputs:
+      parameters:
+      - name: organization_id
+      - name: cluster_id
+      - name: policy_ids
+
+    script:
+      image: harbor.taco-cat.xyz/tks/centos-tks-api:v1.0
+      command: ["python"]
+      env:
+      - name: PYTHONPATH
+        value: "/opt/protobuf/:/opt/rh/rh-python38/root/lib/python3.8/site-packages/:/opt/app-root/lib/python3.8/site-packages/"
+      envFrom:
+      - secretRef:
+          name: "git-svc-token"
+      - secretRef:
+          name: "tks-api-secret"
+      source: |
+        import os
+        import requests
+        import sys
+
+        TKS_API_URL = '{{workflow.parameters.tks_api_url}}'
+        ORGANIZATION_ID = '{{inputs.parameters.organization_id}}'
+        CLUSTER_ID = '{{inputs.parameters.cluster_id}}'
+        POLICY_IDS = '{{inputs.parameters.policy_ids}}'
+
+        def getToken():
+          data = {
+            'organizationId': os.environ['ORGANIZATION_ID'],
+            'accountId': os.environ['ACCOUNT_ID'],
+            'password': os.environ['PASSWORD']
+          }
+
+          res = requests.post(TKS_API_URL + '/api/1.0/auth/login', json=data)
+          if res.status_code != 200:
+            logStr='response text: {}\n'.format(res.text)
+            with open(UPDATE_LOG, "a") as f:
+              f.write(wfRefStr)
+              f.write(loginErrStr)
+            sys.exit(loginErrStr)
+          res_json = res.json()
+          return res_json['user']['token']
+
+        TOKEN = getToken()
+        uri = '/api/1.0/organizations/%s/stacks/%s/policies' % (ORGANIZATION_ID, CLUSTER_ID)
+
+        arrPolicies = POLICY_IDS.split(',')
+
+        data = {
+          'policyIds': arrPolicies
+        }
+        res = requests.post(TKS_API_URL + uri,
+                            headers={"Authorization": "Bearer " + TOKEN},
+                            json=data)
+        if res.status_code != 200:
+          logStr='response text: {}\n'.format(res.text)
+          print(logStr)
+
+        res_json = res.json()
+        print(res_json)
