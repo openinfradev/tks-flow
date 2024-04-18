@@ -144,8 +144,9 @@ spec:
         oidc_id=$(aws eks describe-cluster --name $CLUSTER_ID --query "cluster.identity.oidc.issuer" --output text | cut -d '/' -f3-5)
         aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::$AWS_ACCOUNT_ID:oidc-provider/$oidc_id
 
-        aws iam detach-role-policy --role-name cluster-autoscaler-$CLUSTER_ID --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID
-        aws iam delete-role --role-name cluster-autoscaler-$CLUSTER_ID
+        #aws iam detach-role-policy --role-name cluster-autoscaler-$CLUSTER_ID --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID
+        #aws iam delete-role --role-name cluster-autoscaler-$CLUSTER_ID
+        aws iam delete-policy --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/cluster-autoscaler-$CLUSTER_ID
 
       env:
       - name: CLUSTER_ID

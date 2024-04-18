@@ -31,6 +31,8 @@ spec:
         value: "main"
       - name: keycloak_url
         value: "https://keycloak.yourdomain.org/auth"
+      - name: policy_ids
+        value: ""
 
   volumes:
     - name: kubeconfig-adm
@@ -419,6 +421,8 @@ spec:
                   value: "{{workflow.parameters.cluster_id}}"
                 - name: appname
                   value: "policy-resources"
+                - name: policy_ids
+                  value: ""
             # when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
     #######################
