@@ -124,7 +124,7 @@ spec:
             --tks-cp-node $TKS_CP_NODE \
             --tks-infra-node $TKS_INFRA_NODE \
             --tks-user-node $TKS_USER_NODE \
-            --policy_ids "{{inputs.parameters.policy_ids}}" 
+            --policy-ids "{{inputs.parameters.policy_ids}}" 
 
           threshold=720
           for i in $(seq 1 $threshold)
