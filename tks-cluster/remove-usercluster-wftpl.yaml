@@ -190,6 +190,24 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-argo-rollouts"
 
+    - - name: deletePolicyResourcesApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-policy-resources"
+
+    - - name: deleteOpaGatekeeperApp
+        templateRef:
+          name: delete-apps
+          template: DeleteAppsByName
+        arguments:
+          parameters:
+            - name: app_name
+              value: "{{workflow.parameters.app_prefix}}-opa-gatekeeper"
+
     - - name: deleteClusterCR
         template: deleteClusterCR
         arguments:
