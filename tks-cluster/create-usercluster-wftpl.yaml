@@ -230,9 +230,9 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
 
-        - - name: suspend
-            template: suspend
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+#        - - name: suspend
+#            template: suspend
+#            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
         - - name: install-cluster-autoscaler
             templateRef:
