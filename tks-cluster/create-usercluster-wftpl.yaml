@@ -358,25 +358,6 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: set-keycloak-config
-            templateRef:
-              name: set-user-cluster
-              template: main
-            arguments:
-              parameters:
-                - name: cluster_id
-                  value: "{{ workflow.parameters.cluster_id }}"
-                - name: server_url
-                  value: "{{ workflow.parameters.keycloak_url }}"
-                - name: target_realm_name
-                  value: "{{ workflow.parameters.contract_id }}"
-                - name: target_client_id
-                  value: "{{ workflow.parameters.cluster_id}}-k8s-api"
-                - name: keycloak_credential_secret_name
-                  value: "keycloak"
-                - name: keycloak_credential_secret_namespace
-                  value: "keycloak"
-
         - - name: create-default-rbac-resources
             template: k8s-rbac-setting
 
