@@ -1,0 +1,191 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-policy
+  namespace: argo
+spec:
+  entrypoint: deploy
+  arguments:
+    parameters:
+    - name: site_name
+      value: "coyar0qx1"
+    - name: revision
+      value: "main"
+    - name: app_prefix
+      value: "{{workflow.parameters.site_name}}"
+
+  volumes:
+    - name: kubeconfig-adm
+      secret:
+        secretName: tks-admin-kubeconfig-secret
+
+  templates:
+  - name: deploy
+    inputs:
+      parameters:
+      - name: appname
+        value: "policy-resources"
+      - name: cluster_id
+        value: "{{inputs.parameters.cluster_id}}"
+      - name: contract_id
+        value: "{{ inputs.parameters.contract_id }}"
+      - name: policy_ids
+        value: "{{ inputs.parameters.policy_ids }}"        
+    steps:
+    - - name: createNamespace
+        template: createNamespace
+        arguments:
+          parameters:
+          - name: target_namespace
+            value: gatekeeper-system
+    - - name: deploy-policy-operator
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "policy", "path": "opa-gatekeeper", "namespace": "gatekeeper-system", "target_cluster": "" }
+              ]
+    - - name: deploy-default-policy-resources
+        templateRef:
+          name: create-application
+          template: installApps
+        arguments:
+          parameters:
+          - name: list
+            value: |
+              [
+                { "app_group": "policy", "path": "policy-resources", "namespace": "gatekeeper-system", "target_cluster": "" }
+              ]
+    - - name: createClusterCR
+        template: createClusterCR
+        arguments:
+          parameters:
+          - name: contract_id
+            value: "{{inputs.parameters.contract_id}}"
+          - name: cluster_id
+            value: "{{inputs.parameters.cluster_id}}"
+
+    - - name: argocd-sync-wait
+        templateRef:
+          name: create-application
+          template: argocd-sync-wait
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{inputs.parameters.cluster_id}}"
+          - name: appname
+            value: "policy-resources"
+
+    - - name: apply-policies
+        templateRef:
+          name: tks-apply-policies
+          template: applyPolicies
+        arguments:
+          parameters:
+          - name: contract_id
+            value: "{{inputs.parameters.contract_id}}"
+          - name: cluster_id
+            value: "{{inputs.parameters.cluster_id}}"
+          - name: policy_ids
+            value: "{{inputs.parameters.policy_ids}}"
+
+  - name: createNamespace
+    inputs:
+      parameters:
+        - name: target_namespace
+    container:
+      name: create-namespace
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+
+          kube_secret=$(kubectl get secret -n {{workflow.parameters.cluster_id}} {{workflow.parameters.cluster_id}}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          echo -e "kube_secret:\n$kube_secret" | head -n 5
+          cat <<< "$kube_secret" > /etc/kubeconfig
+
+          kubectl --kubeconfig=/etc/kubeconfig get ns ${TARGET_NAMESPACE}
+          if [[ $? =~ 1 ]]; then
+            kubectl --kubeconfig=/etc/kubeconfig create ns ${TARGET_NAMESPACE}
+            kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} name=${TARGET_NAMESPACE}
+            kubectl --kubeconfig=/etc/kubeconfig label ns ${TARGET_NAMESPACE} taco-tls=enabled
+            log "INFO" "${TARGET_NAMESPACE} successfully created."
+          fi
+      env:
+        - name: TARGET_NAMESPACE
+          value: "{{inputs.parameters.target_namespace}}"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2
+
+  - name: createClusterCR
+    inputs:
+      parameters:
+        - name: contract_id
+        - name: cluster_id
+    container:
+      name: createClusterCR
+      image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          function log() {
+            level=$1
+            msg=$2
+            date=$(date '+%F %H:%M:%S')
+            echo "[$date] $level     $msg"
+          }
+          cp /kube/value kubeconfig_adm
+          export KUBECONFIG=kubeconfig_adm
+
+
+          if [ $(kubectl get crd tksclusters.tkspolicy.openinfradev.github.io --ignore-not-found | grep -v NAME | wc -l) -eq 0 ]; then
+            log "ERROR" "TKS-policy opreator is not installed. Please check your tks-admin cluster."
+            exit -1
+          fi
+          kube_secret=$(kubectl get secret -n ${CLUSTER_ID} ${CLUSTER_ID}-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
+          POLICY_NS=$(kubectl get ns ${CLUSTER_ID} -o jsonpath='{.metadata.labels.tks\.io\/policy}')
+
+          cat <<EOF >/tks_cluster_${CLUSTER_ID}.yaml
+          ---
+          apiVersion: tkspolicy.openinfradev.github.io/v1
+          kind: TKSCluster
+          metadata:
+            labels:
+              app.kubernetes.io/created-by: tks-policy-wftpl
+              app.kubernetes.io/instance: ${CLUSTER_ID}
+              app.kubernetes.io/name: tkscluster
+              app.kubernetes.io/part-of: tks-policy-operator
+            name: ${CLUSTER_ID}
+            namespace: ${POLICY_NS}
+          spec:
+            clusterName: ${CLUSTER_ID}
+            context: ${CLUSTER_ID}
+          EOF
+
+          cat /tks_cluster_${CLUSTER_ID}.yaml
+          kubectl apply -f /tks_cluster_${CLUSTER_ID}.yaml -n ${POLICY_NS}
+
+      env:
+        - name: CLUSTER_ID
+          value: "{{ inputs.parameters.cluster_id }}"
+        - name: CONTRACT_ID
+          value: "{{ inputs.parameters.contract_id }}"
+      volumeMounts:
+        - name: kubeconfig-adm
+          mountPath: "/kube"
+    activeDeadlineSeconds: 900
+    retryStrategy:
+      limit: 2

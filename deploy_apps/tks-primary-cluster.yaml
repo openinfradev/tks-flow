@@ -383,6 +383,8 @@ spec:
 
           cd -
         done
+
+        ls
         yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
 
         git config --global user.name "tks"

@@ -20,8 +20,8 @@ spec:
       value: ""
     - name: organization_id
       value: "ose4j7p39"
-    - name: strategy
-      value: "blue-green"
+    - name: project_id
+      value: ""
     # tks_info service URL
     - name: tks_api_url
       value: "http://tks-api.tks.svc:9110"
@@ -37,6 +37,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -57,6 +59,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -78,6 +82,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -96,6 +102,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -131,7 +139,6 @@ spec:
         ABORT_LOG='/mnt/out/abort_output.log'
         app_name={{workflow.parameters.app_name}}
         ns={{workflow.parameters.namespace}}
-        strategy={{workflow.parameters.strategy}}
 
         # Prepare kubeconfig
         echo "Preparing kubeconfig for target cluster..." | tee -a $ABORT_LOG
