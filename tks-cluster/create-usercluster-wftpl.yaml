@@ -358,58 +358,8 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: set-keycloak-config
-            templateRef:
-              name: set-user-cluster
-              template: main
-            arguments:
-              parameters:
-                - name: cluster_id
-                  value: "{{ workflow.parameters.cluster_id }}"
-                - name: server_url
-                  value: "{{ workflow.parameters.keycloak_url }}"
-                - name: target_realm_name
-                  value: "{{ workflow.parameters.contract_id }}"
-                - name: target_client_id
-                  value: "{{ workflow.parameters.cluster_id}}-k8s-api"
-                - name: keycloak_credential_secret_name
-                  value: "keycloak"
-                - name: keycloak_credential_secret_namespace
-                  value: "keycloak"
-
-        - - name: set-cluster-role-binding-cluster-admin
-            templateRef:
-              name: k8s-client
-              template: create-cluster-role-binding
-            arguments:
-              parameters:
-                - name: target_cluster_id
-                  value: "{{workflow.parameters.cluster_id}}"
-                - name: is_self_target
-                  value: "false"
-                - name: rolebinding_name
-                  value: "{{workflow.parameters.cluster_id}}-cluster-admin"
-                - name: role_name
-                  value: "admin"
-                - name: group_list
-                  value: '["{{workflow.parameters.cluster_id}}-cluster-admin", "cluster-admin"]'
-
-        - - name: set-cluster-role-binding-cluster-view
-            templateRef:
-              name: k8s-client
-              template: create-cluster-role-binding
-            arguments:
-              parameters:
-                - name: target_cluster_id
-                  value: "{{workflow.parameters.cluster_id}}"
-                - name: is_self_target
-                  value: "false"
-                - name: rolebinding_name
-                  value: "{{workflow.parameters.cluster_id}}-cluster-view"
-                - name: role_name
-                  value: "view"
-                - name: group_list
-                  value: '["{{workflow.parameters.cluster_id}}-cluster-view", "cluster-view"]'
+        - - name: create-default-rbac-resources
+            template: k8s-rbac-setting
 
         - - name: install-policy-management
             templateRef:
@@ -739,3 +689,151 @@ spec:
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml -n kube-system
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml -n kube-system
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml -n kube-system
+
+
+    - name: k8s-rbac-setting
+      steps:
+        - - name: create-cluster-role-for-create
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-create"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["create"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: create-cluster-role-for-read
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-read"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["get", "list", "watch"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: create-cluster-role-for-update
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-update"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["update", "patch"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: create-cluster-role-for-delete
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-delete"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["delete", "deletecollection"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: set-cluster-role-binding-create
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-create-rb"
+                - name: role_name
+                  value: "cluster-admin-create"
+                - name: group_list
+                  value: '["cluster-admin-create"]'
+        - - name: set-cluster-role-binding-read
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-read-rb"
+                - name: role_name
+                  value: "cluster-admin-read"
+                - name: group_list
+                  value: '["cluster-admin-read"]'
+        - - name: set-cluster-role-binding-update
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-update-rb"
+                - name: role_name
+                  value: "cluster-admin-update"
+                - name: group_list
+                  value: '["cluster-admin-update"]'
+        - - name: set-cluster-role-binding-delete
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-delete-rb"
+                - name: role_name
+                  value: "cluster-admin-delete"
+                - name: group_list
+                  value: '["cluster-admin-delete"]'
