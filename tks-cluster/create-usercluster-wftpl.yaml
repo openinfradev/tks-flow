@@ -143,6 +143,8 @@ spec:
                   value: "{{ workflow.parameters.cluster_id }}"
                 - name: keycloak_url
                   value: "{{ workflow.parameters.keycloak_url }}"
+                - name: cloud_account_id
+                  value: "{{ workflow.parameters.cloud_account_id }}"
             when: >-
               {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
                 {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
