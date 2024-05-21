@@ -95,24 +95,14 @@ spec:
             - name: contract_id
               value: "{{ workflow.parameters.contract_id }}"
 
-    - - name: set-keycloak-config
+    - - name: create-default-rbac-resources
         templateRef:
-          name: set-user-cluster
-          template: main
+          name: create-tks-usercluster
+          template: k8s-rbac-setting
         arguments:
           parameters:
             - name: cluster_id
               value: "{{ workflow.parameters.cluster_id }}"
-            - name: server_url
-              value: "{{ workflow.parameters.keycloak_url }}"
-            - name: target_realm_name
-              value: "{{ workflow.parameters.contract_id }}"
-            - name: target_client_id
-              value: "{{ workflow.parameters.cluster_id}}-k8s-api"
-            - name: keycloak_credential_secret_name
-              value: "keycloak"
-            - name: keycloak_credential_secret_namespace
-              value: "keycloak"
 
 
   #######################
