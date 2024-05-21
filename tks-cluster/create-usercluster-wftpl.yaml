@@ -191,6 +191,26 @@ spec:
               {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} != byoh &&
                 {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
 
+        - - name: install-aws-cloud-provider
+            templateRef:
+              name: create-application
+              template: installApps
+            arguments:
+              parameters:
+                - name: list
+                  value: |
+                    [
+                      {
+                        "app_group": "tks-cluster",
+                        "path": "aws-cloud-controller-manager",
+                        "namespace": "kube-system",
+                        "target_cluster": ""
+                      }
+                    ]
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false
+
         - - name: install-volumesnapshot-crds
             template: install-volumesnapshot-crds
 
