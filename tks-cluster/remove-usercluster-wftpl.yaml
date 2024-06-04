@@ -190,6 +190,13 @@ spec:
             - name: app_name
               value: "{{workflow.parameters.app_prefix}}-argo-rollouts"
 
+    - - name: deletePolicyCR
+        template: deletePolicyCR
+        arguments:
+          parameters:
+            - name: target_namespace
+              value: "{{workflow.parameters.cluster_id}}"
+
     - - name: deletePolicyResourcesApp
         templateRef:
           name: delete-apps
@@ -386,3 +393,45 @@ spec:
           value: "{{inputs.parameters.target_namespace}}"
         - name: CLUSTER_NAME
           value: "{{workflow.parameters.cluster_id}}"
+
+  - name: deletePolicyCR
+    inputs:
+      parameters:
+        - name: target_namespace
+    container:
+      name: delete-policy-cr
+      image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          cp /kube/value kubeconfig_adm
+          export KUBECONFIG=kubeconfig_adm
+
+          POLICIES=$(kubectl get tkspolicy -n ${TARGET_NAMESPACE} --ignore-not-found=true | grep -v NAME)
+          if [ -n "$POLICIES" ]; then
+            kubectl get tkspolicy -n ${TARGET_NAMESPACE} -o name | sed -e 's/.*\///g' | xargs -I {} kubectl delete tkspolicy {} -n ${TARGET_NAMESPACE} --wait=false
+            sleep 10
+
+            REMAINS=$(kubectl get tkspolicy -n ${TARGET_NAMESPACE} --ignore-not-found=true | grep -v NAME)
+            if [ -n "$REMAINS" ]; then
+              kubectl get tkspolicy -n ${TARGET_NAMESPACE} -o name | sed -e 's/.*\///g' | xargs -I {} kubectl get tkspolicy {} -n ${TARGET_NAMESPACE} -ojson | jq '.metadata.finalizers = null' | kubectl apply -f -
+            fi
+          fi
+
+          POLICY_TEMPLATES=$(kubectl get tkspolicytemplates -n ${TARGET_NAMESPACE} --ignore-not-found=true | grep -v NAME)
+          if [ -n "$POLICY_TEMPLATES" ]; then
+            kubectl get tkspolicytemplates -n ${TARGET_NAMESPACE} -o name | sed -e 's/.*\///g' | xargs -I {} kubectl delete tkspolicytemplates {} -n ${TARGET_NAMESPACE} --wait=false
+            sleep 10
+
+            REMAINS=$(kubectl get tkspolicytemplates -n ${TARGET_NAMESPACE} --ignore-not-found=true | grep -v NAME)
+            if [ -n "$REMAINS" ]; then
+              kubectl get tkspolicytemplates -n ${TARGET_NAMESPACE} -o name | sed -e 's/.*\///g' | xargs -I {} kubectl get tkspolicytemplates {} -n ${TARGET_NAMESPACE} -ojson | jq '.metadata.finalizers = null' | kubectl apply -f -
+            fi
+          fi
+      env:
+        - name: TARGET_NAMESPACE
+          value: "{{inputs.parameters.target_namespace}}"
+      volumeMounts:
+        - name: kubeconfig-adm
+          mountPath: "/kube"
