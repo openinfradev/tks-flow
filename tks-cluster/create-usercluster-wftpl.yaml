@@ -643,7 +643,7 @@ spec:
             case $INFRA_PROVIDER in
               aws)
                 # check whether admin cluster is managed or not
-                kcp_count=$(kubectl get kcp -n default $CLUSTER | grep -v NAME | wc -l)
+                kcp_count=$(kubectl get kcp -n default $CLUSTER-control-plane | grep -v NAME | wc -l)
                 awsmcp_count=$(kubectl get awsmcp -n default $CLUSTER | grep -v NAME | wc -l)
 
                 if [ $kcp_count = 1 ]; then # Self-managed control plane cluster
