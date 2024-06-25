@@ -223,7 +223,8 @@ spec:
             value: |
               [
                 { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" },
-                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki-user", "namespace": "lma", "target_cluster": "" }
               ]
 
   - name: update-eps-for-thanos
