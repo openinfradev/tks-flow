@@ -111,7 +111,8 @@ spec:
             value: |
               [
                 { "app_group": "lma", "path": "minio", "namespace": "lma", "target_cluster": "" },
-                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki-user", "namespace": "lma", "target_cluster": "" }
               ]
         when: "{{workflow.parameters.object_store}} == minio"
 
