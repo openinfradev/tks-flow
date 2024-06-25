@@ -492,6 +492,30 @@ spec:
           fi
         fi
 
+        LOKI_USER_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.LOKI_USER}'| base64 -d )
+
+        if [[ "$LOKI_USER_SERVICE" == "" ]]; then
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+          do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+              log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
+              exit -1
+            fi
+
+            echo "Waiting for generating the loadbalancer of LOKI_USER(3s)"
+            sleep 3
+          done
+
+          LOKI_USER_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          LOKI_USER_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
+        else
+          LOKI_USER_HOST=$(echo $LOKI_USER_SERVICE | awk -F : '{print $1}')
+          LOKI_USER_PORT=$(echo $LOKI_USER_SERVICE | awk -F : '{print $2}')
+          if [[ "$LOKI_USER_PORT" == "" ]]; then
+            LOKI_USER_PORT=80
+          fi
+        fi
+
         if [[ "$OBJECT_STORE" == "minio" ]]; then
           S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
           if [[ "$S3_SERVICE" == "" ]]; then
@@ -520,6 +544,8 @@ spec:
 
           yq -i e  ".global.lokiHost=\"${LOKI_HOST}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${member}/lma/site-values.yaml
+          yq -i e  ".global.lokiuserHost=\"${LOKI_USER_HOST}\"" ${member}/lma/site-values.yaml
+          yq -i e  ".global.lokiuserPort=\"${LOKI_USER_PORT}\"" ${member}/lma/site-values.yaml
           if [[ "$OBJECT_STORE" == "minio" ]]; then
             yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
           fi
@@ -854,7 +880,7 @@ spec:
 
         for cid in {{inputs.parameters.target-clusters}}
         do
-          for app in loki grafana
+          for app in loki grafana loki-user
           do
             APP=${cid}-${app}
 
@@ -868,7 +894,7 @@ spec:
 
         for cid in {{inputs.parameters.target-clusters}}
         do
-          for app in loki grafana
+          for app in loki grafana loki-user
           do
             APP=${cid}-${app}
             echo "Found app '$APP'. Start deleting it.."
@@ -1065,6 +1091,7 @@ spec:
 
                   aws s3 rm s3://${cluster_id}-tks-thanos --recursive
                   aws s3 rm s3://${cluster_id}-tks-loki --recursive
+                  aws s3 rm s3://${cluster_id}-tks-loki-user --recursive
                 
               restartPolicy: Never
           backoffLimit: 4
