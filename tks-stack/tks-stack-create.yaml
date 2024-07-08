@@ -33,6 +33,8 @@ spec:
       value: ""
     - name: policy_ids
       value: ""
+    - name: cluster_domains
+      value: ""
 
   templates:
   - name: main
@@ -68,6 +70,8 @@ spec:
             value: "{{workflow.parameters.cluster_endpoint}}"
           - name: policy_ids
             value: "{{workflow.parameters.policy_ids}}"
+          - name: cluster_domains
+            value: "{{workflow.parameters.cluster_domains}}"
 
     - - name: call-create-appgroup-for-LMA
         templateRef:

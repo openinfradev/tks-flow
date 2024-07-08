@@ -21,6 +21,9 @@ spec:
       - name: cluster_type
         valueFrom:
           path: /mnt/out/cluster_type.txt 
+      - name: cluster_domains
+        valueFrom:
+          path: /mnt/out/cluster_domains.txt 
     volumes:
     - name: out
       emptyDir: {}
@@ -67,6 +70,7 @@ spec:
 
         print(res.text)
         clusterSiteValues = res.json()['clusterSiteValues']
+        clusterDomains = clusterSiteValues['domains']
 
         with open("/mnt/out/cluster_info.txt", "w") as f:
             #cluster_conf = str(clusterSiteValues)
@@ -77,3 +81,7 @@ spec:
             cluster_type = clusterSiteValues['clusterType']
             print(cluster_type)
             f.write(cluster_type)
+        with open("/mnt/out/cluster_domains.txt", "w") as f:
+            cluster_domains = json.dumps(clusterDomains)
+            print(cluster_domains)
+            f.write(cluster_domains)
