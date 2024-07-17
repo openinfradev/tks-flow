@@ -116,6 +116,16 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
+        - - name: tks-create-config-secret
+            template: create-endpoint-secret
+            arguments:
+              parameters:
+                - name: cluster_domains
+                  value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_domains}}"
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
         - - name: init-cluster-for-tks
             template: init-cluster-for-tks
             arguments:
@@ -839,3 +849,48 @@ spec:
                   value: "cluster-admin-delete"
                 - name: group_list
                   value: '["cluster-admin-delete"]'
+
+    - name: create-endpoint-secret
+      inputs:
+        parameters:
+          - name: cluster_domains
+          - name: cluster_id
+      container:
+        name: create-namespace
+        image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
+        command:
+          - /bin/bash
+          - '-c'
+          - |
+            CLUSTER_ID={{inputs.parameters.cluster_id}}
+
+            GRAFANA_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("grafana"))|.url)'[])
+            LOKI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("loki"))|.url)'[])
+            MINIO_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("minio"))|.url)'[])
+            PROMETHEUS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("prometheus"))|.url)'[])
+            THANOS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos"))|.url)'[])
+            KIALI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("kiali"))|.url)'[])
+            JAEGER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("jaeger"))|.url)'[])
+
+            cat <<EOF > tks-endpoint-secret.yaml
+            ---
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: tks-endpoint-secret
+              namespace: ${CLUSTER_ID}
+            data:
+              grafana: $(echo ${GRAFANA_URL} | base64)  # 30001
+              loki: $(echo ${LOKI_URL} | base64)   # 30002
+              minio: $(echo ${MINIO_URL} | base64)   # 30003
+              prometheus: $(echo ${PROMETHEUS_URL} | base64)    # 30004
+              thanos: $(echo ${THANOS_URL} | base64)  # 30005 (queryfrontend만 합시다...)
+              kiali: $(echo ${KIALI_URL} | base64)    # 30011
+              jaeger: $(echo ${JAEGER_URL} | base64)    # 30012
+            EOF
+            kubectl apply -f tks-endpoint-secret.yaml
+        env:
+        - name: CLUSTER_DOMAINS
+          value: "{{inputs.parameters.cluster_domains}}"
+
+      activeDeadlineSeconds: 30

@@ -12,7 +12,7 @@ spec:
   - name: login-tks-api
     container:
       name: login-tks-api
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -31,7 +31,7 @@ spec:
       - name: description
     container:
       name: create-organization
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -92,9 +92,10 @@ spec:
       - name: cloud_service
       - name: cluster_endpoint
       - name: policy_ids
+      - name: cluster_domains
     container:
       name: create-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -120,6 +121,7 @@ spec:
             --description "{{inputs.parameters.description}}" \
             --cloud-service "{{inputs.parameters.cloud_service}}" \
             --cluster-endpoint "{{inputs.parameters.cluster_endpoint}}" \
+            --domains "{{inputs.parameters.cluster_domains}}" \
             --stack 1 \
             --tks-cp-node $TKS_CP_NODE \
             --tks-infra-node $TKS_INFRA_NODE \
@@ -164,7 +166,7 @@ spec:
       - name: organization_id
     container:
       name: install-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -217,7 +219,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -260,7 +262,7 @@ spec:
       - name: description
     container:
       name: create-appgroup
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -310,7 +312,7 @@ spec:
       - name: appgroup_id
     container:
       name: delete-appgroup
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -350,7 +352,7 @@ spec:
       - name: name
     container:
       name: get-appgroup-id
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.0
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
