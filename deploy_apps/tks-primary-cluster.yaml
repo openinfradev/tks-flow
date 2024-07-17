@@ -494,7 +494,7 @@ spec:
           fi
         fi
 
-        LOKI_USER_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.LOKI_USER}'| base64 -d )
+        LOKI_USER_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.loki_user}'| base64 -d )
 
         if [[ "$LOKI_USER_SERVICE" == "" ]]; then
           while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]

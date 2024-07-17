@@ -25,6 +25,8 @@ spec:
       value: "NULL"
     - name: base_repo_branch
       value: "main"
+    - name: policy_ids
+      value: ""
 
   volumes:
   - name: kubeconfig-adm
@@ -80,6 +82,16 @@ spec:
               value: "{{ workflow.parameters.base_repo_branch }}"
         when: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_type}} != ADMIN"
 
+    - - name: tks-create-config-secret
+        template: create-endpoint-secret
+        arguments:
+          parameters:
+            - name: cluster_domains
+              value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_domains}}"
+            - name: cluster_id
+              value: "{{ workflow.parameters.cluster_id }}"
+        when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
         arguments:
@@ -104,6 +116,18 @@ spec:
             - name: cluster_id
               value: "{{ workflow.parameters.cluster_id }}"
 
+    - - name: install-policy-management
+        templateRef:
+          name: tks-policy
+          template: deploy
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{ workflow.parameters.cluster_id }}"
+            - name: contract_id
+              value: "{{ workflow.parameters.contract_id }}"
+            - name: policy_ids
+              value: "{{ workflow.parameters.policy_ids }}"
 
   #######################
   # Template Definition #
