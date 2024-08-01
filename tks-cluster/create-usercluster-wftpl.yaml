@@ -206,23 +206,17 @@ spec:
         - - name: install-volumesnapshot-crds
             template: install-volumesnapshot-crds
 
-        - - name: install-addons-cni-crds
+        - - name: tks-cluster-crd
             templateRef:
               name: create-application
               template: installApps
             arguments:
               parameters:
-                - name: list
-                  value: |
-                    [
-                      {
-                        "app_group": "tks-cluster",
-                        "path": "tigera-operator-crds",
-                        "namespace": "taco-system",
-                        "target_cluster": ""
-                      }
-                    ]
-            when: "{{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == false"
+              - name: list
+                value: |
+                  [
+                    { "app_group": "tks-cluster", "path": "CRD", "namespace": "taco-system", "target_cluster": "" }
+                  ]
 
         - - name: install-addons-cni
             templateRef:
@@ -296,12 +290,6 @@ spec:
                 - name: list
                   value: |
                     [
-                      {
-                        "app_group": "tks-cluster",
-                        "path": "s3-chart-crds",
-                        "namespace": "taco-system",
-                        "target_cluster": ""
-                      },
                       {
                         "app_group": "tks-cluster",
                         "path": "metrics-server",
