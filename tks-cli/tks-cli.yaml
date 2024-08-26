@@ -12,7 +12,7 @@ spec:
   - name: login-tks-api
     container:
       name: login-tks-api
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -31,7 +31,7 @@ spec:
       - name: description
     container:
       name: create-organization
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -95,7 +95,7 @@ spec:
       - name: cluster_domains
     container:
       name: create-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -166,7 +166,7 @@ spec:
       - name: organization_id
     container:
       name: install-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -212,6 +212,73 @@ spec:
           default: "Something wrong"
           path: /mnt/out/cluster_id.txt
 
+  - name: import-usercluster
+    inputs:
+      parameters:
+      - name: cluster_name
+      - name: stack_template_id
+      - name: organization_id
+      - name: creator
+      - name: description
+      - name: policy_ids
+      - name: cluster_domains
+      - name: kubeconfig_string
+    container:
+      name: import-usercluster
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
+      imagePullPolicy: Always
+      envFrom:
+      - secretRef:
+          name: "tks-api-secret"       
+      command:
+        - /bin/bash
+        - '-exc'
+        - |
+          tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
+
+          CL_NAME="{{inputs.parameters.cluster_name}}"
+
+          echo "* Import $CL_NAME cluster"
+          tks cluster import ${CL_NAME} \
+            --stack-template-id "{{inputs.parameters.stack_template_id}}" \
+            --organization-id "{{inputs.parameters.organization_id}}" \
+            --description "{{inputs.parameters.description}}" \
+            --cluster-type "USER" \
+            --kubeconfig-string "{{inputs.parameters.kubeconfig_string}}" \
+            --domains "{{inputs.parameters.cluster_domains}}" \
+            --policy-ids "{{inputs.parameters.policy_ids}}" 
+
+          threshold=720
+          for i in $(seq 1 $threshold)
+          do
+            CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_NAME | awk '{ print $4 }')
+            if [ "$CL_STATUS" = "RUNNING" ]; then
+              break
+            elif [ "$CL_STATUS" = "ERROR" ]; then
+              exit 1
+            fi
+
+            if [ "$i" -ge "$threshold" ]; then
+              echo "Timed out waiting for user-cluster to be ready."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_NAME | awk '{print $3}' | tee /mnt/out/cluster_id.txt
+      volumeMounts:
+        - name: out
+          mountPath: /mnt/out
+    volumes:
+      - name: out
+        emptyDir: { }
+    outputs:
+      parameters:
+      - name: cluster-id
+        valueFrom:
+          default: "Something wrong"
+          path: /mnt/out/cluster_id.txt
+
   - name: delete-usercluster
     inputs:
       parameters:
@@ -219,7 +286,7 @@ spec:
       - name: cluster_id
     container:
       name: delete-usercluster
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -262,7 +329,7 @@ spec:
       - name: description
     container:
       name: create-appgroup
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -312,7 +379,7 @@ spec:
       - name: appgroup_id
     container:
       name: delete-appgroup
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       
@@ -352,7 +419,7 @@ spec:
       - name: name
     container:
       name: get-appgroup-id
-      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.1
+      image: harbor.taco-cat.xyz/tks/tks-e2e-test:v3.2.2
       envFrom:
       - secretRef:
           name: "tks-api-secret"       

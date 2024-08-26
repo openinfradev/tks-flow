@@ -1,0 +1,96 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tks-stack-import
+  namespace: argo
+spec:
+  entrypoint: main
+  arguments:
+    parameters:
+    - name: tks_api_url
+      value: "http://tks-api.tks.svc:9110"
+    - name: organization_id
+      value: ""
+    - name: stack_template_id
+      value: "NULL"
+    - name: creator
+      value: ""
+    - name: description
+      value: ""
+    - name: object_store
+      value: "minio"
+    - name: base_repo_branch
+      value: develop
+    - name: policy_ids
+      value: ""
+    - name: cluster_domains
+      value: ""
+    - name: kubeconfig_string
+      value: ""
+
+  templates:
+  - name: main
+    steps:
+    - - name: tks-get-stack-template-type
+        templateRef:
+          name: tks-get-stack-template-type
+          template: getTksGetStackTemplateType
+
+    - - name: call-import-usercluster
+        templateRef:
+          name: tks-cli
+          template: import-usercluster
+        arguments:
+          parameters:
+          - name: cluster_name
+            value: "{{workflow.parameters.cluster_name}}"
+          - name: stack_template_id
+            value: "{{workflow.parameters.stack_template_id}}"
+          - name: organization_id
+            value: "{{workflow.parameters.organization_id}}"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+          - name: policy_ids
+            value: "{{workflow.parameters.policy_ids}}"
+          - name: cluster_domains
+            value: "{{workflow.parameters.cluster_domains}}"
+          - name: kubeconfig_string
+            value: "{{workflow.parameters.kubeconfig_string}}"
+
+    - - name: call-create-appgroup-for-LMA
+        templateRef:
+          name: tks-cli
+          template: create-appgroup
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.call-import-usercluster.outputs.parameters.cluster-id}}"
+          - name: name
+            value: "{{steps.call-import-usercluster.outputs.parameters.cluster-id}}_lma"
+          - name: type
+            value: "LMA"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+
+    - - name: call-create-appgroup-for-SERVICEMESH
+        templateRef:
+          name: tks-cli
+          template: create-appgroup
+        arguments:
+          parameters:
+          - name: cluster_id
+            value: "{{steps.call-import-usercluster.outputs.parameters.cluster-id}}"
+          - name: name
+            value: "{{steps.call-import-usercluster.outputs.parameters.cluster-id}}_servicemesh"
+          - name: type
+            value: "SERVICE_MESH"
+          - name: creator
+            value: "{{workflow.parameters.creator}}"
+          - name: description
+            value: "{{workflow.parameters.description}}"
+        when: "{{steps.tks-get-stack-template-type.outputs.parameters.stack_template_type}} == MSA"
+
