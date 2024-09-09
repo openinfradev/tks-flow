@@ -181,7 +181,7 @@ spec:
           echo "* Install $CL_NAME cluster"
           tks cluster install -c ${CL_ID}
 
-          threshold=720
+          threshold=120000
           for i in $(seq 1 $threshold)
           do
             CL_STATUS=$(tks cluster list "{{inputs.parameters.organization_id}}" | grep -w $CL_ID | awk '{ print $4 }')
