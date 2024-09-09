@@ -518,7 +518,7 @@ spec:
           fi
         fi
 
-        if [[ "$OBJECT_STORE" == "minio" ]]; then
+        if [[ "${primary_cluster}" == "${current_cluster}" ]] && [[ "$OBJECT_STORE" == "minio" ]]; then
           S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
           if [[ "$S3_SERVICE" == "" ]]; then
             S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
