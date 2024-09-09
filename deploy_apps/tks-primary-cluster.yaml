@@ -518,7 +518,7 @@ spec:
           fi
         fi
 
-        if [[ "$OBJECT_STORE" == "minio" ]]; then
+        if [[ "${primary_cluster}" == "${current_cluster}" ]] && [[ "$OBJECT_STORE" == "minio" ]]; then
           S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
           if [[ "$S3_SERVICE" == "" ]]; then
             S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
@@ -540,7 +540,7 @@ spec:
         for member in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
-          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${member})"
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT (the current target is ${member})"
           [ -d ${member} ] || git clone ${repository_base}${member}
           cd ${member}
 
@@ -548,9 +548,6 @@ spec:
           yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiuserHost=\"${LOKI_USER_HOST}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiuserPort=\"${LOKI_USER_PORT}\"" ${member}/lma/site-values.yaml
-          if [[ "$OBJECT_STORE" == "minio" ]]; then
-            yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
-          fi
 
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
@@ -559,6 +556,9 @@ spec:
             yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.TksWebhookUrl=\"{{workflow.parameters.alert_tks}}\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.SlackUrl=\"{{workflow.parameters.alert_slack}}\"" ${member}/lma/site-values.yaml
+            if [[ "$OBJECT_STORE" == "minio" ]]; then
+              yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
+            fi
           else
             yq -i e  ".global.grafanaDatasourceMetric=\"lma-prometheus.lma:9090\"" ${member}/lma/site-values.yaml
           fi
@@ -573,9 +573,9 @@ spec:
         do
           cd ${member}
           if [[ `git status --porcelain` ]]; then
-            log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE"
+            log "INFO" "##### commit changes on ${member} to loki: $LOKI_HOST:$LOKI_PORT "
             if [[ "$OBJECT_STORE" == "minio" ]]; then
-              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_SERVICE (cluster ${member})"
+              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and prometheus to $S3_SERVICE (cluster ${member})"
             else
               cmessage="the loki to $LOKI_HOST:$LOKI_PORT (cluster ${member})"
             fi
