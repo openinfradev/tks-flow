@@ -869,6 +869,8 @@ spec:
             MINIO_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("minio"))|.url)'[])
             PROMETHEUS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("prometheus"))|.url)'[])
             THANOS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos"))|.url)'[])
+            LOKI_USER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("loki_user"))|.url)'[])
+            THANOS_RULER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos_ruler"))|.url)'[])
             KIALI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("kiali"))|.url)'[])
             JAEGER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("jaeger"))|.url)'[])
 
@@ -885,6 +887,8 @@ spec:
               minio: $(echo ${MINIO_URL} | base64)   # 30003
               prometheus: $(echo ${PROMETHEUS_URL} | base64)    # 30004
               thanos: $(echo ${THANOS_URL} | base64)  # 30005 (queryfrontend만 합시다...)
+              loki_user: $(echo ${LOKI_USER_URL} | base64)   # 30006
+              thanos_ruler: $(echo ${THANOS_RULER_URL} | base64)   # 30007
               kiali: $(echo ${KIALI_URL} | base64)    # 30011
               jaeger: $(echo ${JAEGER_URL} | base64)    # 30012
             EOF
