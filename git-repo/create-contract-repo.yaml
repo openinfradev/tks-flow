@@ -54,6 +54,7 @@ spec:
 
         git clone -b ${REVISION} $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/decapod-site.git
         cd decapod-site
+        git switch -c newbranch
         echo "Decapod Site Repo Revision: "${REVISION} > META
         echo "Decapod Site Repo Commit: "$(git rev-parse HEAD) >> META
 
@@ -85,7 +86,7 @@ spec:
         git commit -m "new contract: ${CONTRACT_ID}"
 
         git remote add new_contract $GIT_SVC_HTTP://$(echo -n $TOKEN)@${GIT_SVC_BASE_URL}/${USERNAME}/${CONTRACT_ID}
-        git push new_contract ${REVISION}:main
+        git push new_contract newbranch:main
         cd ..
 
       envFrom:

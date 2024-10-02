@@ -15,6 +15,10 @@ spec:
       value: "P0010010a"
     - name: cluster_id
       value: "C011b88fa"
+    - name: site_name
+      value: "{{workflow.parameters.cluster_id}}"
+    - name: app_prefix
+      value: "{{workflow.parameters.cluster_id}}"
     - name: kubeconfig
       value: "KUBECONFIG_string"
     - name: git_account
@@ -24,6 +28,10 @@ spec:
     - name: cloud_account_id
       value: "NULL"
     - name: base_repo_branch
+      value: "main"
+    - name: policy_ids
+      value: ""
+    - name: revision
       value: "main"
 
   volumes:
@@ -80,6 +88,15 @@ spec:
               value: "{{ workflow.parameters.base_repo_branch }}"
         when: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_type}} != ADMIN"
 
+    - - name: tks-create-config-secret
+        template: create-endpoint-secret
+        arguments:
+          parameters:
+            - name: cluster_domains
+              value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_domains}}"
+            - name: cluster_id
+              value: "{{ workflow.parameters.cluster_id }}"
+
     - - name: init-cluster-for-tks
         template: init-cluster-for-tks
         arguments:
@@ -95,6 +112,9 @@ spec:
             - name: contract_id
               value: "{{ workflow.parameters.contract_id }}"
 
+    - - name: suspend
+        template: suspend
+
     - - name: create-default-rbac-resources
         templateRef:
           name: create-tks-usercluster
@@ -104,10 +124,24 @@ spec:
             - name: cluster_id
               value: "{{ workflow.parameters.cluster_id }}"
 
+    - - name: install-policy-management
+        templateRef:
+          name: tks-policy
+          template: deploy
+        arguments:
+          parameters:
+            - name: cluster_id
+              value: "{{ workflow.parameters.cluster_id }}"
+            - name: contract_id
+              value: "{{ workflow.parameters.contract_id }}"
+            - name: policy_ids
+              value: "{{ workflow.parameters.policy_ids }}"
 
   #######################
   # Template Definition #
   #######################
+  - name: suspend
+    suspend: {}
 
   - name: import-cluster
     inputs:
@@ -160,13 +194,27 @@ spec:
         - name: cluster_id
     container:
       name: cluster-init
-      image: harbor.taco-cat.xyz/tks/python_kubectl_argo:v1.1.0
+      image: harbor.taco-cat.xyz/tks/tks-cluster-init:v1.0.0
       command:
         - /bin/bash
         - '-exc'
         - |
           cp /kube/value kubeconfig_adm
           export KUBECONFIG=kubeconfig_adm
+
+          ####### add tks info. on namespace ########
+          kubectl label ns ${CLUSTER_ID} tks.io/organization=${CONTRACT_ID}
+          if [ $(kubectl get ns -l tks.io/organization=${CONTRACT_ID} --ignore-not-found=true | grep -v NAME | awk '{print $1}' | wc -l ) -le 1 ]; then
+            kubectl label ns ${CLUSTER_ID} tks.io/policy=${CLUSTER_ID}
+          else
+            POLICY_NS=$(kubectl get ns $(kubectl get ns -l tks.io/organization=${CONTRACT_ID} --ignore-not-found=true | grep -v NAME | awk '{print $1}' | head -n 1 )  --ignore-not-found=true -o jsonpath='{.metadata.labels.tks\.io\/policy}' )
+            if [ -z "$POLICY_NS" ]; then
+              kubectl label ns ${CLUSTER_ID} tks.io/policy=${CLUSTER_ID}
+            else
+              kubectl label ns ${CLUSTER_ID} tks.io/policy=${POLICY_NS}
+            fi
+          fi
+          ###########################################
 
           KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
           cat <<< "$KUBECONFIG_WORKLOAD" > kubeconfig_workload
@@ -212,3 +260,52 @@ spec:
       - name: CLUSTER_ID
         value: "{{ inputs.parameters.cluster_id }}"
 
+
+  - name: create-endpoint-secret
+    inputs:
+      parameters:
+        - name: cluster_domains
+        - name: cluster_id
+    container:
+      name: create-namespace
+      image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
+      command:
+        - /bin/bash
+        - '-c'
+        - |
+          CLUSTER_ID={{inputs.parameters.cluster_id}}
+
+          GRAFANA_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("grafana"))|.url)'[])
+          LOKI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("loki"))|.url)'[])
+          MINIO_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("minio"))|.url)'[])
+          PROMETHEUS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("prometheus"))|.url)'[])
+          THANOS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos"))|.url)'[])
+          LOKI_USER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("loki_user"))|.url)'[])
+          THANOS_RULER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos_ruler"))|.url)'[])
+          KIALI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("kiali"))|.url)'[])
+          JAEGER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("jaeger"))|.url)'[])
+
+          cat <<EOF > tks-endpoint-secret.yaml
+          ---
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: tks-endpoint-secret
+            namespace: ${CLUSTER_ID}
+          data:
+            grafana: $(echo ${GRAFANA_URL} | base64)  # 30001
+            loki: $(echo ${LOKI_URL} | base64)   # 30002
+            minio: $(echo ${MINIO_URL} | base64)   # 30003
+            prometheus: $(echo ${PROMETHEUS_URL} | base64)    # 30004
+            thanos: $(echo ${THANOS_URL} | base64)  # 30005 (queryfrontend만 합시다...)
+            loki_user: $(echo ${LOKI_USER_URL} | base64)   # 30006
+            thanos_ruler: $(echo ${THANOS_RULER_URL} | base64)   # 30007
+            kiali: $(echo ${KIALI_URL} | base64)    # 30011
+            jaeger: $(echo ${JAEGER_URL} | base64)    # 30012
+          EOF
+          kubectl apply -f tks-endpoint-secret.yaml
+      env:
+      - name: CLUSTER_DOMAINS
+        value: "{{inputs.parameters.cluster_domains}}"
+
+    activeDeadlineSeconds: 30
