@@ -30,7 +30,9 @@ spec:
       - name: base_repo_branch
         value: "main"
       - name: keycloak_url
-        value: 'https://keycloak.yourdomain.org/auth'
+        value: "https://keycloak.yourdomain.org/auth"
+      - name: policy_ids
+        value: ""
 
   volumes:
     - name: kubeconfig-adm
@@ -114,6 +116,16 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
+        - - name: tks-create-config-secret
+            template: create-endpoint-secret
+            arguments:
+              parameters:
+                - name: cluster_domains
+                  value: "{{steps.tks-get-cluster-info.outputs.parameters.cluster_domains}}"
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
+            when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
+
         - - name: init-cluster-for-tks
             template: init-cluster-for-tks
             arguments:
@@ -128,6 +140,24 @@ spec:
                   value: "{{ workflow.parameters.keycloak_url }}"
                 - name: contract_id
                   value: "{{ workflow.parameters.contract_id }}"
+
+        - - name: create-eks-keycloak-oidc-provider
+            templateRef:
+              name: aws-eks-keycloak-oidc-provider
+              template: createProvider
+            arguments:
+              parameters:
+                - name: contract_id
+                  value: "{{ workflow.parameters.contract_id }}"
+                - name: cluster_id
+                  value: "{{ workflow.parameters.cluster_id }}"
+                - name: keycloak_url
+                  value: "{{ workflow.parameters.keycloak_url }}"
+                - name: cloud_account_id
+                  value: "{{ workflow.parameters.cloud_account_id }}"
+            when: >-
+              {{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == aws &&
+                {{steps.tks-create-cluster-repo.outputs.parameters.managed_cluster}} == true
 
         - - name: create-aws-cluster-autoscaler-iam
             templateRef:
@@ -340,59 +370,22 @@ spec:
                     ]
             when: "{{steps.tks-create-cluster-repo.outputs.parameters.infra_provider}} == byoh"
 
-        - - name: set-keycloak-config
+        - - name: create-default-rbac-resources
+            template: k8s-rbac-setting
+
+        - - name: install-policy-management
             templateRef:
-              name: set-user-cluster
-              template: main
+              name: tks-policy
+              template: deploy
             arguments:
               parameters:
                 - name: cluster_id
                   value: "{{ workflow.parameters.cluster_id }}"
-                - name: server_url
-                  value: "{{ workflow.parameters.keycloak_url }}"
-                - name: target_realm_name
+                - name: contract_id
                   value: "{{ workflow.parameters.contract_id }}"
-                - name: target_client_id
-                  value: "{{ workflow.parameters.cluster_id}}-k8s-api"
-                - name: keycloak_credential_secret_name
-                  value: "keycloak"
-                - name: keycloak_credential_secret_namespace
-                  value: "keycloak"
-
-        - - name: set-cluster-role-binding-cluster-admin
-            templateRef:
-              name: k8s-client
-              template: create-cluster-role-binding
-            arguments:
-              parameters:
-                - name: target_cluster_id
-                  value: "{{workflow.parameters.cluster_id}}"
-                - name: is_self_target
-                  value: "false"
-                - name: rolebinding_name
-                  value: "{{workflow.parameters.cluster_id}}-cluster-admin"
-                - name: role_name
-                  value: "admin"
-                - name: group_list
-                  value: '["{{workflow.parameters.cluster_id}}-cluster-admin", "cluster-admin"]'
-
-        - - name: set-cluster-role-binding-cluster-view
-            templateRef:
-              name: k8s-client
-              template: create-cluster-role-binding
-            arguments:
-              parameters:
-                - name: target_cluster_id
-                  value: "{{workflow.parameters.cluster_id}}"
-                - name: is_self_target
-                  value: "false"
-                - name: rolebinding_name
-                  value: "{{workflow.parameters.cluster_id}}-cluster-view"
-                - name: role_name
-                  value: "view"
-                - name: group_list
-                  value: '["{{workflow.parameters.cluster_id}}-cluster-view", "cluster-view"]'
-
+                - name: policy_ids
+                  value: "{{ workflow.parameters.policy_ids }}"
+            # when: "{{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}} != '' && {{workflow.parameters.cluster_id}} != {{steps.get-clusters-in-contract.outputs.parameters.primary_cluster}}"
 
     #######################
     # Template Definition #
@@ -417,6 +410,21 @@ spec:
           - |
             cp /kube/value kubeconfig_adm
             export KUBECONFIG=kubeconfig_adm
+
+            ####### add tks info. on namespace ########
+            kubectl label ns ${CLUSTER_ID} tks.io/organization=${CONTRACT_ID}
+            if [ $(kubectl get ns -l tks.io/organization=${CONTRACT_ID} --ignore-not-found=true | grep -v NAME | awk '{print $1}' | wc -l ) -le 1 ]; then
+              kubectl label ns ${CLUSTER_ID} tks.io/policy=${CLUSTER_ID}
+            else
+              POLICY_NS=$(kubectl get ns $(kubectl get ns -l tks.io/organization=${CONTRACT_ID} --ignore-not-found=true | grep -v NAME | awk '{print $1}' | head -n 1 )  --ignore-not-found=true -o jsonpath='{.metadata.labels.tks\.io\/policy}' )
+              if [ -z "$POLICY_NS" ]; then
+                kubectl label ns ${CLUSTER_ID} tks.io/policy=${CLUSTER_ID}
+              else
+                kubectl label ns ${CLUSTER_ID} tks.io/policy=${POLICY_NS}
+              fi
+            fi
+            ###########################################
+
             mkdir ~/.aws
             cp /aws/* ~/.aws/
 
@@ -529,32 +537,9 @@ spec:
             fi
 
             # Create a kubeconfig secret for TKS internal use from ArgoCD cluster secret and for TKS user
-            export KUBECONFIG=kubeconfig_adm
+            export KUBECONFIG=kubeconfig_adm        
             if [ $kcp_count = 1 ]; then
               TKS_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              if [ "$INFRA_PROVIDER" == "byoh" ]; then
-                ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
-                CLIENT_ID=$CLUSTER_ID-k8s-api
-                OIDC_USER_NAME="oidc-user"
-                EXISTING_USER_NAME=$CLUSTER_ID-admin
-                
-                kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d > tmp_user_kubeconfig
-                kubectl --kubeconfig=tmp_user_kubeconfig config unset users.$EXISTING_USER_NAME
-                kubectl --kubeconfig=tmp_user_kubeconfig config set-credentials $OIDC_USER_NAME \
-                  --exec-api-version=client.authentication.k8s.io/v1beta1 \
-                  --exec-command=kubectl \
-                  --exec-arg=oidc-login \
-                  --exec-arg=get-token \
-                  --exec-arg=--oidc-issuer-url=$ISSUER_URL \
-                  --exec-arg=--oidc-client-id=$CLIENT_ID \
-                  --exec-arg=--grant-type=password 
-                
-                CONTEXT_NAME=$(kubectl --kubeconfig=tmp_user_kubeconfig config current-context)
-                kubectl --kubeconfig=tmp_user_kubeconfig config set-context $CONTEXT_NAME --user $OIDC_USER_NAME
-                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_user_kubeconfig)
-              else
-                TKS_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
-              fi
             elif [ $awsmcp_count = 1 ]; then
               CAPA_USER_KUBECONFIG_WORKLOAD=$(kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-user-kubeconfig -o jsonpath="{.data.value}" | base64 -d)
 
@@ -565,14 +550,6 @@ spec:
               CLIENT_TOKEN=$(kubectl get secret -n argo $ARGOCD_CLUSTER_SECRET -ojsonpath='{.data.config}' | base64 -d | jq -r .bearerToken)
               echo "    token: ${CLIENT_TOKEN}" >> tmp_tks_kubeconfig_workload
               TKS_KUBECONFIG_WORKLOAD=$(cat tmp_tks_kubeconfig_workload)
-
-              # tks-user-kubeconfig
-              if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then # multitenancy cluster
-                cat <<< $CAPA_USER_KUBECONFIG_WORKLOAD | sed "24 i \ \ \ \ \  - --role\n\ \ \ \ \ \ - $IDENTITY_ROLE_ARN" > tmp_tks_user_kubeconfig_workload
-                TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_tks_user_kubeconfig_workload)
-              else
-                TKS_USER_KUBECONFIG_WORKLOAD=$CAPA_USER_KUBECONFIG_WORKLOAD
-              fi
 
               cat <<EOF > sc-taco-storage.yaml
             apiVersion: storage.k8s.io/v1
@@ -591,6 +568,28 @@ spec:
               echo "Wrong Cluster type!"
               exit 1
             fi
+            
+            # generate kubeconfig for user
+            ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
+            CLIENT_ID=$CLUSTER_ID-k8s-api
+            OIDC_USER_NAME="oidc-user"
+            EXISTING_USER_NAME=$CLUSTER_ID-admin
+            
+            kubectl get secret -n $CLUSTER_ID $CLUSTER_ID-kubeconfig -o jsonpath="{.data.value}" | base64 -d > tmp_user_kubeconfig
+            kubectl --kubeconfig=tmp_user_kubeconfig config unset users.$EXISTING_USER_NAME
+            kubectl --kubeconfig=tmp_user_kubeconfig config set-credentials $OIDC_USER_NAME \
+              --exec-api-version=client.authentication.k8s.io/v1beta1 \
+              --exec-command=kubectl \
+              --exec-arg=oidc-login \
+              --exec-arg=get-token \
+              --exec-arg=--oidc-issuer-url=$ISSUER_URL \
+              --exec-arg=--oidc-client-id=$CLIENT_ID \
+              --exec-arg=--grant-type=password 
+            
+            CONTEXT_NAME=$(kubectl --kubeconfig=tmp_user_kubeconfig config current-context)
+            kubectl --kubeconfig=tmp_user_kubeconfig config set-context $CONTEXT_NAME --user $OIDC_USER_NAME
+            TKS_USER_KUBECONFIG_WORKLOAD=$(cat tmp_user_kubeconfig)
+            
             cat <<< $TKS_KUBECONFIG_WORKLOAD > tks_kubeconfig_workload
             kubectl create secret generic -n $CLUSTER_ID $CLUSTER_ID-tks-kubeconfig --from-file=value=tks_kubeconfig_workload
             cat <<< $TKS_USER_KUBECONFIG_WORKLOAD > tks_user_kubeconfig_workload
@@ -703,3 +702,199 @@ spec:
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml -n kube-system
             kubectl --kubeconfig kubeconfig_temp apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml -n kube-system
 
+
+    - name: k8s-rbac-setting
+      steps:
+        - - name: create-cluster-role-for-create
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-create"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["create"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: create-cluster-role-for-read
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-read"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["get", "list", "watch"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: create-cluster-role-for-update
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-update"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["update", "patch"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: create-cluster-role-for-delete
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: cluster_role_name
+                  value: "cluster-admin-delete"
+                - name: api_group
+                  value: '*'
+                - name: resource_name
+                  value: '*'
+                - name: verbs
+                  value: '["delete", "deletecollection"]'
+                - name: ignore_exist
+                  value: 'true'
+        - - name: set-cluster-role-binding-create
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-create-rb"
+                - name: role_name
+                  value: "cluster-admin-create"
+                - name: group_list
+                  value: '["cluster-admin-create"]'
+        - - name: set-cluster-role-binding-read
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-read-rb"
+                - name: role_name
+                  value: "cluster-admin-read"
+                - name: group_list
+                  value: '["cluster-admin-read"]'
+        - - name: set-cluster-role-binding-update
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-update-rb"
+                - name: role_name
+                  value: "cluster-admin-update"
+                - name: group_list
+                  value: '["cluster-admin-update"]'
+        - - name: set-cluster-role-binding-delete
+            templateRef:
+              name: k8s-client
+              template: create-cluster-role-binding
+            arguments:
+              parameters:
+                - name: target_cluster_id
+                  value: "{{workflow.parameters.cluster_id}}"
+                - name: is_self_target
+                  value: "false"
+                - name: rolebinding_name
+                  value: "cluster-admin-delete-rb"
+                - name: role_name
+                  value: "cluster-admin-delete"
+                - name: group_list
+                  value: '["cluster-admin-delete"]'
+
+    - name: create-endpoint-secret
+      inputs:
+        parameters:
+          - name: cluster_domains
+          - name: cluster_id
+      container:
+        name: create-namespace
+        image: harbor.taco-cat.xyz/tks/hyperkube:v1.18.6
+        command:
+          - /bin/bash
+          - '-c'
+          - |
+            CLUSTER_ID={{inputs.parameters.cluster_id}}
+
+            GRAFANA_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("grafana"))|.url)'[])
+            LOKI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("loki"))|.url)'[])
+            MINIO_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("minio"))|.url)'[])
+            PROMETHEUS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("prometheus"))|.url)'[])
+            THANOS_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos"))|.url)'[])
+            LOKI_USER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("loki_user"))|.url)'[])
+            THANOS_RULER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("thanos_ruler"))|.url)'[])
+            KIALI_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("kiali"))|.url)'[])
+            JAEGER_URL=$(echo $CLUSTER_DOMAINS | jq -r '. | map(select(.domainType | contains("jaeger"))|.url)'[])
+
+            cat <<EOF > tks-endpoint-secret.yaml
+            ---
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: tks-endpoint-secret
+              namespace: ${CLUSTER_ID}
+            data:
+              grafana: $(echo ${GRAFANA_URL} | base64)  # 30001
+              loki: $(echo ${LOKI_URL} | base64)   # 30002
+              minio: $(echo ${MINIO_URL} | base64)   # 30003
+              prometheus: $(echo ${PROMETHEUS_URL} | base64)    # 30004
+              thanos: $(echo ${THANOS_URL} | base64)  # 30005 (queryfrontend만 합시다...)
+              loki_user: $(echo ${LOKI_USER_URL} | base64)   # 30006
+              thanos_ruler: $(echo ${THANOS_RULER_URL} | base64)   # 30007
+              kiali: $(echo ${KIALI_URL} | base64)    # 30011
+              jaeger: $(echo ${JAEGER_URL} | base64)    # 30012
+            EOF
+            kubectl apply -f tks-endpoint-secret.yaml
+        env:
+        - name: CLUSTER_DOMAINS
+          value: "{{inputs.parameters.cluster_domains}}"
+
+      activeDeadlineSeconds: 30

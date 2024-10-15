@@ -20,6 +20,8 @@ spec:
       value: ""
     - name: organization_id
       value: "ose4j7p39"
+    - name: project_id
+      value: ""
     - name: strategy
       value: "blue-green"
     # tks_info service URL
@@ -37,6 +39,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -57,6 +61,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -78,6 +84,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id
@@ -96,6 +104,8 @@ spec:
           parameters:
           - name: organization_id
             value: "{{workflow.parameters.organization_id}}"
+          - name: project_id
+            value: "{{workflow.parameters.project_id}}"
           - name: asa_id
             value: "{{workflow.parameters.asa_id}}"
           - name: asa_task_id

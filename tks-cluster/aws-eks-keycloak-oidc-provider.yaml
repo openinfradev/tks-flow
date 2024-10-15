@@ -1,0 +1,93 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: aws-eks-keycloak-oidc-provider
+  namespace: argo
+spec:
+  entrypoint: createProvider
+  arguments:
+    parameters:
+    - name: contract_id
+      value: "o6t7z6qzp"
+    - name: cluster_id
+      value: "C011b88fa"
+    - name: keycloak_url
+      value: 'https://keycloak.yourdomain.org/auth'
+    - name: cloud_account_id # will be not NULL if the cluster is multitenancy
+      value: "NULL"
+
+  volumes:
+  - name: awsconfig
+    secret:
+      secretName: awsconfig-secret
+  - name: kubeconfig-adm
+    secret:
+      secretName: tks-admin-kubeconfig-secret
+
+  templates:
+  - name: createProvider
+    inputs:
+      parameters:
+      - name: contract_id
+      - name: cluster_id
+      - name: keycloak_url
+      - name: cloud_account_id
+    activeDeadlineSeconds: 1800
+    container:
+      image: harbor.taco-cat.xyz/tks/tks-aws:v1.1.0
+      command:
+      - /bin/bash
+      - -exc
+      - |
+        cp /kube/value kubeconfig_adm
+        export KUBECONFIG=kubeconfig_adm
+        mkdir ~/.aws
+        cp /aws/* ~/.aws/
+        
+        # Use AWS STS temporary security credential if multi-tenancy
+        if [ "$CLOUD_ACCOUNT_ID" != "NULL" ]; then
+          ROLE_ARN=$(kubectl get awsri $CLOUD_ACCOUNT_ID-account-role -ojsonpath='{.spec.roleARN}')
+          aws sts assume-role --role-arn $ROLE_ARN --role-session-name "TKS-ClusterAutoscaler-$CLUSTER_ID" --output json | tee ~/assume-role-sts-credential.txt
+          export AWS_ACCESS_KEY_ID=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(cat ~/assume-role-sts-credential.txt | jq -r '.Credentials.SessionToken')
+
+          ROLE_ARN_REMOVED_SUFFIX=${ROLE_ARN%:*}
+          AWS_ACCOUNT_ID=${ROLE_ARN_REMOVED_SUFFIX#*::}
+        else
+          AWS_ACCOUNT_ID=$(kubectl  get secret -n argo awsconfig-secret -ojsonpath='{.data.AWS_ACCOUNT_ID}' | base64 -d)
+        fi
+        
+        # generate OIDC provider for EKS cluster
+        ISSUER_URL=$KEYCLOAK_URL/realms/$CONTRACT_ID
+        CLIENT_ID=$CLUSTER_ID-k8s-api
+        cat <<EOF >oidc-config.yaml
+        apiVersion: eksctl.io/v1alpha5
+        kind: ClusterConfig
+        metadata:
+          name: $CLUSTER_ID
+          region: ap-northeast-2
+        identityProviders:
+          - name: keycloak
+            type: oidc
+            issuerUrl: $ISSUER_URL
+            clientId: $CLIENT_ID
+            usernameClaim: preferred_username
+            groupsClaim: groups
+        EOF
+        cat oidc-config.yaml
+        eksctl associate identityprovider -f oidc-config.yaml
+      env:
+      - name: CLUSTER_ID
+        value: "{{ inputs.parameters.cluster_id }}"
+      - name: KEYCLOAK_URL
+        value: "{{ inputs.parameters.keycloak_url }}"
+      - name: CONTRACT_ID
+        value: "{{ inputs.parameters.contract_id }}"
+      - name: CLOUD_ACCOUNT_ID
+        value: "{{workflow.parameters.cloud_account_id}}"
+      volumeMounts:
+        - name: awsconfig
+          mountPath: "/aws"
+        - name: kubeconfig-adm
+          mountPath: "/kube"

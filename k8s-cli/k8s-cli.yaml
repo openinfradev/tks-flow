@@ -5,6 +5,191 @@ metadata:
   namespace: argo
 spec:
   templates:
+    - name: delete-cluster-role
+      inputs:
+        parameters:
+          - name: target_cluster_id
+            value: cj7e583yl
+          - name: is_self_target
+            value: 'true'
+          - name: cluster_role_name
+            value: test1
+          - name: ignore_not_found
+            value: 'true'
+      script:
+        command:
+          - python3
+        image: harbor.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          import sys
+          from kubernetes import client, config
+          import yaml
+          import base64
+          import json
+          input_params = {'target_cluster_id': '{{inputs.parameters.target_cluster_id}}', 'is_self_target': '{{inputs.parameters.is_self_target}}', 'cluster_role_name': '{{inputs.parameters.cluster_role_name}}', 'ignore_not_found': '{{inputs.parameters.ignore_not_found}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  api_config = client.Configuration()
+                  config.load_kube_config(config_file=kubeconfig_path, client_configuration=api_config)
+              else:
+                  api_config = client.Configuration()
+                  config.load_incluster_config(client_configuration=api_config)
+              return client.ApiClient(configuration=api_config)
+        
+          def get_kubernetes_api_from_kubeconfig(kubeconfig_str):
+              kubeconfig_dict = yaml.safe_load(kubeconfig_str)
+              api_config = client.Configuration()
+              config.load_kube_config_from_dict(kubeconfig_dict, client_configuration=api_config)
+              return client.ApiClient(configuration=api_config)
+        
+          def get_kubeconfig_secret(k8s_client, secret_name, secret_namespace):
+              api_instance = client.CoreV1Api(k8s_client)
+              secret_obj = api_instance.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('value')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def delete_cluster_role(api_client, name, ignore_exist):
+              api_instance = client.RbacAuthorizationV1Api(api_client)
+              if (ignore_exist == 'true'):
+                  try:
+                      api_instance.delete_cluster_role(name)
+                  except Exception as e:
+                      if ('Not Found' in str(e)):
+                          print(f'cluster role "{name}" not found')
+                      else:
+                          raise e
+              else:
+                  api_instance.delete_cluster_role(name)
+        
+          def input_validation(origin_input_params):
+              if ((not origin_input_params['target_cluster_id']) or (origin_input_params['target_cluster_id'] == '')):
+                  raise Exception('target_cluster_id is required')
+              if ((not origin_input_params['is_self_target']) or (origin_input_params['is_self_target'] == '')):
+                  raise Exception('is_self_target is required')
+              if ((not origin_input_params['cluster_role_name']) or (origin_input_params['cluster_role_name'] == '')):
+                  raise Exception('cluster_role_name is required')
+              if ((not origin_input_params['ignore_not_found']) or (origin_input_params['ignore_not_found'] == '')):
+                  raise Exception('ignore_not_found is required')
+          input_validation(input_params)
+          if (input_params['is_self_target'] == 'true'):
+              target_k8s_client = k8s_client = get_kubernetes_api(local=False)
+          else:
+              k8s_client = get_kubernetes_api(local=False)
+              target_k8s_kubeconfig = get_kubeconfig_secret(k8s_client, (input_params['target_cluster_id'] + '-tks-kubeconfig'), input_params['target_cluster_id'])
+              target_k8s_client = get_kubernetes_api_from_kubeconfig(target_k8s_kubeconfig)
+          try:
+              delete_cluster_role(target_k8s_client, input_params['cluster_role_name'], input_params['ignore_not_found'])
+              print(f"""delete cluster role "{input_params['cluster_role_name']}" success""")
+          except Exception as e:
+              print('Exception when calling delete_cluster_role')
+              print(e)
+              sys.exit(1)
+          sys.exit(0)
+    - name: create-cluster-role
+      inputs:
+        parameters:
+          - name: target_cluster_id
+            value: cj7e583yl
+          - name: is_self_target
+            value: 'true'
+          - name: cluster_role_name
+            value: test1
+          - name: api_group
+            value: '*'
+          - name: resource_name
+            value: '*'
+          - name: verbs
+            value: '["get", "list"]'
+          - name: ignore_exist
+            value: 'true'
+      script:
+        command:
+          - python3
+        image: harbor.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        source: |2
+        
+          import sys
+          from kubernetes import client, config
+          import yaml
+          import base64
+          import json
+          input_params = {'target_cluster_id': '{{inputs.parameters.target_cluster_id}}', 'is_self_target': '{{inputs.parameters.is_self_target}}', 'cluster_role_name': '{{inputs.parameters.cluster_role_name}}', 'api_group': '{{inputs.parameters.api_group}}', 'resource_name': '{{inputs.parameters.resource_name}}', 'verbs': '{{inputs.parameters.verbs}}', 'ignore_exist': '{{inputs.parameters.ignore_exist}}'}
+        
+          def get_kubernetes_api(local=False):
+              if local:
+                  import os
+                  kubeconfig_path = os.path.expandvars('$HOME/.kube/config')
+                  api_config = client.Configuration()
+                  config.load_kube_config(config_file=kubeconfig_path, client_configuration=api_config)
+              else:
+                  api_config = client.Configuration()
+                  config.load_incluster_config(client_configuration=api_config)
+              return client.ApiClient(configuration=api_config)
+        
+          def get_kubernetes_api_from_kubeconfig(kubeconfig_str):
+              kubeconfig_dict = yaml.safe_load(kubeconfig_str)
+              api_config = client.Configuration()
+              config.load_kube_config_from_dict(kubeconfig_dict, client_configuration=api_config)
+              return client.ApiClient(configuration=api_config)
+        
+          def get_kubeconfig_secret(k8s_client, secret_name, secret_namespace):
+              api_instance = client.CoreV1Api(k8s_client)
+              secret_obj = api_instance.read_namespaced_secret(name=secret_name, namespace=secret_namespace)
+              encoded_data = secret_obj.data.get('value')
+              decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+              return decoded_data
+        
+          def create_cluster_role(api_client, name, api_group, resource_name, verbs, ignore_exist):
+              api_instance = client.RbacAuthorizationV1Api(api_client)
+              body = {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'ClusterRole', 'metadata': {'name': name}, 'rules': [{'apiGroups': [api_group], 'resources': [resource_name], 'verbs': verbs}]}
+              if (ignore_exist == 'true'):
+                  try:
+                      return api_instance.create_cluster_role(body)
+                  except client.ApiException as e:
+                      if (e.status == 409):
+                          print(f'cluster role "{name}" already exists')
+                          return
+                      else:
+                          raise e
+              else:
+                  return api_instance.create_cluster_role(body)
+        
+          def input_validation(origin_input_params):
+              if ((not origin_input_params['target_cluster_id']) or (origin_input_params['target_cluster_id'] == '')):
+                  raise Exception('target_cluster_id is required')
+              if ((not origin_input_params['is_self_target']) or (origin_input_params['is_self_target'] == '')):
+                  raise Exception('is_self_target is required')
+              if ((not origin_input_params['cluster_role_name']) or (origin_input_params['cluster_role_name'] == '')):
+                  raise Exception('cluster_role_name is required')
+              if ((not origin_input_params['api_group']) or (origin_input_params['api_group'] == '')):
+                  raise Exception('api_group is required')
+              if ((not origin_input_params['resource_name']) or (len(origin_input_params['resource_name']) == 0)):
+                  raise Exception('resource_name is required')
+              if ((not origin_input_params['verbs']) or (len(origin_input_params['verbs']) == 0)):
+                  raise Exception('verbs is required')
+              if ((not origin_input_params['ignore_exist']) or (len(origin_input_params['ignore_exist']) == 0)):
+                  raise Exception('ignore_exist is required')
+          input_validation(input_params)
+          input_params['verbs'] = json.loads(input_params['verbs'])
+          if (input_params['is_self_target'] == 'true'):
+              target_k8s_client = k8s_client = get_kubernetes_api(local=False)
+          else:
+              k8s_client = get_kubernetes_api(local=False)
+              target_k8s_kubeconfig = get_kubeconfig_secret(k8s_client, (input_params['target_cluster_id'] + '-tks-kubeconfig'), input_params['target_cluster_id'])
+              target_k8s_client = get_kubernetes_api_from_kubeconfig(target_k8s_kubeconfig)
+          try:
+              create_cluster_role(target_k8s_client, input_params['cluster_role_name'], input_params['api_group'], input_params['resource_name'], input_params['verbs'], input_params['ignore_exist'])
+              print(f"""create cluster role "{input_params['cluster_role_name']}" success""")
+          except Exception as e:
+              print('Exception when calling create_cluster_role')
+              print(e)
+              sys.exit(1)
+          sys.exit(0)
     - name: delete-cluster-role-binding
       inputs:
         parameters:
@@ -17,7 +202,7 @@ spec:
       script:
         command:
           - python3
-        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        image: harbor.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
         source: |2
         
           import sys
@@ -96,7 +281,7 @@ spec:
       script:
         command:
           - python3
-        image: harbor-cicd.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
+        image: harbor.taco-cat.xyz/dev/python-keycloak-cli:v0.1.0
         source: |2
         
           import sys

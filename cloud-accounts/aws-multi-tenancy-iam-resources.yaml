@@ -73,6 +73,7 @@ spec:
               - \"iam:TagOpenIDConnectProvider\"
               - \"iam:CreatePolicy\"
               - \"iam:GetPolicy\"
+              - \"iam:DeletePolicy\"
               - \"iam:AttachRolePolicy\"
               - \"iam:DetachRolePolicy\"
               - \"iam:CreateRole\"

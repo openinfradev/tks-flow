@@ -28,7 +28,7 @@ spec:
     - name: console_url
       value: "https://tks-console-dev.taco-cat.xyz"
     - name: alert_tks
-      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/alerts"
+      value: "https://tks-api-dev.taco-cat.xyz/system-api/1.0/system-notifications"
     - name: alert_slack
       value: "https://hooks.slack.com/services/fixme"
     ##########################
@@ -46,9 +46,6 @@ spec:
       value: ""
 
   volumes:
-  - name: tks-proto-vol
-    configMap:
-      name: tks-proto
   - name: kubeconfig-adm
     secret:
       secretName: tks-admin-kubeconfig-secret
@@ -169,12 +166,16 @@ spec:
             value: "{{ workflow.parameters.github_account }}/{{workflow.parameters.cluster_id}}"
         when: "{{steps.update-auth-oidc-grafana.outputs.parameters.is_changed}} == YES"
 
-    - - name: argocd-sync-wait
-        template: argocd-sync-wait
+    - - name: garafana-sync-wait
+        templateRef:
+          name: create-application
+          template: argocd-sync-wait
         arguments:
           parameters:
           - name: cluster_id
             value: '{{workflow.parameters.cluster_id}}'
+          - name: appname
+            value: 'grafana'
 
     - - name: grafana-restart
         template: grafana-restart
@@ -312,9 +313,9 @@ spec:
             sleep 5
           done
 
-          grafana_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d )
-
-          if [[ ${grafana_ep_secret} == "" ]]; then
+          grafana_ep_secret=$(kubectl get secret -n ${cluster_id} tks-endpoint-secret -o jsonpath='{.data.grafana}'| base64 -d ) || grafana_ep_secret=""
+          
+          if [ "$grafana_ep_secret" == "" ]; then
             while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]; do
               if [[ "$(kubectl --kubeconfig=kubeconfig get svc -n lma grafana -o jsonpath='{.spec.type}')" != "LoadBalancer" ]]; then
                 log "FAIL" "A service for the grafana in ${cluster_id} is not configured properly.(No LoadBalancer)"
@@ -446,35 +447,6 @@ spec:
         valueFrom:
           path: /mnt/out/changed.txt
           default: "NO"
-
-  - name: argocd-sync-wait
-    inputs:
-      parameters:
-        - name: cluster_id
-    container:
-      name: argocd-sync-wait
-      image: harbor.taco-cat.xyz/tks/argocd-cli:v2.2.5
-      command:
-        - /bin/bash
-        - '-c'
-        - |
-          # log into Argo CD server
-          ./argocd login $ARGO_SERVER --plaintext --insecure --username $ARGO_USERNAME \
-          --password $ARGO_PASSWORD
-          
-          app_name={{inputs.parameters.cluster_id}}-grafana
-          
-          # sync app
-          echo "sync app $app_name"
-          ./argocd app sync $app_name
-          
-          # wait for sync
-          ./argocd app wait $app_name --sync 
-
-      envFrom:
-        - secretRef:
-            name: "decapod-argocd-config"
-    activeDeadlineSeconds: 900
 
   - name: grafana-restart
     inputs:

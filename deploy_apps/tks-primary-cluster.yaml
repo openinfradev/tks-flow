@@ -111,7 +111,8 @@ spec:
             value: |
               [
                 { "app_group": "lma", "path": "minio", "namespace": "lma", "target_cluster": "" },
-                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki-user", "namespace": "lma", "target_cluster": "" }
               ]
         when: "{{workflow.parameters.object_store}} == minio"
 
@@ -222,7 +223,8 @@ spec:
             value: |
               [
                 { "app_group": "lma", "path": "lma-bucket", "namespace": "taco-system", "target_cluster": "" },
-                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" }
+                { "app_group": "lma", "path": "loki", "namespace": "lma", "target_cluster": "" },
+                { "app_group": "lma", "path": "loki-user", "namespace": "lma", "target_cluster": "" }
               ]
 
   - name: update-eps-for-thanos
@@ -383,6 +385,8 @@ spec:
 
           cd -
         done
+
+        ls
         yq -i e  ".global.tksIamRoles=[${iamRoles}]" ${primary_cluster}/${primary_cluster}/lma/site-values.yaml
 
         git config --global user.name "tks"
@@ -490,7 +494,31 @@ spec:
           fi
         fi
 
-        if [[ "$OBJECT_STORE" == "minio" ]]; then
+        LOKI_USER_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.loki_user}'| base64 -d )
+
+        if [[ "$LOKI_USER_SERVICE" == "" ]]; then
+          while [ -z $(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[*].hostname}") ]
+          do
+            if [ "$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.spec.type}")" -neq "LoadBalancer" ]; then
+              log "FAIL" "The infras on primary are not cofigured properly.(No LoadBalancer)"
+              exit -1
+            fi
+
+            echo "Waiting for generating the loadbalancer of LOKI_USER(3s)"
+            sleep 3
+          done
+
+          LOKI_USER_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+          LOKI_USER_PORT=$(kubectl --kubeconfig=kubeconfig get svc -n lma loki-user-loki-distributed-gateway -o jsonpath="{.spec.ports[0].port}")
+        else
+          LOKI_USER_HOST=$(echo $LOKI_USER_SERVICE | awk -F : '{print $1}')
+          LOKI_USER_PORT=$(echo $LOKI_USER_SERVICE | awk -F : '{print $2}')
+          if [[ "$LOKI_USER_PORT" == "" ]]; then
+            LOKI_USER_PORT=80
+          fi
+        fi
+
+        if [[ "${primary_cluster}" == "${current_cluster}" ]] && [[ "$OBJECT_STORE" == "minio" ]]; then
           S3_SERVICE=$(kubectl get secret -n ${primary_cluster} tks-endpoint-secret -o jsonpath='{.data.minio}'| base64 -d )
           if [[ "$S3_SERVICE" == "" ]]; then
             S3_HOST=$(kubectl --kubeconfig=kubeconfig get svc -n lma minio -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
@@ -512,15 +540,14 @@ spec:
         for member in $member_clusters
         do
           # 1. endpoint of fb on eachcluster
-          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE (the current target is ${member})"
+          log "INFO" "##### change the loki target to $LOKI_HOST:$LOKI_PORT (the current target is ${member})"
           [ -d ${member} ] || git clone ${repository_base}${member}
           cd ${member}
 
           yq -i e  ".global.lokiHost=\"${LOKI_HOST}\"" ${member}/lma/site-values.yaml
           yq -i e  ".global.lokiPort=\"${LOKI_PORT}\"" ${member}/lma/site-values.yaml
-          if [[ "$OBJECT_STORE" == "minio" ]]; then
-            yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
-          fi
+          yq -i e  ".global.lokiuserHost=\"${LOKI_USER_HOST}\"" ${member}/lma/site-values.yaml
+          yq -i e  ".global.lokiuserPort=\"${LOKI_USER_PORT}\"" ${member}/lma/site-values.yaml
 
           yq -i e  ".global.clusterName=\"${member}\"" ${member}/lma/site-values.yaml
 
@@ -529,6 +556,9 @@ spec:
             yq -i e  ".global.grafanaDatasourceMetric=\"thanos-query.lma:9090\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.TksWebhookUrl=\"{{workflow.parameters.alert_tks}}\"" ${member}/lma/site-values.yaml
             yq -i e  ".global.SlackUrl=\"{{workflow.parameters.alert_slack}}\"" ${member}/lma/site-values.yaml
+            if [[ "$OBJECT_STORE" == "minio" ]]; then
+              yq -i e  ".global.s3Service=\"${S3_SERVICE}\"" ${member}/lma/site-values.yaml
+            fi
           else
             yq -i e  ".global.grafanaDatasourceMetric=\"lma-prometheus.lma:9090\"" ${member}/lma/site-values.yaml
           fi
@@ -543,9 +573,9 @@ spec:
         do
           cd ${member}
           if [[ `git status --porcelain` ]]; then
-            log "INFO" "##### commit changes on ${member} to $LOKI_HOST:$LOKI_PORT and $S3_SERVICE"
+            log "INFO" "##### commit changes on ${member} to loki: $LOKI_HOST:$LOKI_PORT "
             if [[ "$OBJECT_STORE" == "minio" ]]; then
-              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and grafana to $S3_SERVICE (cluster ${member})"
+              cmessage="the loki to $LOKI_HOST:$LOKI_PORT and prometheus to $S3_SERVICE (cluster ${member})"
             else
               cmessage="the loki to $LOKI_HOST:$LOKI_PORT (cluster ${member})"
             fi
@@ -852,7 +882,7 @@ spec:
 
         for cid in {{inputs.parameters.target-clusters}}
         do
-          for app in loki grafana
+          for app in loki grafana loki-user
           do
             APP=${cid}-${app}
 
@@ -866,7 +896,7 @@ spec:
 
         for cid in {{inputs.parameters.target-clusters}}
         do
-          for app in loki grafana
+          for app in loki grafana loki-user
           do
             APP=${cid}-${app}
             echo "Found app '$APP'. Start deleting it.."
@@ -1063,6 +1093,7 @@ spec:
 
                   aws s3 rm s3://${cluster_id}-tks-thanos --recursive
                   aws s3 rm s3://${cluster_id}-tks-loki --recursive
+                  aws s3 rm s3://${cluster_id}-tks-loki-user --recursive
                 
               restartPolicy: Never
           backoffLimit: 4

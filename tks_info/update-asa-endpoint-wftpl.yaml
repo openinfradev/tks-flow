@@ -24,6 +24,7 @@ spec:
     inputs:
       parameters:
       - name: organization_id
+      - name: project_id
       - name: asa_id
       - name: asa_task_id
       - name: endpoint
@@ -50,6 +51,7 @@ spec:
 
         TKS_API_URL = '{{workflow.parameters.tks_api_url}}'
         ORG_ID = '{{inputs.parameters.organization_id}}'
+        PROJECT_ID = '{{inputs.parameters.project_id}}'
         APP_ID = '{{inputs.parameters.asa_id}}'
         TASK_ID = '{{inputs.parameters.asa_task_id}}'
         ENDPOINT_URL = '{{inputs.parameters.endpoint}}'
@@ -74,16 +76,13 @@ spec:
             logStr='response text: {}\n'.format(res.text)
             with open(UPDATE_LOG, "a") as f:
               f.write(wfRefStr)
-              f.write(logStr)
               f.write(loginErrStr)
-            print(logStr)
             sys.exit(loginErrStr)
           res_json = res.json()
           return res_json['user']['token']
 
-
         TOKEN = getToken()
-        uri = '/api/1.0/organizations/%s/app-serve-apps/%s/endpoint' % (ORG_ID, APP_ID)
+        uri = '/api/1.0/organizations/%s/projects/%s/app-serve-apps/%s/endpoint' % (ORG_ID, PROJECT_ID, APP_ID)
         data = {
           'taskId': TASK_ID,
           'endpointUrl': ENDPOINT_URL,
