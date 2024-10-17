@@ -340,7 +340,7 @@ spec:
           tks login {{workflow.parameters.tks_api_url}} --organization-id ${ORGANIZATION_ID} --account-id ${ACCOUNT_ID} --password ${PASSWORD}
           tks appgroup create --name "{{inputs.parameters.name}}" --cluster-id "{{inputs.parameters.cluster_id}}" --type "{{inputs.parameters.type}}" --description "{{inputs.parameters.description}}"
 
-          threshold=30
+          threshold=60
           for i in $(seq 1 $threshold)
           do
             STATUS=$(tks appgroup list {{inputs.parameters.cluster_id}} | grep -w {{inputs.parameters.name}} | awk '{print $5}')
