@@ -157,16 +157,6 @@ spec:
               value: "{{workflow.parameters.app_prefix}}-s3-chart"
         when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws "
 
-    - - name: deleteS3ChartCrdApp
-        templateRef:
-          name: delete-apps
-          template: DeleteAppsByName
-        arguments:
-          parameters:
-            - name: app_name
-              value: "{{workflow.parameters.app_prefix}}-s3-chart-crds"
-        when: "{{steps.findInfraProvider.outputs.parameters.infra_provider}} == aws "
-
     - - name: deleteCalicoController
         template: deleteCalicoController
         when: "{{steps.findInfraProvider.outputs.parameters.managed_cluster}} == false"
