@@ -134,15 +134,15 @@ spec:
           log 0 "INFO" "Starting build manifests for '${site}' site"
           for app in `ls ${site}/`
           do
-            /installer/template -b ${BASE_DIR}/${app}/${site} -o ${site}/${app}/site-values.yaml --output ${OUTPUT_DIR}/${site}/${app}
+            /installer/template -b ${BASE_DIR}/${app} -o ${site}/${app}/site-values.yaml --output ${OUTPUT_DIR}/${site}/${app}
             log 0 "INFO" "Successfully Generate ${app} manifests Files!"
 
-            sudo mkdir $outputdir/$site/$app/CRD
+            mkdir ${OUTPUT_DIR}/$site/$app/CRD
 
-            echo "Move every CustomResourceDefinition to $outputdir/$site/$app/CRD"
-            for i in `find $outputdir/$site/$app | grep CustomResourceDefinition | grep -v '/CRD/'`
+            echo "Move every CustomResourceDefinition to ${OUTPUT_DIR}/$site/$app/CRD"
+            for i in `find ${OUTPUT_DIR}/$site/$app | grep CustomResourceDefinition | grep -v '/CRD/'`
             do
-              sudo mv $i $outputdir/$site/$app/CRD
+              mv $i ${OUTPUT_DIR}/$site/$app/CRD
             done
           done
 
