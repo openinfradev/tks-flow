@@ -137,12 +137,12 @@ spec:
             /installer/template -b ${BASE_DIR}/${app} -o ${site}/${app}/site-values.yaml --output ${OUTPUT_DIR}/${site}/${app}
             log 0 "INFO" "Successfully Generate ${app} manifests Files!"
 
-            mkdir ${OUTPUT_DIR}/$site/$app/CRD
+            mkdir ${OUTPUT_DIR}/$site/$app/${app}-CRD
 
-            echo "Move every CustomResourceDefinition to ${OUTPUT_DIR}/$site/$app/CRD"
-            for i in `find ${OUTPUT_DIR}/$site/$app | grep CustomResourceDefinition | grep -v '/CRD/'`
+            echo "Move every CustomResourceDefinition to ${OUTPUT_DIR}/$site/$app/${app}-CRD"
+            for i in `find ${OUTPUT_DIR}/$site/$app | grep CustomResourceDefinition | grep -v '/${app}-CRD/'`
             do
-              mv $i ${OUTPUT_DIR}/$site/$app/CRD
+              mv $i ${OUTPUT_DIR}/$site/$app/${app}-CRD
             done
           done
 
