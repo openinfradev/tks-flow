@@ -215,7 +215,7 @@ spec:
               - name: list
                 value: |
                   [
-                    { "app_group": "tks-cluster", "path": "CRD", "namespace": "taco-system", "target_cluster": "" }
+                    { "app_group": "tks-cluster", "path": "tks-cluster-CRD", "namespace": "taco-system", "target_cluster": "" }
                   ]
 
         - - name: install-addons-cni
