@@ -60,7 +60,7 @@ spec:
               - name: list
                 value: |
                   [
-                    { "app_group": "tks-cluster", "path": "CRD", "namespace": "argo", "target_cluster": "tks-admin" }
+                    { "app_group": "tks-cluster", "path": "tks-cluster-CRD", "namespace": "argo", "target_cluster": "tks-admin" }
                   ]
         - - name: tks-get-cluster-info
             templateRef:
